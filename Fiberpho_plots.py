@@ -21,41 +21,21 @@ import matplotlib.pyplot as plt
 plt.rcParams.update({'figure.max_open_warning' : 0})
 from pathlib import Path
 import os
+import sys
+
+#Custom
+#put path to directory where python files are stored
+sys.path.append('C:\\Users\\Alice\\Documents\\GitHub\\Fiberphotometry_analysis')
 
 #%%
 ########
 #LOADER#
 ########
 
-# experiment Path mac : /Volumes/My Passport/Alice/Fiber/202103_CDHFDdvHPC/
-# experiment Path windows : E:/Alice/Fiber/202103_CDHFDdvHPC/
+from Fiberpho_loader import experiment_path, analysis_path, subjects_df, SAMPLERATE
+from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN
 
-#path to experiment and analysis folder
-experiment_path = Path('E:/Alice/Fiber/202103_CDHFDdvHPC/')
-analysis_path = experiment_path / '202103_Analysis/'
-
-#import ID and groups of mice included in the study
-subjects_path = experiment_path / 'subjects.xlsx'
-subjects_df = pd.read_excel(subjects_path, sheet_name='Included')
-
-#all analysis files in experimentpath/date_Analysis/date_Experiment/Session/Mouse
-#exemple : /Volumes/My Passport/Alice/Fiber/202103_CDHFDdvHPC/202103_Analysis/20210302_ORM/Test 1h/CD1
-    
-SAMPLERATE = 10 #in samples per second
-
-#list of behaviours on which to do peri event time histograms (PETH)
-list_EVENT = ['onset', 'withdrawal']
-list_TIMEWINDOW = [[3,5],[3,7]] 
-
-#time before behaviour for calculation of PETH baseline, in seconds
-PRE_EVENT_TIME = 0.5
-
-#time to crop at the beginning of the trial to remove artifact, in seconds
-TIME_BEGIN = 60
-
-#CAUTION : with the code as it is, can process up to 4 different behaviours
-#if more, add elif to align_behav function
-
+os.chdir(experiment_path)
 
 #%%
 ###################
@@ -577,75 +557,10 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
     
     #save figure
     fig4.savefig(str(mouse_path)+'/'+mouse+'_'+BOI+'_PETH.png')
-
-#%%
-def PETH_allsubjects(subjects_df):
-    """
-    Creates dataframe of fiberpho data centered on event for all subjects
-    using functions PETH_onset and PETH_offset
-    --> Parameters
-        behavprocess_df : pd dataframe, aligned fiberpho and behav data for 1 mouse
-    --> Returns
-        PETHo_new_df : pd dataframe, fiberpho data centered on bout withdrawal for 1 mouse
-        PETHo_fam_df : pd dataframe, fiberpho data centered on bout withdrawal for 1 mouse
-    """
-    
-    for exp_path in Path(analysis_path).iterdir():
-        if exp_path.is_dir():
-            for session_path in Path(exp_path).iterdir():
-                set_groups = set(subjects_df['Group'])
-                list_groups = list(set_groups)
-                for group in list_groups:
-                    for mouse in subjects_df.loc[subjects_df['Group'] == group, 'Subjects']:
-                    
-                #get the name of the mouse, session and experiment
-                # '/' on mac, '\\' on windows
-                exp = str(mouse_path).split('\\')[-3]
-                session = str(mouse_path).split('\\')[-2]
-                
-
-                    
-    
-    return(PETHall_df)
-
     
 ########
 #SCRIPT#
 ########
-#%%Plot heatmap
-
-mouse_path = analysis_path / '20210303_OdDis/Test/CD3'
-mouse = str(mouse_path).split('\\')[-1]
-
-behav_path = str(mouse_path) + '/behav_' + mouse + '.csv'
-fiberpho_path = str(mouse_path) + '/' + mouse + '_dFFfilt.csv'
-camera_path = str(mouse_path) + '/' + mouse + '_camera.csv'
-rawdata_path = str(mouse_path) + '/' + mouse +  '_rawdata.csv'
-    
-behav10Sps = pd.read_csv(behav_path)
-fiberpho = pd.read_csv(fiberpho_path)
-camera = pd.read_csv(camera_path)
-rawdata_df = pd.read_csv(rawdata_path)
-
-list_BOI = behav10Sps.columns[1:].tolist()
-
-print('timevector')
-timevector = time_vector(fiberpho, SAMPLERATE)
-print('timestamp')
-timestart_camera = timestamp_camera(camera)[0]
-print('start camera : ', timestart_camera)
-print('aligning')
-fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
-print('processing')
-(fiberbehav2_df, fbprocess_df) = behav_process(fiberbehav_df, list_BOI)
-
-BOI = 'Exploration new'
-event = 'onset'
-timewindow = [3,5]
-
-PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
-plot_PETH(PETH_data, BOI, event, timewindow)
-
 
 #%%Run test
 
