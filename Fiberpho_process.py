@@ -6,7 +6,7 @@ Processing of fiberpho data
 Full trace dFF according to Lerner et al. 2015
 https://www.tdt.com/support/python-sdk/offline-analysis-examples/licking-bout-epoc-filtering/
 
-@author: Alice
+@author: Alice Fermigier
 """
 
 #%%
@@ -18,6 +18,7 @@ import pandas as pd
 import numpy as np
 import math
 import os
+import sys
 
 #Custom
 #put path to directory where python files are stored

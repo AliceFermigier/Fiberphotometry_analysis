@@ -16,9 +16,6 @@ Behavioral scoring is done using Boris software
 
 import os
 import pandas as pd
-import numpy as np
-import math
-import matplotlib.pyplot as plt
 from pathlib import Path
 #with pathlib.Path : file_to_open = data_folder / "raw_data.txt"
 
@@ -27,13 +24,13 @@ from pathlib import Path
 #LOADER#
 ########
 
-experiment_path = Path('E:/Alice/Fiber/202103_CDHFDdvHPC/')
-analysis_path = experiment_path / '202103_Analysis/'
+experiment_path = Path('/Users/alice/Desktop/PhD/Manips/Fiber_22012021/202103_CDHFDmalestest/')
+analysis_path = experiment_path / '202103_Analysis'
 os.chdir(experiment_path)
 os.getcwd()
 
 #import ID and groups of all mice
-subjects_df = pd.read_excel('202103_Analysis/subjects.xlsx')
+subjects_df = pd.read_excel('subjects.xlsx')
 
 #all analysis files in Batch/Experiment/Analysis/Subject_Trial
 #each trial of each subject has a specific directory called CD1_0, CD1_2, etc...
@@ -48,10 +45,10 @@ SAMPLERATE = 10 #in samples per second
 
 #list of behaviours on which to do peri event time histograms (PETH)
 list_EVENT = ['onset', 'withdrawal']
-list_TIMEWINDOW = [[3,5],[3,7]] 
+list_TIMEWINDOW = [[4,5],[4,7]] 
 
 #time before behaviour for calculation of PETH baseline, in seconds
-PRE_EVENT_TIME = 0.5
+PRE_EVENT_TIME = 1
 
 #time to crop at the beginning of the trial to remove artifact, in seconds
 TIME_BEGIN = 60

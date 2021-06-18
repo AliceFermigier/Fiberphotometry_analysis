@@ -25,7 +25,7 @@ import sys
 
 #Custom
 #put path to directory where python files are stored
-sys.path.append('C:\\Users\\Alice\\Documents\\GitHub\\Fiberphotometry_analysis')
+sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
 
 #%%
 ########
@@ -215,9 +215,9 @@ def plot_rawdata(rawdata_df):
     
     # if windows : \\
     # if mac : /
-    mouse = str(mouse_path).split('\\')[-1]
-    session = str(mouse_path).split('\\')[-2]
-    exp = str(mouse_path).split('\\')[-3]
+    mouse = str(mouse_path).split('/')[-1]
+    session = str(mouse_path).split('/')[-2]
+    exp = str(mouse_path).split('/')[-3]
     
     time_stop = rawdata_df.loc[len(rawdata_df)-1,'Time(s)']
     time_stop = np.ceil(time_stop)
@@ -248,9 +248,9 @@ def plot_fiberpho(fiberbehav_df):
     
     # if windows : \\
     # if mac : /
-    mouse = str(mouse_path).split('\\')[-1]
-    session = str(mouse_path).split('\\')[-2]
-    exp = str(mouse_path).split('\\')[-3]
+    mouse = str(mouse_path).split('/')[-1]
+    session = str(mouse_path).split('/')[-2]
+    exp = str(mouse_path).split('/')[-3]
     
     #crops starting artifacts
     fiberbehavsnip_df = fiberbehav_df[fiberbehav_df['Time(s)'] > 40]
@@ -281,9 +281,9 @@ def plot_fiberpho_behav(fiberbehav_df):
     
     # if windows : \\
     # if mac : /
-    mouse = str(mouse_path).split('\\')[-1]
-    session = str(mouse_path).split('\\')[-2]
-    exp = str(mouse_path).split('\\')[-3]
+    mouse = str(mouse_path).split('/')[-1]
+    session = str(mouse_path).split('/')[-2]
+    exp = str(mouse_path).split('/')[-3]
     
     fig2 = plt.figure(figsize=(20,12))
     ax1 = fig2.add_subplot(311)
@@ -309,7 +309,7 @@ def plot_fiberpho_behav(fiberbehav_df):
         #     if y == 1:
         #         ax1.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5)
         
-    if session in ['Habituation','Training','S1','S2']:
+    if session in ['Habituation','Training','S1']:
         #plots fiberpho trace and behaviourb 
         p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data = fiberbehavsnip_df)
 
@@ -327,6 +327,25 @@ def plot_fiberpho_behav(fiberbehav_df):
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
         #         ax1.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5)
+    
+    if session in ['S2']:
+        #plots fiberpho trace and behaviour
+        p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data = fiberbehavsnip_df)
+    
+        #makes areas corresponding to behaviours
+        i = 0
+        j = 0
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration non social'].tolist()):
+            if y == 1:
+                ax1.axvspan(x, x+0.1, facecolor='grey', alpha=0.5, label = '_'*i + 'Exploration non social')
+                i += 1
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration social'].tolist()):
+            if y == 1:
+                ax1.axvspan(x, x+0.1, facecolor='mediumvioletred', alpha=0.5, label = '_'*j + 'Exploration social')
+                j += 1
+        # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
+        #     if y == 1:
+        #         ax2.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5)
             
     #makes vertical line for entry in open field
     x_entry = fiberbehav_df.at[int(np.where(fiberbehav_df['Entry in open field'] == 1)[0][0]), 'Time(s)']
@@ -351,9 +370,9 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
     
     # if windows : \\
     # if mac : /
-    mouse = str(mouse_path).split('\\')[-1]
-    session = str(mouse_path).split('\\')[-2]
-    exp = str(mouse_path).split('\\')[-3]
+    mouse = str(mouse_path).split('/')[-1]
+    session = str(mouse_path).split('/')[-2]
+    exp = str(mouse_path).split('/')[-3]
     
     fig3 = plt.figure(figsize=(20,12))
     ax2 = fig3.add_subplot(311)
@@ -383,7 +402,7 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
         #     if y == 1:
         #         ax2.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5)
         
-    if session in ['Habituation','Training','S1','S2']:
+    if session in ['Habituation','Training','S1']:
         #plots fiberpho trace and behaviour
         p1, = ax2.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data = fiberbehavsnip_df)
     
@@ -397,6 +416,25 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
         for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration right'].tolist()):
             if y == 1:
                 ax2.axvspan(x, x+0.1, facecolor='darkturquoise', alpha=0.5, label = '_'*j + 'Exploration right')
+                j += 1
+        # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
+        #     if y == 1:
+        #         ax2.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5)
+        
+    if session in ['S2']:
+        #plots fiberpho trace and behaviour
+        p1, = ax2.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data = fiberbehavsnip_df)
+    
+        #makes areas corresponding to behaviours
+        i = 0
+        j = 0
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration non social'].tolist()):
+            if y == 1:
+                ax2.axvspan(x, x+0.1, facecolor='grey', alpha=0.5, label = '_'*i + 'Exploration non social')
+                i += 1
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration social'].tolist()):
+            if y == 1:
+                ax2.axvspan(x, x+0.1, facecolor='mediumvioletred', alpha=0.5, label = '_'*j + 'Exploration social')
                 j += 1
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
@@ -417,8 +455,7 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
     fig3.savefig(str(mouse_path)+'/'+mouse+'_fiberbehavsnip_scaled.png')
     
     return
-    
-#%%
+
 def PETH(behavprocess_df, BOI, event, timewindow):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI
@@ -468,9 +505,9 @@ def plot_PETH(PETH_data, BOI, event, timewindow):
     
     # if windows : \\
     # if mac : /
-    mouse = str(mouse_path).split('\\')[-1]
-    session = str(mouse_path).split('\\')[-2]
-    exp = str(mouse_path).split('\\')[-3]
+    mouse = str(mouse_path).split('/')[-1]
+    session = str(mouse_path).split('/')[-2]
+    exp = str(mouse_path).split('/')[-3]
     
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
@@ -531,9 +568,9 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
     """
     # if windows : \\
     # if mac : /
-    mouse = str(mouse_path).split('\\')[-1]
-    session = str(mouse_path).split('\\')[-2]
-    exp = str(mouse_path).split('\\')[-3]
+    mouse = str(mouse_path).split('/')[-1]
+    session = str(mouse_path).split('/')[-2]
+    exp = str(mouse_path).split('/')[-3]
     
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
@@ -564,8 +601,8 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
 
 #%%Run test
 
-mouse_path = analysis_path / '20210304_SRM/S3/CD3'
-mouse = str(mouse_path).split('\\')[-1]
+mouse_path = analysis_path / '20210302_ORM/Test 1h/CD3'
+mouse = str(mouse_path).split('/')[-1]
 
 behav_path = str(mouse_path) + '/behav_' + mouse + '.csv'
 fiberpho_path = str(mouse_path) + '/' + mouse + '_dFFfilt.csv'
@@ -592,14 +629,14 @@ print('processing')
 (fiberbehav2_df, fbprocess_df) = behav_process(fiberbehav_df, list_BOI)
 
 #plot raw data
-plot_rawdata(rawdata_df)
+#plot_rawdata(rawdata_df)
 
 #plot isosbestic and gcamp data
-plot_fiberpho(fiberbehav_df)
+#plot_fiberpho(fiberbehav_df)
 
 #plot fiberpho data aligned with behav
-plot_fiberpho_behav(fiberbehav2_df)
-plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
+#plot_fiberpho_behav(fiberbehav2_df)
+#plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
 
 for BOI in list_BOI:
     if BOI == 'Entry in open field':
@@ -614,56 +651,57 @@ for BOI in list_BOI:
 
 #list experiments, sessions and mice:
 for exp_path in Path(analysis_path).iterdir():
-    for session_path in Path(exp_path).iterdir():
-        for mouse_path in Path(session_path).iterdir():
-            #get the name of the mouse, session and experiment
-            # '/' on mac, '\\' on windows
-            exp = str(mouse_path).split('\\')[-3]
-            session = str(mouse_path).split('\\')[-2]
-            mouse = str(mouse_path).split('\\')[-1]
-            print(exp, session, mouse)
-            
-            if Path(str(mouse_path)+'/'+mouse+'_fiberbehavsnip.png').is_file():
-                #get data
-                behav_path = str(mouse_path) + '/behav_' + mouse + '.csv'
-                fiberpho_path = str(mouse_path) + '/' + mouse + '_dFFfilt.csv'
-                camera_path = str(mouse_path) + '/' + mouse + '_camera.csv'
-                rawdata_path = str(mouse_path) + '/' + mouse +  '_rawdata.csv'
+    if exp_path.is_dir():
+        for session_path in Path(exp_path).iterdir():
+            if session_path.is_dir():
+                for mouse_path in Path(session_path).iterdir():
+                    #get the name of the mouse, session and experiment
+                    # '/' on mac, '\\' on windows
+                    exp = str(mouse_path).split('/')[-3]
+                    session = str(mouse_path).split('/')[-2]
+                    mouse = str(mouse_path).split('/')[-1]
+                    print(exp, session, mouse)
                     
-                behav10Sps = pd.read_csv(behav_path)
-                fiberpho = pd.read_csv(fiberpho_path)
-                camera = pd.read_csv(camera_path)
-                rawdata_df = pd.read_csv(rawdata_path)
-                
-                 #list of behaviours to analyze
-                list_BOI = behav10Sps.columns[1:].tolist()
-                
-                #align behaviour and fiberpho data, create fbprocess.xslx
-                print('timevector')
-                timevector = time_vector(fiberpho, SAMPLERATE)
-                print('timestamp')
-                timestart_camera = timestamp_camera(camera)[0]
-                print('start camera : ', timestart_camera)
-                print('aligning')
-                fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
-                print('processing')
-                (fiberbehav2_df, fbprocess_df) = behav_process(fiberbehav_df, list_BOI)
-                
-                # #plot raw data
-                # plot_rawdata(rawdata_df)
-                
-                # #plot isosbestic and gcamp data
-                # plot_fiberpho(fiberbehav_df)
-                
-                #plot fiberpho data aligned with behav
-                plot_fiberpho_behav(fiberbehav2_df)
-                plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
-                
-                # for BOI in list_BOI:
-                #     if BOI == 'Entry in open field':
-                #         PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
-                #         plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
-                #     else:
-                #         for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
-                #             PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
-                #             plot_PETH(PETH_data, BOI, event, timewindow)
+                    #get data
+                    behav_path = str(mouse_path) + '/behav_' + mouse + '.csv'
+                    fiberpho_path = str(mouse_path) + '/' + mouse + '_dFFfilt.csv'
+                    camera_path = str(mouse_path) + '/' + mouse + '_camera.csv'
+                    rawdata_path = str(mouse_path) + '/' + mouse +  '_rawdata.csv'
+                        
+                    behav10Sps = pd.read_csv(behav_path)
+                    fiberpho = pd.read_csv(fiberpho_path)
+                    camera = pd.read_csv(camera_path)
+                    rawdata_df = pd.read_csv(rawdata_path)
+                    
+                     #list of behaviours to analyze
+                    list_BOI = behav10Sps.columns[1:].tolist()
+                    
+                    #align behaviour and fiberpho data, create fbprocess.xslx
+                    print('timevector')
+                    timevector = time_vector(fiberpho, SAMPLERATE)
+                    print('timestamp')
+                    timestart_camera = timestamp_camera(camera)[0]
+                    print('start camera : ', timestart_camera)
+                    print('aligning')
+                    fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
+                    print('processing')
+                    (fiberbehav2_df, fbprocess_df) = behav_process(fiberbehav_df, list_BOI)
+                    
+                    # #plot raw data
+                    plot_rawdata(rawdata_df)
+                    
+                    # #plot isosbestic and gcamp data
+                    plot_fiberpho(fiberbehav_df)
+                    
+                    #plot fiberpho data aligned with behav
+                    plot_fiberpho_behav(fiberbehav2_df)
+                    plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
+                    
+                    for BOI in list_BOI:
+                        if BOI == 'Entry in open field':
+                            PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
+                            plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
+                        else:
+                            for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
+                                PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
+                                plot_PETH(PETH_data, BOI, event, timewindow)
