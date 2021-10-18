@@ -32,7 +32,7 @@ sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
 #LOADER#
 ########
 
-from Fiberpho_loader import experiment_path, analysis_path, subjects_df, SAMPLERATE
+from Fiberpho_loader import data_path, experiment_path, analysis_path, subjects_df, SAMPLERATE
 from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN
 
 os.chdir(experiment_path)
@@ -237,7 +237,7 @@ def plot_rawdata(rawdata_df):
     ax7.set_title('GCaMP and Isosbestic raw traces - '+exp+' '+session+' '+mouse)
     
     #save figure
-    fig5.savefig(str(mouse_path)+'/'+mouse+'_rawdata.png')
+    fig5.savefig(str(mouse_path)+'/'+mouse+'_rawdata.pdf')
     
     return
 
@@ -268,7 +268,7 @@ def plot_fiberpho(fiberbehav_df):
     ax0.set_title('GCaMP and Isosbestic dFF - '+exp+' '+session+' '+mouse)
     
     #save figure
-    fig1.savefig(str(mouse_path)+'/'+mouse+'_GCaMP_ISOS.png')
+    fig1.savefig(str(mouse_path)+'/'+mouse+'_GCaMP_ISOS.pdf')
     
     return
 
@@ -359,7 +359,7 @@ def plot_fiberpho_behav(fiberbehav_df):
     ax1.set_title('dFF with Behavioural Scoring - '+exp+' '+session+' '+mouse)
     
     #save figure
-    fig2.savefig(str(mouse_path)+'/'+mouse+'_fiberbehav_scaled.png')
+    fig2.savefig(str(mouse_path)+'/'+mouse+'_fiberbehav_scaled.pdf')
     
     return
 
@@ -392,11 +392,11 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
         j = 0
         for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration fam'].tolist()):
             if y == 1:
-                ax2.axvspan(x, x+0.1, facecolor='moccasin', alpha=0.5, label = '_'*i + 'Exploration fam')
+                ax2.axvspan(x, x+0.1, facecolor='gold', alpha=0.5, label = '_'*i + 'Exploration fam')
                 i += 1
         for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration new'].tolist()):
             if y == 1:
-                ax2.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5, label = '_'*j + 'Exploration new')
+                ax2.axvspan(x, x+0.1, facecolor='purple', alpha=0.5, label = '_'*j + 'Exploration new')
                 j += 1
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
@@ -452,7 +452,7 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
     ax2.set_title('dFF with Behavioural Scoring - '+exp+' '+session+' '+mouse)
     
     #save figure
-    fig3.savefig(str(mouse_path)+'/'+mouse+'_fiberbehavsnip_scaled.png')
+    fig3.savefig(str(mouse_path)+'/'+mouse+'_fiberbehavsnip_scaled.pdf')
     
     return
 
@@ -557,7 +557,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow):
     fig4.colorbar(cs, cax=cbar_ax)
     
     #save figure
-    fig4.savefig(str(mouse_path)+'/'+mouse+'_'+BOI+'_PETH'+event[0]+'.png')
+    fig4.savefig(str(mouse_path)+'/'+mouse+'_'+BOI+'_PETH'+event[0]+'.pdf')
     
     return
 
@@ -593,7 +593,7 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
     ax5.set_title(BOI+' - '+exp+' '+session+' '+mouse)
     
     #save figure
-    fig4.savefig(str(mouse_path)+'/'+mouse+'_'+BOI+'_PETH.png')
+    fig4.savefig(str(mouse_path)+'/'+mouse+'_'+BOI+'_PETH.pdf')
     
 ########
 #SCRIPT#
@@ -639,7 +639,7 @@ print('processing')
 #plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
 
 for BOI in list_BOI:
-    if BOI == 'Entry in open field':
+    if BOI == 'Entry in arena':
         PETH_data = PETH(fbprocess_df, BOI, 'onset', [10,10])
         plot_PETH_average(PETH_data, BOI, 'onset', [10,10])
     else:
@@ -698,7 +698,7 @@ for exp_path in Path(analysis_path).iterdir():
                     plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
                     
                     for BOI in list_BOI:
-                        if BOI == 'Entry in open field':
+                        if BOI == 'Entry in arena':
                             PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
                             plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
                         else:

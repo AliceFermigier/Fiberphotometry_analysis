@@ -10,7 +10,7 @@ Plot tracking
 import matplotlib.pyplot as plt
 import pandas as pd
 
-df_tracking = pd.read_csv('E:\\Alice\\Fiber\\202103_CDHFDdvHPC\\20210302_ORM\\Test1h\\CD1_tracking.csv')
+df_tracking = pd.read_csv('E:/Alice/Fiber/202103_CDHFDdvHPC/20210302_ORM/Test1h/CD1_tracking.csv')
 
 fig3 = plt.figure(figsize=(20,20))
 ax2 = fig3.add_subplot(111)

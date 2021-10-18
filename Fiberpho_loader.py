@@ -23,14 +23,16 @@ from pathlib import Path
 ########
 #LOADER#
 ########
-
-experiment_path = Path('/Users/alice/Desktop/PhD/Manips/Fiber_22012021/202103_CDHFDmalestest/')
-analysis_path = experiment_path / '202103_Analysis'
+experiment_path = Path('/Users/alice/Desktop/PhD/Manips/Fiber/202110_CA2dbatch2/')
+analysis_path = experiment_path / '202110_Analysis'
 os.chdir(experiment_path)
 os.getcwd()
 
 #import ID and groups of all mice
 subjects_df = pd.read_excel('subjects.xlsx')
+
+#import tasks in protocol
+proto_df = pd.read_excel('protocol.xlsx')
 
 #all analysis files in Batch/Experiment/Analysis/Subject_Trial
 #each trial of each subject has a specific directory called CD1_0, CD1_2, etc...
@@ -55,3 +57,19 @@ TIME_BEGIN = 60
 
 #CAUTION : with the code as it is, can process up to 4 different behaviours
 #if more, add elif to align_behav function
+
+#%%
+########
+#SCRIPT#
+########
+
+#create analysis folder nomenclature
+for task in proto_df['Task']:
+    if not os.path.exists(analysis_path / task):
+        os.mkdir(analysis_path / task)
+    for session in proto_df.loc[proto_df['Task']==task,'Sessions'].values[0].split(','):
+        if not os.path.exists(analysis_path / task / session):
+            os.mkdir(analysis_path / task / session)
+        for subject in subjects_df['Subject']:
+            if not os.path.exists(analysis_path / task / session / subject):
+                os.mkdir(analysis_path / task / session / subject)
