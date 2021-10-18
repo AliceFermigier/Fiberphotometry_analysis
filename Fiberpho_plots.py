@@ -32,7 +32,7 @@ sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
 #LOADER#
 ########
 
-from Fiberpho_loader import data_path, experiment_path, analysis_path, subjects_df, SAMPLERATE
+from Fiberpho_loader import experiment_path, analysis_path, subjects_df, SAMPLERATE
 from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN
 
 os.chdir(experiment_path)
@@ -160,7 +160,7 @@ def behav_process(fiberbehav_df, list_BOI):
 
     #1 fuse explorations that are too close
     
-    THRESHOLD = 10 #set threshold in 0.1seconds (because samplerate = 10Sps)
+    THRESHOLD = 30 #set threshold in 0.1seconds (because samplerate = 10Sps)
     
     for BOI in list_BOI:
         i_1 = 0
@@ -299,11 +299,11 @@ def plot_fiberpho_behav(fiberbehav_df):
         j = 0
         for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration fam'].tolist()):
             if y == 1:
-                ax1.axvspan(x, x+0.1, facecolor='moccasin', alpha=0.5, label = '_'*i + 'Exploration fam')
+                ax1.axvspan(x, x+0.1, facecolor='gold', alpha=0.7, label = '_'*i + 'Exploration fam')
                 i+=1
         for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration new'].tolist()):
             if y == 1:
-                ax1.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5, label = '_'*j + 'Exploration new')
+                ax1.axvspan(x, x+0.1, facecolor='purple', alpha=0.7, label = '_'*j + 'Exploration new')
                 j+=1
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
@@ -346,14 +346,18 @@ def plot_fiberpho_behav(fiberbehav_df):
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
         #         ax2.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5)
+        
+    #makes vertical line for entry opening of gate
+    x_entry = fiberbehav_df.at[int(np.where(fiberbehav_df['Gate opens'] == 1)[0][0]), 'Time(s)']
+    ax1.axvline(x_entry, color='lightsteelblue', ls = '--', label = 'Gate opens' )
             
     #makes vertical line for entry in open field
-    x_entry = fiberbehav_df.at[int(np.where(fiberbehav_df['Entry in open field'] == 1)[0][0]), 'Time(s)']
+    x_entry = fiberbehav_df.at[int(np.where(fiberbehav_df['Entry in arena'] == 1)[0][0]), 'Time(s)']
     ax1.axvline(x_entry, color='slategrey', ls = '--', label = 'Entry OF' )
     
     ax1.set_ylabel(r'$\Delta$F/F')
     ax1.set_xlabel('Seconds')
-    ax1.set_ylim(-15,35)
+    ax1.set_ylim(-2,3)
     ax1.legend(loc = 'upper right')
     ax1.margins(0.01,0.03)
     ax1.set_title('dFF with Behavioural Scoring - '+exp+' '+session+' '+mouse)
@@ -392,11 +396,11 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
         j = 0
         for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration fam'].tolist()):
             if y == 1:
-                ax2.axvspan(x, x+0.1, facecolor='gold', alpha=0.5, label = '_'*i + 'Exploration fam')
+                ax2.axvspan(x, x+0.1, facecolor='gold', alpha=0.7, label = '_'*i + 'Exploration fam')
                 i += 1
         for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration new'].tolist()):
             if y == 1:
-                ax2.axvspan(x, x+0.1, facecolor='purple', alpha=0.5, label = '_'*j + 'Exploration new')
+                ax2.axvspan(x, x+0.1, facecolor='purple', alpha=0.7, label = '_'*j + 'Exploration new')
                 j += 1
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
@@ -440,13 +444,17 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
         #     if y == 1:
         #         ax2.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5)
             
+    #makes vertical line for opening of gate
+    x_entry = fiberbehav_df.at[int(np.where(fiberbehav_df['Gate opens'] == 1)[0][0]), 'Time(s)']
+    ax2.axvline(x_entry, color='lightsteelblue', ls = '--', label = 'Gate opens' )
+            
     #makes vertical line for entry in open field
-    x_entry = fiberbehav_df.at[int(np.where(fiberbehav_df['Entry in open field'] == 1)[0][0]), 'Time(s)']
+    x_entry = fiberbehav_df.at[int(np.where(fiberbehav_df['Entry in arena'] == 1)[0][0]), 'Time(s)']
     ax2.axvline(x_entry, color='slategrey', ls = '--', label = 'Entry OF' )
        
     ax2.set_ylabel(r'$\Delta$F/F')
     ax2.set_xlabel('Seconds')
-    ax2.set_ylim(-15,35)
+    ax2.set_ylim(-2,3)
     ax2.legend(loc = 'upper right')
     ax2.margins(0.01,0.03)
     ax2.set_title('dFF with Behavioural Scoring - '+exp+' '+session+' '+mouse)
@@ -601,7 +609,7 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
 
 #%%Run test
 
-mouse_path = analysis_path / '20210302_ORM/Test 1h/CD3'
+mouse_path = analysis_path / '20211004_OdDis/Test/HFDm3'
 mouse = str(mouse_path).split('/')[-1]
 
 behav_path = str(mouse_path) + '/behav_' + mouse + '.csv'
@@ -612,7 +620,7 @@ rawdata_path = str(mouse_path) + '/' + mouse +  '_rawdata.csv'
 behav10Sps = pd.read_csv(behav_path)
 fiberpho = pd.read_csv(fiberpho_path)
 camera = pd.read_csv(camera_path)
-rawdata_df = pd.read_csv(rawdata_path)
+#rawdata_df = pd.read_csv(rawdata_path)
 
 
 #list of behaviours to analyze
@@ -632,16 +640,16 @@ print('processing')
 #plot_rawdata(rawdata_df)
 
 #plot isosbestic and gcamp data
-#plot_fiberpho(fiberbehav_df)
+plot_fiberpho(fiberbehav_df)
 
 #plot fiberpho data aligned with behav
-#plot_fiberpho_behav(fiberbehav2_df)
-#plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
+plot_fiberpho_behav(fiberbehav2_df)
+plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
 
 for BOI in list_BOI:
-    if BOI == 'Entry in arena':
-        PETH_data = PETH(fbprocess_df, BOI, 'onset', [10,10])
-        plot_PETH_average(PETH_data, BOI, 'onset', [10,10])
+    if BOI == 'Entry in arena' or BOI == 'Gate opens':
+        PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
+        plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
     else:
         for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
             PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
@@ -666,42 +674,43 @@ for exp_path in Path(analysis_path).iterdir():
                     behav_path = str(mouse_path) + '/behav_' + mouse + '.csv'
                     fiberpho_path = str(mouse_path) + '/' + mouse + '_dFFfilt.csv'
                     camera_path = str(mouse_path) + '/' + mouse + '_camera.csv'
-                    rawdata_path = str(mouse_path) + '/' + mouse +  '_rawdata.csv'
+                    #rawdata_path = str(mouse_path) + '/' + mouse +  '_rawdata.csv'
+                    
+                    if os.path.exists(behav_path):
+                        behav10Sps = pd.read_csv(behav_path)
+                        fiberpho = pd.read_csv(fiberpho_path)
+                        camera = pd.read_csv(camera_path)
+                        #rawdata_df = pd.read_csv(rawdata_path)
                         
-                    behav10Sps = pd.read_csv(behav_path)
-                    fiberpho = pd.read_csv(fiberpho_path)
-                    camera = pd.read_csv(camera_path)
-                    rawdata_df = pd.read_csv(rawdata_path)
-                    
-                     #list of behaviours to analyze
-                    list_BOI = behav10Sps.columns[1:].tolist()
-                    
-                    #align behaviour and fiberpho data, create fbprocess.xslx
-                    print('timevector')
-                    timevector = time_vector(fiberpho, SAMPLERATE)
-                    print('timestamp')
-                    timestart_camera = timestamp_camera(camera)[0]
-                    print('start camera : ', timestart_camera)
-                    print('aligning')
-                    fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
-                    print('processing')
-                    (fiberbehav2_df, fbprocess_df) = behav_process(fiberbehav_df, list_BOI)
-                    
-                    # #plot raw data
-                    plot_rawdata(rawdata_df)
-                    
-                    # #plot isosbestic and gcamp data
-                    plot_fiberpho(fiberbehav_df)
-                    
-                    #plot fiberpho data aligned with behav
-                    plot_fiberpho_behav(fiberbehav2_df)
-                    plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
-                    
-                    for BOI in list_BOI:
-                        if BOI == 'Entry in arena':
-                            PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
-                            plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
-                        else:
-                            for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
-                                PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
-                                plot_PETH(PETH_data, BOI, event, timewindow)
+                         #list of behaviours to analyze
+                        list_BOI = behav10Sps.columns[1:].tolist()
+                        
+                        #align behaviour and fiberpho data, create fbprocess.xslx
+                        print('timevector')
+                        timevector = time_vector(fiberpho, SAMPLERATE)
+                        print('timestamp')
+                        timestart_camera = timestamp_camera(camera)[0]
+                        print('start camera : ', timestart_camera)
+                        print('aligning')
+                        fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
+                        print('processing')
+                        (fiberbehav2_df, fbprocess_df) = behav_process(fiberbehav_df, list_BOI)
+                        
+                        # #plot raw data
+                        #plot_rawdata(rawdata_df)
+                        
+                        # #plot isosbestic and gcamp data
+                        plot_fiberpho(fiberbehav_df)
+                        
+                        #plot fiberpho data aligned with behav
+                        plot_fiberpho_behav(fiberbehav2_df)
+                        plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
+                        
+                        for BOI in list_BOI:
+                            if BOI == 'Entry in arena' or BOI == 'Gate opens':
+                                PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
+                                plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
+                            else:
+                                for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
+                                    PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
+                                    plot_PETH(PETH_data, BOI, event, timewindow)
