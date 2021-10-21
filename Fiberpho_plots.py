@@ -290,20 +290,26 @@ def plot_fiberpho_behav(fiberbehav_df):
     
     if session in ['Test 1h','Test 24h','Test','S3']:
         #plots fiberpho trace and behaviour
-        p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data = fiberbehavsnip_df)
+        p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = fiberbehavsnip_df)
         # p2, = ax1.plot(fiberbehavsnip_df['Time(s)'], fiberbehavsnip_df['Exploration fam'], linewidth=1, 
         #                color='moccasin', label='Exploration fam')
         
         #makes areas corresponding to behaviours
         i = 0
         j = 0
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration fam'].tolist()):
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration fam'].diff()).tolist()):
             if y == 1:
-                ax1.axvspan(x, x+0.1, facecolor='gold', alpha=0.7, label = '_'*i + 'Exploration fam')
+                x_start = x
+            if y == -1 and x_start!=0:
+                ax1.axvspan(x_start, x, facecolor='gold', alpha=0.5, label = '_'*i + 'Exploration fam')
+                x_start=0
                 i+=1
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration new'].tolist()):
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration new'].diff()).tolist()):
             if y == 1:
-                ax1.axvspan(x, x+0.1, facecolor='purple', alpha=0.7, label = '_'*j + 'Exploration new')
+                x_start = x
+            if y == -1 and x_start!=0:
+                ax1.axvspan(x_start, x, facecolor='purple', alpha=0.5, label = '_'*j + 'Exploration new')
+                x_start=0
                 j+=1
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
@@ -311,18 +317,24 @@ def plot_fiberpho_behav(fiberbehav_df):
         
     if session in ['Habituation','Training','S1']:
         #plots fiberpho trace and behaviourb 
-        p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data = fiberbehavsnip_df)
+        p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = fiberbehavsnip_df)
 
         #makes areas corresponding to behaviours
         i = 0
         j = 0
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration left'].tolist()):
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration left'].diff()).tolist()):
             if y == 1:
-                ax1.axvspan(x, x+0.1, facecolor='orange', alpha=0.5, label = '_'*i + 'Exploration left')
+                x_start = x
+            if y == -1 and x_start!=0:
+                ax1.axvspan(x_start, x, facecolor='orange', alpha=0.5, label = '_'*i + 'Exploration left')
+                x_start=0
                 i+=1
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration right'].tolist()):
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration right'].diff()).tolist()):
             if y == 1:
-                ax1.axvspan(x, x+0.1, facecolor='darkturquoise', alpha=0.5, label = '_'*j + 'Exploration right')
+                x_start = x
+            if y == -1 and x_start!=0:
+                ax1.axvspan(x_start, x, facecolor='darkturquoise', alpha=0.5, label = '_'*j + 'Exploration right')
+                x_start=0
                 j+=1
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
@@ -330,18 +342,24 @@ def plot_fiberpho_behav(fiberbehav_df):
     
     if session in ['S2']:
         #plots fiberpho trace and behaviour
-        p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data = fiberbehavsnip_df)
+        p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = fiberbehavsnip_df)
     
         #makes areas corresponding to behaviours
         i = 0
         j = 0
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration non social'].tolist()):
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration non social'].diff()).tolist()):
             if y == 1:
-                ax1.axvspan(x, x+0.1, facecolor='grey', alpha=0.5, label = '_'*i + 'Exploration non social')
+                x_start = x
+            if y == -1 and x_start!=0:   
+                ax1.axvspan(x_start, x, facecolor='grey', alpha=0.5, label = '_'*i + 'Exploration non social')
+                x_start=0
                 i += 1
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration social'].tolist()):
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration social'].diff()).tolist()):
             if y == 1:
-                ax1.axvspan(x, x+0.1, facecolor='mediumvioletred', alpha=0.5, label = '_'*j + 'Exploration social')
+                x_start = x
+            if y == -1 and x_start!=0:   
+                ax1.axvspan(x_start, x, facecolor='mediumvioletred', alpha=0.5, label = '_'*j + 'Exploration social')
+                x_start=0
                 j += 1
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
@@ -357,7 +375,7 @@ def plot_fiberpho_behav(fiberbehav_df):
     
     ax1.set_ylabel(r'$\Delta$F/F')
     ax1.set_xlabel('Seconds')
-    ax1.set_ylim(-2,3)
+    ax1.set_ylim(-1,2)
     ax1.legend(loc = 'upper right')
     ax1.margins(0.01,0.03)
     ax1.set_title('dFF with Behavioural Scoring - '+exp+' '+session+' '+mouse)
@@ -389,37 +407,50 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
     
     if session in ['Test 1h','Test 24h','Test','S3']:
         #plots fiberpho trace and behaviour
-        p1, = ax2.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data = fiberbehavsnip_df)
+        p1, = ax2.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = fiberbehavsnip_df)
         
         #makes areas corresponding to behaviours
         i = 0
         j = 0
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration fam'].tolist()):
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration fam'].diff()).tolist()):
             if y == 1:
-                ax2.axvspan(x, x+0.1, facecolor='gold', alpha=0.7, label = '_'*i + 'Exploration fam')
-                i += 1
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration new'].tolist()):
+                x_start = x
+            if y == -1 and x_start!=0:
+                ax2.axvspan(x_start, x, facecolor='gold', alpha=0.5, label = '_'*i + 'Exploration fam')
+                x_start=0
+                i+=1
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration new'].diff()).tolist()):
             if y == 1:
-                ax2.axvspan(x, x+0.1, facecolor='purple', alpha=0.7, label = '_'*j + 'Exploration new')
-                j += 1
+                x_start = x
+            if y == -1 and x_start!=0:
+                ax2.axvspan(x_start, x, facecolor='purple', alpha=0.5, label = '_'*j + 'Exploration new')
+                x_start=0
+                j+=1
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
         #         ax2.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5)
         
     if session in ['Habituation','Training','S1']:
         #plots fiberpho trace and behaviour
-        p1, = ax2.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data = fiberbehavsnip_df)
+        p1, = ax2.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = fiberbehavsnip_df)
     
         #makes areas corresponding to behaviours
         i = 0
         j = 0
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration left'].tolist()):
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration left'].diff()).tolist()):
             if y == 1:
-                ax2.axvspan(x, x+0.1, facecolor='orange', alpha=0.5, label = '_'*i + 'Exploration left')
-                i += 1
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration right'].tolist()):
+                x_start = x
+            if y == -1 and x_start!=0:
+                ax2.axvspan(x_start, x, facecolor='orange', alpha=0.5, label = '_'*i + 'Exploration left')
+                x_start=0
+                i+=1
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration right'].diff()).tolist()):
             if y == 1:
-                ax2.axvspan(x, x+0.1, facecolor='darkturquoise', alpha=0.5, label = '_'*j + 'Exploration right')
+                x_start = x
+            if y == -1 and x_start!=0:
+                ax2.axvspan(x_start, x, facecolor='darkturquoise', alpha=0.5, label = '_'*j + 'Exploration right')
+                x_start=0
+                j+=1
                 j += 1
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
@@ -427,18 +458,24 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
         
     if session in ['S2']:
         #plots fiberpho trace and behaviour
-        p1, = ax2.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data = fiberbehavsnip_df)
+        p1, = ax2.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = fiberbehavsnip_df)
     
         #makes areas corresponding to behaviours
         i = 0
         j = 0
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration non social'].tolist()):
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration non social'].diff()).tolist()):
             if y == 1:
-                ax2.axvspan(x, x+0.1, facecolor='grey', alpha=0.5, label = '_'*i + 'Exploration non social')
+                x_start = x
+            if y == -1 and x_start!=0:   
+                ax2.axvspan(x_start, x, facecolor='grey', alpha=0.5, label = '_'*i + 'Exploration non social')
+                x_start=0
                 i += 1
-        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Exploration social'].tolist()):
+        for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), (fiberbehavsnip_df['Exploration social'].diff()).tolist()):
             if y == 1:
-                ax2.axvspan(x, x+0.1, facecolor='mediumvioletred', alpha=0.5, label = '_'*j + 'Exploration social')
+                x_start = x
+            if y == -1 and x_start!=0:   
+                ax2.axvspan(x_start, x, facecolor='mediumvioletred', alpha=0.5, label = '_'*j + 'Exploration social')
+                x_start=0
                 j += 1
         # for (x,y) in zip(fiberbehavsnip_df['Time(s)'].tolist(), fiberbehavsnip_df['Climbing'].tolist()):
         #     if y == 1:
@@ -454,7 +491,7 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
        
     ax2.set_ylabel(r'$\Delta$F/F')
     ax2.set_xlabel('Seconds')
-    ax2.set_ylim(-2,3)
+    ax2.set_ylim(-1,2)
     ax2.legend(loc = 'upper right')
     ax2.margins(0.01,0.03)
     ax2.set_title('dFF with Behavioural Scoring - '+exp+' '+session+' '+mouse)
@@ -479,16 +516,28 @@ def PETH(behavprocess_df, BOI, event, timewindow):
     #set time window relative to event
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
+    EVENT_TIME_THRESHOLD = 20 #2seconds
     
     #if behaviour not recognized
     if BOI not in behavprocess_df.columns[2:].tolist() :
         print('BOI not recognized')
+        
+    list_ind_event_o = np.where(behavprocess_df[BOI] == 1)[0].tolist()
+    list_ind_event_w = np.where(behavprocess_df[BOI] == -1)[0].tolist()
+    
+    #if event too short, don't process it
+    for (start,end) in zip(list_ind_event_o, list_ind_event_w):
+        print(start,end)
+        if end-start<EVENT_TIME_THRESHOLD and end-start>1:
+            print(end-start)
+            list_ind_event_o.remove(start)
+            list_ind_event_w.remove(end)
     
     #creates array of fiberpho data centered on event
     if event == 'onset':
-        list_ind_event = np.where(behavprocess_df[BOI] == 1)[0].tolist()
+        list_ind_event = list_ind_event_o
     elif event == 'withdrawal':
-        list_ind_event = np.where(behavprocess_df[BOI] == -1)[0].tolist()
+        list_ind_event = list_ind_event_w
         
     #if event happens too late in dataframe, don't process it
     if list_ind_event[-1]+POST_TIME*SAMPLERATE >= len(behavprocess_df):
@@ -700,17 +749,17 @@ for exp_path in Path(analysis_path).iterdir():
                         #plot_rawdata(rawdata_df)
                         
                         # #plot isosbestic and gcamp data
-                        plot_fiberpho(fiberbehav_df)
+                        #plot_fiberpho(fiberbehav_df)
                         
                         #plot fiberpho data aligned with behav
                         plot_fiberpho_behav(fiberbehav2_df)
                         plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
                         
-                        for BOI in list_BOI:
-                            if BOI == 'Entry in arena' or BOI == 'Gate opens':
-                                PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
-                                plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
-                            else:
-                                for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
-                                    PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
-                                    plot_PETH(PETH_data, BOI, event, timewindow)
+                        # for BOI in list_BOI:
+                        #     if BOI == 'Entry in arena' or BOI == 'Gate opens':
+                        #         PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
+                        #         plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
+                        #     else:
+                        #         for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
+                        #             PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
+                        #             plot_PETH(PETH_data, BOI, event, timewindow)
