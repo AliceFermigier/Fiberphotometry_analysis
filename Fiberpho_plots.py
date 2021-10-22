@@ -33,7 +33,7 @@ sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
 ########
 
 from Fiberpho_loader import experiment_path, analysis_path, subjects_df, SAMPLERATE
-from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN
+from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, THRESH_S
 
 os.chdir(experiment_path)
 
@@ -41,6 +41,20 @@ os.chdir(experiment_path)
 ###################
 #DEFINED FUNCTIONS#
 ###################
+
+def session_code(session):
+    """
+    Generate session code in file name
+    """
+    if session in ['Habituation','Training','S1']:
+        code = '_0'
+    if session in ['S2','Test 1h','Test']:
+        code = '_1'
+    elif session in ['S3','Test 24h']:
+        code = '_2'
+        
+    return(code)
+        
 
 def truncate(n, decimals=0):
     multiplier = 10 ** decimals
@@ -75,6 +89,20 @@ def timestamp_camera(camera) :
     (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
     return (truncate(camera.at[ind_start, 'Time(s)'], 1),
             truncate(camera.at[ind_stop, 'Time(s)'], 1))
+
+def timestamp_camera_fromraw(rawdata_df) :
+    """
+    Function to extract the timestamps where the camera starts and stops
+    --> Parameters
+        camera : pd dataframe, camera I/O with sample rate = 12kSps
+    --> Returns
+        (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
+    """
+    ind_list = np.where(rawdata_df['Digital I/O | Ch.3'] == 1)
+    ind_list = ind_list[0].tolist()
+    (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
+    return (truncate(camera.at[ind_start, '---'], 1),
+            truncate(camera.at[ind_stop, '---'], 1))
     
 def align_behav(behav10Sps, fiberpho, timevector, timestart_camera):
     """
@@ -160,7 +188,7 @@ def behav_process(fiberbehav_df, list_BOI):
 
     #1 fuse explorations that are too close
     
-    THRESHOLD = 30 #set threshold in 0.1seconds (because samplerate = 10Sps)
+    THRESHOLD = THRESH_S*10 #set threshold in 0.1seconds (because samplerate = 10Sps)
     
     for BOI in list_BOI:
         i_1 = 0
@@ -315,7 +343,7 @@ def plot_fiberpho_behav(fiberbehav_df):
         #     if y == 1:
         #         ax1.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5)
         
-    if session in ['Habituation','Training','S1']:
+    elif session in ['Habituation','Training','S1']:
         #plots fiberpho trace and behaviourb 
         p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = fiberbehavsnip_df)
 
@@ -340,7 +368,7 @@ def plot_fiberpho_behav(fiberbehav_df):
         #     if y == 1:
         #         ax1.axvspan(x, x+0.1, facecolor='cornflowerblue', alpha=0.5)
     
-    if session in ['S2']:
+    elif session in ['S2']:
         #plots fiberpho trace and behaviour
         p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = fiberbehavsnip_df)
     
@@ -381,7 +409,7 @@ def plot_fiberpho_behav(fiberbehav_df):
     ax1.set_title('dFF with Behavioural Scoring - '+exp+' '+session+' '+mouse)
     
     #save figure
-    fig2.savefig(str(mouse_path)+'/'+mouse+'_fiberbehav_scaled.pdf')
+    fig2.savefig(str(mouse_path)+'/'+mouse+'_threshold'+str(THRESH_S)+'s_fiberbehav_scaled.pdf')
     
     return
 
@@ -497,7 +525,7 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
     ax2.set_title('dFF with Behavioural Scoring - '+exp+' '+session+' '+mouse)
     
     #save figure
-    fig3.savefig(str(mouse_path)+'/'+mouse+'_fiberbehavsnip_scaled.pdf')
+    fig3.savefig(str(mouse_path)+'/'+mouse+'_threshold'+str(THRESH_S)+'s_fiberbehavsnip_scaled.pdf')
     
     return
 
@@ -693,7 +721,7 @@ plot_fiberpho(fiberbehav_df)
 
 #plot fiberpho data aligned with behav
 plot_fiberpho_behav(fiberbehav2_df)
-plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
+#plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
 
 for BOI in list_BOI:
     if BOI == 'Entry in arena' or BOI == 'Gate opens':
@@ -717,19 +745,25 @@ for exp_path in Path(analysis_path).iterdir():
                     exp = str(mouse_path).split('/')[-3]
                     session = str(mouse_path).split('/')[-2]
                     mouse = str(mouse_path).split('/')[-1]
-                    print(exp, session, mouse)
+                    
+                    code = session_code(session)
                     
                     #get data
                     behav_path = str(mouse_path) + '/behav_' + mouse + '.csv'
-                    fiberpho_path = str(mouse_path) + '/' + mouse + '_dFFfilt.csv'
-                    camera_path = str(mouse_path) + '/' + mouse + '_camera.csv'
-                    #rawdata_path = str(mouse_path) + '/' + mouse +  '_rawdata.csv'
+                    fiberpho_path = str(mouse_path) + '/' + mouse + code + '_dFFfilt.csv'
+                    camera_path = str(mouse_path) + '/' + mouse + code + '_camera.csv'
+                    rawdata_path = str(mouse_path) + '/' + mouse + code + '.csv'
                     
-                    if os.path.exists(behav_path):
+                    if os.path.exists(camera_path):
+                        camera = pd.read_csv(camera_path)
+                        
+                    if os.path.exists(rawdata_path):
+                        rawdata_df = pd.read_csv(rawdata_path)
+                    
+                    if os.path.exists(behav_path) and os.path.exists(fiberpho_path):
                         behav10Sps = pd.read_csv(behav_path)
                         fiberpho = pd.read_csv(fiberpho_path)
-                        camera = pd.read_csv(camera_path)
-                        #rawdata_df = pd.read_csv(rawdata_path)
+                        print(exp, session, mouse)
                         
                          #list of behaviours to analyze
                         list_BOI = behav10Sps.columns[1:].tolist()
@@ -738,7 +772,10 @@ for exp_path in Path(analysis_path).iterdir():
                         print('timevector')
                         timevector = time_vector(fiberpho, SAMPLERATE)
                         print('timestamp')
-                        timestart_camera = timestamp_camera(camera)[0]
+                        if os.path.exists(camera_path):
+                            timestart_camera = timestamp_camera(camera)[0]
+                        else:
+                            timestart_camera = timestamp_camera_fromraw(rawdata_df)
                         print('start camera : ', timestart_camera)
                         print('aligning')
                         fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
@@ -749,17 +786,17 @@ for exp_path in Path(analysis_path).iterdir():
                         #plot_rawdata(rawdata_df)
                         
                         # #plot isosbestic and gcamp data
-                        #plot_fiberpho(fiberbehav_df)
+                        plot_fiberpho(fiberbehav_df)
                         
                         #plot fiberpho data aligned with behav
                         plot_fiberpho_behav(fiberbehav2_df)
                         plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
                         
-                        # for BOI in list_BOI:
-                        #     if BOI == 'Entry in arena' or BOI == 'Gate opens':
-                        #         PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
-                        #         plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
-                        #     else:
-                        #         for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
-                        #             PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
-                        #             plot_PETH(PETH_data, BOI, event, timewindow)
+                        for BOI in list_BOI:
+                            if BOI == 'Entry in arena' or BOI == 'Gate opens':
+                                PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
+                                plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
+                            else:
+                                for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
+                                    PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
+                                    plot_PETH(PETH_data, BOI, event, timewindow)
