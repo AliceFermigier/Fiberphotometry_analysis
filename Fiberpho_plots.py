@@ -84,11 +84,11 @@ def timestamp_camera(camera) :
     --> Returns
         (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
     """
-    ind_list = np.where(camera['Digital I/O | Ch.3 DI/O-3'] == 1)
+    ind_list = np.where(rawdata_df['Digital I/O | Ch.3 DI/O-3'] == 1)
     ind_list = ind_list[0].tolist()
     (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
-    return (truncate(camera.at[ind_start, 'Time(s)'], 1),
-            truncate(camera.at[ind_stop, 'Time(s)'], 1))
+    return (truncate(rawdata_df.at[ind_start, '---'], 1),
+            truncate(rawdata_df.at[ind_stop, '---'], 1))
 
 def timestamp_camera_fromraw(rawdata_df) :
     """
