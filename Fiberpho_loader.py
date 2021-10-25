@@ -24,8 +24,9 @@ import numpy as np
 ########
 #LOADER#
 ########
-experiment_path = Path('/Users/alice/Desktop/PhD/Manips/Fiber/202110_CA2dbatch2/')
-analysis_path = experiment_path / '202110_Analysis'
+experiment_path = Path('D:/Alice/Fiber/202110_CA2db2')
+analysis_path = experiment_path / 'Analysis'
+data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
 os.getcwd()
 
@@ -59,6 +60,9 @@ TIME_BEGIN = 60
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 2
 
+#threshold for PETH : if events are too short, not in PETH
+EVENT_TIME_THRESHOLD = 20 #2seconds
+
 #CAUTION : with the code as it is, can process up to 4 different behaviours
 #if more, add elif to align_behav function
 
@@ -67,16 +71,18 @@ THRESH_S = 2
 #SCRIPT#
 ########
 
-# #create analysis folder nomenclature
-# for task in proto_df['Task']:
-#     if not os.path.exists(analysis_path / task):
-#         os.mkdir(analysis_path / task)
-#     for session in proto_df.loc[proto_df['Task']==task,'Sessions'].values[0].split(','):
-#         if not os.path.exists(analysis_path / task / session):
-#             os.mkdir(analysis_path / task / session)
-#         for subject in subjects_df['Subject']:
-#             if not os.path.exists(analysis_path / task / session / subject):
-#                 os.mkdir(analysis_path / task / session / subject)
+#create analysis folder nomenclature
+for task in proto_df['Task']:
+    if not os.path.exists(analysis_path / task):
+        os.mkdir(analysis_path / task)
+    for session in proto_df.loc[proto_df['Task']==task,'Sessions'].values[0].split(','):
+        if not os.path.exists(analysis_path / task / session):
+            os.mkdir(analysis_path / task / session)
+        for subject in subjects_df['Subject']:
+            if not os.path.exists(analysis_path / task / session / subject):
+                os.mkdir(analysis_path / task / session / subject)
+                
+                
 # #%%                
 # #extract camera df from rawdata file
 # df_camera = pd.read_csv('/Volumes/My Passport/Alice/Fiber/202110_CA2db2/20211004_AliceF_CA2b2bedding/HFDm1_0_camera.csv')

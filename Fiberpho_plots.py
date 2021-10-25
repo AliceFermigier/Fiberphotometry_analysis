@@ -25,15 +25,16 @@ import sys
 
 #Custom
 #put path to directory where python files are stored
-sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
+#sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
+sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Fiberphotometry_analysis')
 
 #%%
 ########
 #LOADER#
 ########
 
-from Fiberpho_loader import experiment_path, analysis_path, subjects_df, SAMPLERATE
-from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, THRESH_S
+from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df, SAMPLERATE, proto_df
+from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, THRESH_S, EVENT_TIME_THRESHOLD
 
 os.chdir(experiment_path)
 
@@ -84,11 +85,11 @@ def timestamp_camera(camera) :
     --> Returns
         (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
     """
-    ind_list = np.where(rawdata_df['Digital I/O | Ch.3 DI/O-3'] == 1)
+    ind_list = np.where(camera['Digital I/O | Ch.3 DI/O-3'] == 1)
     ind_list = ind_list[0].tolist()
     (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
-    return (truncate(rawdata_df.at[ind_start, '---'], 1),
-            truncate(rawdata_df.at[ind_stop, '---'], 1))
+    return (truncate(camera.at[ind_start, 'Time(s)'], 1),
+            truncate(camera.at[ind_stop, 'Time(s)'], 1))
 
 def timestamp_camera_fromraw(rawdata_df) :
     """
@@ -101,8 +102,8 @@ def timestamp_camera_fromraw(rawdata_df) :
     ind_list = np.where(rawdata_df['Digital I/O | Ch.3'] == 1)
     ind_list = ind_list[0].tolist()
     (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
-    return (truncate(camera.at[ind_start, '---'], 1),
-            truncate(camera.at[ind_stop, '---'], 1))
+    return (truncate(rawdata_df.at[ind_start, '---'], 1),
+            truncate(rawdata_df.at[ind_stop, '---'], 1))
     
 def align_behav(behav10Sps, fiberpho, timevector, timestart_camera):
     """
@@ -262,10 +263,10 @@ def plot_rawdata(rawdata_df):
     ax7.set_xlabel('Seconds')
     ax7.legend(handles=[p1,p2], loc='upper right')
     ax7.margins(0.01,0.3)
-    ax7.set_title('GCaMP and Isosbestic raw traces - '+exp+' '+session+' '+mouse)
+    ax7.set_title('GCaMP and Isosbestic raw traces - {exp} {session} {mouse}')
     
     #save figure
-    fig5.savefig(str(mouse_path)+'/'+mouse+'_rawdata.pdf')
+    fig5.savefig(f'{mouse_path}\\{mouse}_rawdata.pdf')
     
     return
 
@@ -276,9 +277,9 @@ def plot_fiberpho(fiberbehav_df):
     
     # if windows : \\
     # if mac : /
-    mouse = str(mouse_path).split('/')[-1]
-    session = str(mouse_path).split('/')[-2]
-    exp = str(mouse_path).split('/')[-3]
+    mouse = str(mouse_path).split('\\')[-1]
+    session = str(mouse_path).split('\\')[-2]
+    exp = str(mouse_path).split('\\')[-3]
     
     #crops starting artifacts
     fiberbehavsnip_df = fiberbehav_df[fiberbehav_df['Time(s)'] > 40]
@@ -293,10 +294,10 @@ def plot_fiberpho(fiberbehav_df):
     ax0.set_xlabel('Seconds')
     ax0.legend(handles=[p1,p2], loc='upper right')
     ax0.margins(0.01,0.2)
-    ax0.set_title('GCaMP and Isosbestic dFF - '+exp+' '+session+' '+mouse)
+    ax0.set_title('GCaMP and Isosbestic dFF - {exp} {session} {mouse}')
     
     #save figure
-    fig1.savefig(str(mouse_path)+'/'+mouse+'_GCaMP_ISOS.pdf')
+    fig1.savefig(f'{mouse_path}\\{mouse}_GCaMP_ISOS.pdf')
     
     return
 
@@ -309,9 +310,9 @@ def plot_fiberpho_behav(fiberbehav_df):
     
     # if windows : \\
     # if mac : /
-    mouse = str(mouse_path).split('/')[-1]
-    session = str(mouse_path).split('/')[-2]
-    exp = str(mouse_path).split('/')[-3]
+    mouse = str(mouse_path).split('\\')[-1]
+    session = str(mouse_path).split('\\')[-2]
+    exp = str(mouse_path).split('\\')[-3]
     
     fig2 = plt.figure(figsize=(20,12))
     ax1 = fig2.add_subplot(311)
@@ -406,10 +407,10 @@ def plot_fiberpho_behav(fiberbehav_df):
     ax1.set_ylim(-1,2)
     ax1.legend(loc = 'upper right')
     ax1.margins(0.01,0.03)
-    ax1.set_title('dFF with Behavioural Scoring - '+exp+' '+session+' '+mouse)
+    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {session} {mouse} - interbout {THRESH_S}')
     
     #save figure
-    fig2.savefig(str(mouse_path)+'/'+mouse+'_threshold'+str(THRESH_S)+'s_fiberbehav_scaled.pdf')
+    fig2.savefig(f'{mouse_path}\\{mouse}_threshold{THRESH_S}s_fiberbehav_scaled.pdf')
     
     return
 
@@ -420,9 +421,9 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
     
     # if windows : \\
     # if mac : /
-    mouse = str(mouse_path).split('/')[-1]
-    session = str(mouse_path).split('/')[-2]
-    exp = str(mouse_path).split('/')[-3]
+    mouse = str(mouse_path).split('\\')[-1]
+    session = str(mouse_path).split('\\')[-2]
+    exp = str(mouse_path).split('\\')[-3]
     
     fig3 = plt.figure(figsize=(20,12))
     ax2 = fig3.add_subplot(311)
@@ -522,10 +523,10 @@ def plot_fiberpho_behav_snip(fiberbehav_df, timestart_camera):
     ax2.set_ylim(-1,2)
     ax2.legend(loc = 'upper right')
     ax2.margins(0.01,0.03)
-    ax2.set_title('dFF with Behavioural Scoring - '+exp+' '+session+' '+mouse)
+    ax2.set_title(f'dFF with Behavioural Scoring - {exp} {session} {mouse} - interbout {THRESH_S}')
     
     #save figure
-    fig3.savefig(str(mouse_path)+'/'+mouse+'_threshold'+str(THRESH_S)+'s_fiberbehavsnip_scaled.pdf')
+    fig3.savefig(f'{mouse_path}\\{mouse}_threshold{THRESH_S}s_fiberbehavsnip_scaled.pdf')
     
     return
 
@@ -544,7 +545,6 @@ def PETH(behavprocess_df, BOI, event, timewindow):
     #set time window relative to event
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
-    EVENT_TIME_THRESHOLD = 20 #2seconds
     
     #if behaviour not recognized
     if BOI not in behavprocess_df.columns[2:].tolist() :
@@ -590,9 +590,9 @@ def plot_PETH(PETH_data, BOI, event, timewindow):
     
     # if windows : \\
     # if mac : /
-    mouse = str(mouse_path).split('/')[-1]
-    session = str(mouse_path).split('/')[-2]
-    exp = str(mouse_path).split('/')[-3]
+    mouse = str(mouse_path).split('\\')[-1]
+    session = str(mouse_path).split('\\')[-2]
+    exp = str(mouse_path).split('\\')[-3]
     
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
@@ -642,7 +642,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow):
     fig4.colorbar(cs, cax=cbar_ax)
     
     #save figure
-    fig4.savefig(str(mouse_path)+'/'+mouse+'_'+BOI+'_PETH'+event[0]+'.pdf')
+    fig4.savefig(f'{mouse_path}\\{mouse}{BOI}_PETH{event[0]}.pdf')
     
     return
 
@@ -653,9 +653,9 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
     """
     # if windows : \\
     # if mac : /
-    mouse = str(mouse_path).split('/')[-1]
-    session = str(mouse_path).split('/')[-2]
-    exp = str(mouse_path).split('/')[-3]
+    mouse = str(mouse_path).split('\\')[-1]
+    session = str(mouse_path).split('\\')[-2]
+    exp = str(mouse_path).split('\\')[-3]
     
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
@@ -675,10 +675,10 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
     ax5.set_ylabel('z-scored $\Delta$F/F')
     ax5.legend(handles=[p2], loc='upper left', fontsize = 'small')
     ax5.margins(0, 0.1)
-    ax5.set_title(BOI+' - '+exp+' '+session+' '+mouse)
+    ax5.set_title(f'{BOI} - {exp} {session} {mouse}')
     
     #save figure
-    fig4.savefig(str(mouse_path)+'/'+mouse+'_'+BOI+'_PETH.pdf')
+    fig4.savefig(f'{mouse_path}\\{mouse}{BOI}_PETH.pdf')
     
 ########
 #SCRIPT#
@@ -689,10 +689,10 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
 mouse_path = analysis_path / '20211004_OdDis/Test/HFDm3'
 mouse = str(mouse_path).split('/')[-1]
 
-behav_path = str(mouse_path) + '/behav_' + mouse + '.csv'
-fiberpho_path = str(mouse_path) + '/' + mouse + '_dFFfilt.csv'
-camera_path = str(mouse_path) + '/' + mouse + '_camera.csv'
-rawdata_path = str(mouse_path) + '/' + mouse +  '_rawdata.csv'
+behav_path = f'{mouse_path}\\behav_{mouse}.csv'
+fiberpho_path = f'{mouse_path}\\{mouse}{code}_dFFfilt.csv'
+camera_path = f'{mouse_path}\\{mouse}{code}_camera.csv'
+rawdata_path = f'{mouse_path}\\{mouse}{code}.csv'
     
 behav10Sps = pd.read_csv(behav_path)
 fiberpho = pd.read_csv(fiberpho_path)
@@ -742,17 +742,20 @@ for exp_path in Path(analysis_path).iterdir():
                 for mouse_path in Path(session_path).iterdir():
                     #get the name of the mouse, session and experiment
                     # '/' on mac, '\\' on windows
-                    exp = str(mouse_path).split('/')[-3]
-                    session = str(mouse_path).split('/')[-2]
-                    mouse = str(mouse_path).split('/')[-1]
+                    exp = str(mouse_path).split('\\')[-3]
+                    session = str(mouse_path).split('\\')[-2]
+                    mouse = str(mouse_path).split('\\')[-1]
                     
                     code = session_code(session)
                     
                     #get data
-                    behav_path = str(mouse_path) + '/behav_' + mouse + '.csv'
-                    fiberpho_path = str(mouse_path) + '/' + mouse + code + '_dFFfilt.csv'
-                    camera_path = str(mouse_path) + '/' + mouse + code + '_camera.csv'
-                    rawdata_path = str(mouse_path) + '/' + mouse + code + '.csv'
+                    behav_path = f'{mouse_path}\\behav_{mouse}.csv'
+                    fiberpho_path = f'{mouse_path}\\{mouse}{code}_dFFfilt.csv'
+                    camera_path = f'{mouse_path}\\{mouse}{code}_camera.csv'
+                    rawdata_path = f'{mouse_path}\\{mouse}{code}.csv'
+                    
+                    if not os.path.exists(session_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}):
+                        os.mkdir(session_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}' )
                     
                     if os.path.exists(camera_path):
                         camera = pd.read_csv(camera_path)
@@ -773,9 +776,11 @@ for exp_path in Path(analysis_path).iterdir():
                         timevector = time_vector(fiberpho, SAMPLERATE)
                         print('timestamp')
                         if os.path.exists(camera_path):
+                            print('---------> from camera')
                             timestart_camera = timestamp_camera(camera)[0]
                         else:
-                            timestart_camera = timestamp_camera_fromraw(rawdata_df)
+                            print('---------> from rawdata')
+                            timestart_camera = timestamp_camera_fromraw(rawdata_df)[0]
                         print('start camera : ', timestart_camera)
                         print('aligning')
                         fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
@@ -790,7 +795,7 @@ for exp_path in Path(analysis_path).iterdir():
                         
                         #plot fiberpho data aligned with behav
                         plot_fiberpho_behav(fiberbehav2_df)
-                        plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
+                        #plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
                         
                         for BOI in list_BOI:
                             if BOI == 'Entry in arena' or BOI == 'Gate opens':
