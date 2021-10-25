@@ -48,11 +48,11 @@ def session_code(session):
     Generate session code in file name
     """
     if session in ['Habituation','Training','S1']:
-        code = '_0'
+        code = '0'
     if session in ['S2','Test 1h','Test']:
-        code = '_1'
+        code = '1'
     elif session in ['S3','Test 24h']:
-        code = '_2'
+        code = '2'
         
     return(code)
         
@@ -263,7 +263,7 @@ def plot_rawdata(rawdata_df):
     ax7.set_xlabel('Seconds')
     ax7.legend(handles=[p1,p2], loc='upper right')
     ax7.margins(0.01,0.3)
-    ax7.set_title('GCaMP and Isosbestic raw traces - {exp} {session} {mouse}')
+    ax7.set_title(f'GCaMP and Isosbestic raw traces - {exp} {session} {mouse}')
     
     #save figure
     fig5.savefig(f'{mouse_path}\\{mouse}_rawdata.pdf')
@@ -294,7 +294,7 @@ def plot_fiberpho(fiberbehav_df):
     ax0.set_xlabel('Seconds')
     ax0.legend(handles=[p1,p2], loc='upper right')
     ax0.margins(0.01,0.2)
-    ax0.set_title('GCaMP and Isosbestic dFF - {exp} {session} {mouse}')
+    ax0.set_title(f'GCaMP and Isosbestic dFF - {exp} {session} {mouse}')
     
     #save figure
     fig1.savefig(f'{mouse_path}\\{mouse}_GCaMP_ISOS.pdf')
@@ -678,7 +678,7 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
     ax5.set_title(f'{BOI} - {exp} {session} {mouse}')
     
     #save figure
-    fig4.savefig(f'{mouse_path}\\{mouse}{BOI}_PETH.pdf')
+    fig4.savefig(f'{session_path}\\{mouse}{BOI}_PETH.pdf')
     
 ########
 #SCRIPT#
@@ -690,9 +690,9 @@ mouse_path = analysis_path / '20211004_OdDis/Test/HFDm3'
 mouse = str(mouse_path).split('/')[-1]
 
 behav_path = f'{mouse_path}\\behav_{mouse}.csv'
-fiberpho_path = f'{mouse_path}\\{mouse}{code}_dFFfilt.csv'
-camera_path = f'{mouse_path}\\{mouse}{code}_camera.csv'
-rawdata_path = f'{mouse_path}\\{mouse}{code}.csv'
+fiberpho_path = f'{mouse_path}\\{mouse}_dFFfilt.csv'
+camera_path = f'{mouse_path}\\{mouse}_camera.csv'
+rawdata_path = f'{mouse_path}\\{mouse}.csv'
     
 behav10Sps = pd.read_csv(behav_path)
 fiberpho = pd.read_csv(fiberpho_path)
@@ -737,25 +737,31 @@ for BOI in list_BOI:
 #list experiments, sessions and mice:
 for exp_path in Path(analysis_path).iterdir():
     if exp_path.is_dir():
+        exp = str(exp_path).split('\\')[-1]
         for session_path in Path(exp_path).iterdir():
             if session_path.is_dir():
-                for mouse_path in Path(session_path).iterdir():
+                session = str(session_path).split('\\')[-1]
+                #get data path related to the task in protocol excel file
+                data_path_exp = data_path / proto_df.loc[proto_df['Task']==session, 'Data_path']
+                #create repository for values of thresholds : length and interbout
+                repo_path = session_path / f'length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}'
+                if not os.path.exists(repo_path):
+                    os.mkdir(repo_path)
+                    for subject in subjects_df['Subject']:
+                        os.mkdir(repo_path / subject)
+                for mouse_path in Path(repo_path).iterdir():
                     #get the name of the mouse, session and experiment
                     # '/' on mac, '\\' on windows
-                    exp = str(mouse_path).split('\\')[-3]
-                    session = str(mouse_path).split('\\')[-2]
                     mouse = str(mouse_path).split('\\')[-1]
                     
                     code = session_code(session)
                     
+                    #################################A CHANGER########################################
                     #get data
-                    behav_path = f'{mouse_path}\\behav_{mouse}.csv'
-                    fiberpho_path = f'{mouse_path}\\{mouse}{code}_dFFfilt.csv'
-                    camera_path = f'{mouse_path}\\{mouse}{code}_camera.csv'
-                    rawdata_path = f'{mouse_path}\\{mouse}{code}.csv'
-                    
-                    if not os.path.exists(session_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}):
-                        os.mkdir(session_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}' )
+                    behav_path = f'{data_path}\\behav_{code}_{mouse}.csv'
+                    fiberpho_path = f'{data_path}\\{mouse}_{code}_dFFfilt.csv'
+                    camera_path = f'{data_path}\\{mouse}_{code}_camera.csv'
+                    rawdata_path = f'{data_path}\\{mouse}_{code}.csv'
                     
                     if os.path.exists(camera_path):
                         camera = pd.read_csv(camera_path)
@@ -805,3 +811,23 @@ for exp_path in Path(analysis_path).iterdir():
                                 for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
                                     PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
                                     plot_PETH(PETH_data, BOI, event, timewindow)
+                                    
+#%%delete files
+repo_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')
+for subject in Path(repo_path).iterdir():
+    files_in_directory = os.listdir(subject)
+    filtered_files = [file for file in files_in_directory if file.endswith(".csv")]
+    for file in filtered_files:
+        path_to_file = os.path.join(subject, file)
+        os.remove(path_to_file)
+        
+#%%copy files
+new_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Data\\20211006_AliceF_CA2b2SRMmales1')
+session_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')
+for subject in Path(session_path).iterdir():
+    files_in_directory = os.listdir(subject)
+    filtered_files = [file for file in files_in_directory if file.endswith(".csv")]
+    for file in filtered_files:
+        path_to_file = os.path.join(subject, file)
+        newpath_to_file = os.path.join(new_path, file)
+        os.rename(path_to_file, newpath_to_file)
