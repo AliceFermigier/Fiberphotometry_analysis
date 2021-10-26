@@ -45,7 +45,7 @@ proto_df = pd.read_excel('protocol.xlsx')
 #all analysis files in experimentpath/date_Analysis/date_Experiment/Session/Mouse
 #example : /Volumes/My Passport/Alice/Fiber/202103_CDHFDdvHPC/202103_Analysis/20210302_ORM/Test 1h/CD1
     
-SAMPLERATE = 10 #in samples per second
+SAMPLERATE = 10 #in Hz
 
 #list of behaviours on which to do peri event time histograms (PETH)
 list_EVENT = ['onset', 'withdrawal']

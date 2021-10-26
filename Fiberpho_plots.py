@@ -99,11 +99,11 @@ def timestamp_camera_fromraw(rawdata_df) :
     --> Returns
         (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
     """
-    ind_list = np.where(rawdata_df['Digital I/O | Ch.3'] == 1)
+    ind_list = np.where(rawdata_df['DI/O-3'] == 1)
     ind_list = ind_list[0].tolist()
     (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
-    return (truncate(rawdata_df.at[ind_start, '---'], 1),
-            truncate(rawdata_df.at[ind_stop, '---'], 1))
+    return (truncate(rawdata_df.at[ind_start, 'Time(s)'], 1),
+            truncate(rawdata_df.at[ind_stop, 'Time(s)'], 1))
     
 def align_behav(behav10Sps, fiberpho, timevector, timestart_camera):
     """
@@ -563,7 +563,6 @@ def plot_PETH(PETH_data, BOI, event, timewindow):
     """
     Plots PETH average and heatmap
     """
-    
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
     
@@ -707,7 +706,7 @@ for exp_path in Path(analysis_path).iterdir():
             if session_path.is_dir():
                 session = str(session_path).split('\\')[-1]
                 #get data path related to the task in protocol excel file
-                data_path_exp = data_path / str(proto_df.loc[proto_df['Task']==exp, 'Data_path'][0])
+                data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
                 #create repository for values of thresholds : length and interbout
                 repo_path = session_path / f'length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}'
                 if not os.path.exists(repo_path):
@@ -733,8 +732,8 @@ for exp_path in Path(analysis_path).iterdir():
                     if os.path.exists(camera_path) and ready == True:
                         camera = pd.read_csv(camera_path)
                         
-                    if os.path.exists(rawdata_path) and ready == True:
-                        rawdata_df = pd.read_csv(rawdata_path)
+                    elif os.path.exists(rawdata_path) and ready == True:
+                        rawdata_cam_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','DI/O-3'])
                     
                     if os.path.exists(behav_path) and os.path.exists(fiberpho_path):
                         behav10Sps = pd.read_csv(behav_path)
@@ -767,7 +766,7 @@ for exp_path in Path(analysis_path).iterdir():
                         plot_fiberpho(fiberbehav_df)
                         
                         #plot fiberpho data aligned with behav
-                        plot_fiberpho_behav(fiberbehav2_df)
+                        plot_fiberpho_behav(fbprocess_df)
                         #plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
                         
                         for BOI in list_BOI:
