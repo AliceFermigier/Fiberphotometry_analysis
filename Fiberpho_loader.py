@@ -72,7 +72,7 @@ EVENT_TIME_THRESHOLD = 20 #2seconds
 ########
 
 #create analysis folder nomenclature
-for task in proto_df['Task']:
+for task in ['Plethysmo']:
     if not os.path.exists(analysis_path / task):
         os.mkdir(analysis_path / task)
     for session in proto_df.loc[proto_df['Task']==task,'Sessions'].values[0].split(','):

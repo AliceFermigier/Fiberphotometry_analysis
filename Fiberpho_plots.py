@@ -702,9 +702,11 @@ for BOI in list_BOI:
 for exp_path in Path(analysis_path).iterdir():
     if exp_path.is_dir():
         exp = str(exp_path).split('\\')[-1]
+        print(exp)
         for session_path in Path(exp_path).iterdir():
             if session_path.is_dir():
                 session = str(session_path).split('\\')[-1]
+                print(session)
                 #get data path related to the task in protocol excel file
                 data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
                 #create repository for values of thresholds : length and interbout
@@ -715,19 +717,22 @@ for exp_path in Path(analysis_path).iterdir():
                         os.mkdir(repo_path / subject)
                 for mouse_path in Path(repo_path).iterdir():
                     # '/' on mac, '\\' on windows
-                    print(mouse_path)
                     mouse = str(mouse_path).split('\\')[-1]
-                    code = session_code(session)
-                    #begin analysis only if behaviour has been scored
-                    ready = False
-                    if os.path.exists(behav_path):
-                        ready = True
+                    print(mouse)
+                    code = 1
                     
                     #get data
                     behav_path = data_path_exp / f'behav_{code}_{mouse}.csv'
                     fiberpho_path = data_path_exp / f'{mouse}_{code}_dFFfilt.csv'
                     camera_path = data_path_exp / f'{mouse}_{code}_camera.csv'
                     rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
+                    
+                    #begin analysis only if behaviour has been scored
+                    ready = False
+                    if os.path.exists(behav_path):
+                        ready = True
+                        
+                    print(f'ready? {ready}')
                     
                     if os.path.exists(camera_path) and ready == True:
                         camera = pd.read_csv(camera_path)
@@ -752,7 +757,7 @@ for exp_path in Path(analysis_path).iterdir():
                             timestart_camera = timestamp_camera(camera)[0]
                         else:
                             print('---------> from rawdata')
-                            timestart_camera = timestamp_camera_fromraw(rawdata_df)[0]
+                            timestart_camera = timestamp_camera_fromraw(rawdata_cam_df)[0]
                         print('start camera : ', timestart_camera)
                         print('aligning')
                         fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
