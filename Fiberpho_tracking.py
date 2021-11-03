@@ -118,14 +118,20 @@ def plot_fibertrack_heatmap(fibertracking_df, RES):
     
     mean_dFF = fibertracking_dis_df.groupby(['Track_x','Track_y']).mean()
     
-    for j in range(RES):
-        for i in range(RES):
+    for j in mean_dFF['Track_y']:
+        for i in mean_dFF['Track_x']:
             space[i][j] = mean_dFF.loc[(mean_dFF['Track_x']==i) and (mean_dFF['Track_y']==j),'Denoised dFF']
     
+    #plot space array
     fig2 = plt.figure(figsize=(20,20))
     ax2 = fig2.add_subplot(111)
     
-    p2, = ax2.pcolormesh('Track_x', 'Track_y', 'Denoised dFF', cmap=cmap, norm=norm, data=df_process)
+    (min_dFF, max_dFF) = (min(mean_dFF['Denoised dFF']), max(mean_dFF['Denoised dFF']))
+    p2, = ax2.pcolormesh(space, cmap='magma', vmin = min_dFF, vmax = max_dFF)
+    
+    plt.savefig(mouse_path / f'{mouse}_dFFheatmap.pdf')
+    
+    return()
     
 #for plotly animations : https://plotly.com/python/sliders/
 
