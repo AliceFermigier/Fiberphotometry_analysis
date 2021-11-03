@@ -183,7 +183,7 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera):
     else :
         print('Error : too many behaviours in Boris binary file. Score up to 4 or add line to function')
     
-    return fiberbehav_df
+    return(fiberbehav_df)
 
 def behav_process(fiberbehav_df, list_BOI):
 

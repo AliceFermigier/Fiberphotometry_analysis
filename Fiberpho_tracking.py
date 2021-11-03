@@ -92,17 +92,40 @@ def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop)
 
     # create dataframe
     fibertracking_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
-                                             '405nm deltaF/F' : dff_405nm_list, '470nm deltaF/F' : dff_470nm_list, 
                                              'Track_x' : tracking_x, 'Track_y' : tracking_y})
+    
+    #replace zeros with Nan values in tracking
+    fibertracking_df['Track_x'].replace(to_replace=0, value=None, inplace=True)
+    fibertracking_df['Track_y'].replace(to_replace=0, value=None, inplace=True)
     
     return(fibertracking_df)
 
-def track_fiberpho(df_process):
+def plot_fibertrack_heatmap(fibertracking_df, RES):
+    
+    #find space edges
+    (min_x, max_x) = (min(fibertracking_df['Track_x']), max(fibertracking_df['Track_x']))
+    (min_y, max_y) = (min(fibertracking_df['Track_y']), max(fibertracking_df['Track_y']))
+    
+    #define matrix
+    space = np.zeros((RES, RES))
+    
+    #discretize position in dataframe
+    dis_x = [int((RES*x)/(max_x-min_x)) for x in fibertracking_df['Track_x']]
+    dis_y = [int((RES*y)/(max_y-min_y)) for y in fibertracking_df['Track_y']]
+    
+    fibertracking_dis_df = pd.DataFrame(data = {'Denoised dFF' : fibertracking_df['Denoised dFF'],
+                                                'Track_x' : dis_x, 'Track_y' : dis_y})
+    
+    mean_dFF = fibertracking_dis_df.groupby(['Track_x','Track_y']).mean()
+    
+    for j in range(RES):
+        for i in range(RES):
+            space[i][j] = mean_dFF.loc[(mean_dFF['Track_x']==i) and (mean_dFF['Track_y']==j),'Denoised dFF']
     
     fig2 = plt.figure(figsize=(20,20))
     ax2 = fig2.add_subplot(111)
     
-    p2, = ax2.pcolormesh('Item2.X', 'Item2.Y', 'dFFfilt', cmap=cmap, norm=norm, data=df_process)
+    p2, = ax2.pcolormesh('Track_x', 'Track_y', 'Denoised dFF', cmap=cmap, norm=norm, data=df_process)
     
 #for plotly animations : https://plotly.com/python/sliders/
 
