@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import numpy as np
+import plotly.express as px
 
 
 #%%
@@ -36,14 +37,31 @@ os.chdir(experiment_path)
 #SCRIPT#
 ########
 
-def tracking(df_tracking):
-
+def plot_tracking(df_tracking):
+    
     fig1 = plt.figure(figsize=(20,20))
     ax1 = fig1.add_subplot(111)
     
     p1, = ax1.plot('Item2.X', 'Item2.Y', linewidth=.5, color='black', data=df_tracking)
     
     plt.savefig(mouse_path / f'{mouse}_tracking.pdf')
+
+def plot_trackingdensity(df_tracking):
+    """
+    Plots density of tracking for each animal
+    """
+    
+    (min_x, max_x) = (min(df_tracking['Item2.X']), max(df_tracking['Item2.X']))
+    (min_y, max_y) = (min(df_tracking['Item2.Y']), max(df_tracking['Item2.Y']))
+    
+    #put all the values to 1
+    values = np.ones(len(df_tracking['Item2.X']))
+    
+    #plot figure
+    fig2 = px.density_mapbox(df_tracking, lat='Item2.X', lon='Item2.Y', z='Magnitude', radius=10,
+                        center=dict(lat=(min_x+max_x/2), lon=(min_y+max_y/2)), zoom=0)
+    
+    plt.savefig(mouse_path / f'{mouse}_trackingdensity.pdf')
     
     return()
     
@@ -94,7 +112,7 @@ def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop)
     fibertracking_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
                                              'Track_x' : tracking_x, 'Track_y' : tracking_y})
     
-    #replace zeros with Nan values in tracking
+    #replace zeros with Nan values in tracking in the beginning
     fibertracking_df['Track_x'].replace(to_replace=0, value=None, inplace=True)
     fibertracking_df['Track_y'].replace(to_replace=0, value=None, inplace=True)
     
@@ -132,6 +150,10 @@ def plot_fibertrack_heatmap(fibertracking_df, RES):
     plt.savefig(mouse_path / f'{mouse}_dFFheatmap.pdf')
     
     return()
+
+def plot_interactive_heatmap(fibertracking_df, arena):
+    
+    
     
 #for plotly animations : https://plotly.com/python/sliders/
 
