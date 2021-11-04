@@ -54,23 +54,68 @@ def plot_tracking(df_tracking):
     
     #fig1.savefig(mouse_path / f'{mouse}_tracking.pdf')
 
-def plot_trackingdensity(df_tracking):
-    """
-    Plots density of tracking for each animal
-    """
+#aborted
+# def plot_trackingdensity(df_tracking):
+#     """
+#     Plots density of tracking for each animal
+#     """
+#     #lat +90 à -90
+#     #lon -180 à +180
     
-    (min_x, max_x) = (min(df_tracking['Item2.X']), max(df_tracking['Item2.X']))
-    (min_y, max_y) = (min(df_tracking['Item2.Y']), max(df_tracking['Item2.Y']))
+#     (min_x, max_x) = (min(df_tracking['Item2.X'].dropna()), max(df_tracking['Item2.X'].dropna()))
+#     (min_y, max_y) = (min(df_tracking['Item2.Y'].dropna()), max(df_tracking['Item2.Y'].dropna()))
     
-    #put all the values to 1
-    values = np.ones(len(df_tracking['Item2.X']))
+#     x_mid = (max_x+min_x)/2
+#     y_mid = (max_y+min_y)/2
     
-    #plot figure
-    fig2 = px.density_mapbox(df_tracking, lat='Item2.X', lon='Item2.Y', z=values, radius=30,
-                        center=dict(lat=(min_x+max_x/2), lon=(min_y+max_y/2)), zoom=0, opacity=1,
-                        title = f'Position density - {exp} {session} {mouse}')
+#     range_x = max_x-min_x
+#     range_y = max_y-min_y
     
-    fig2.savefig(mouse_path / f'{mouse}_trackingdensity.pdf')
+#     #normalized coordinates
+#     lon_coords = [(x-x_mid)*90/range_x for x in df_tracking['Item2.X']]
+#     lat_coords = [(y-y_mid)*90/range_y for y in df_tracking['Item2.Y']]
+    
+#     #put all the values to 1
+#     values = np.ones(len(df_tracking['Item2.X']))
+    
+#     #plot figure
+#     fig2 = px.density_mapbox(lat=lat_coords, lon=lon_coords, z=values, radius=10,
+#                              zoom=0, opacity=1, title = f'Position density - {exp} {session} {mouse}',
+#                              mapbox_style = 'white-bg')
+#     fig2.show()
+#     fig2.write_image(mouse_path / f'{mouse}_trackingdensity.pdf')
+    
+#     return()
+
+def plot_densityheatmap(df_tracking):
+    
+    #find space edges
+    (min_x, max_x) = (min(df_tracking['Item2.X'].dropna()), max(df_tracking['Item2.X'].dropna()))
+    (min_y, max_y) = (min(df_tracking['Item2.Y'].dropna()), max(df_tracking['Item2.Y'].dropna()))
+    
+    #define matrix
+    space = np.zeros((RES, RES))
+    
+    #discretize position in dataframe
+    dis_x = [int((RES*x)/(max_x-min_x)) for x in df_tracking['Item2.X'].dropna()]
+    dis_y = [int((RES*y)/(max_y-min_y)) for y in df_tracking['Item2.Y'].dropna()]
+    
+    density_df = pd.DataFrame(data = {'Track_x' : dis_x, 'Track_y' : dis_y,
+                                      'Density' : [1]*len(df_tracking['Item2.X'])})
+    
+    density = density_df.groupby(['Track_x','Track_y']).sum()
+    
+    for j in density['Track_y']:
+        for i in density['Track_x']:
+            space[i][j] = density.loc[(density['Track_x']==i) and (density['Track_y']==j),'Density']
+    
+    #plot space array
+    fig2 = plt.figure(figsize=(20,20))
+    ax2 = fig2.add_subplot(111)
+    
+    p2, = ax2.pcolormesh(space, cmap='viridis')
+    
+    fig2.savefig(mouse_path / f'{mouse}_densityheatmap.pdf')
     
     return()
     
@@ -78,7 +123,7 @@ def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop)
     
     #add timeframe to tracking data
     timevector_tracking = np.linspace(camera_start, camera_stop, len(df_tracking))
-    timevector_tracking_trunc = truncate(timevector_tracking, 1)
+    timevector_tracking_trunc = [truncate(i,1) for i in timevector_tracking]
     df_tracking['Time(s)']=timevector_tracking_trunc
     df_tracking_resampled = df_tracking.drop_duplicates('Time(s)')
     
@@ -87,10 +132,10 @@ def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop)
     indstart = list_indstart[0].tolist()[0]
     
     #align tracking data by adding zeros before camera starts
-    tracking_x = [0]*indstart
+    tracking_x = [None]*indstart
     tracking_x.extend(df_tracking_resampled['Item2.X'])
     
-    tracking_y = [0]*indstart
+    tracking_y = [None]*indstart
     tracking_y.extend(df_tracking_resampled['Item2.Y'])
     
     # creates list of denoised fiberpho data    
@@ -121,17 +166,13 @@ def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop)
     fibertracking_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
                                              'Track_x' : tracking_x, 'Track_y' : tracking_y})
     
-    #replace zeros with Nan values in tracking in the beginning
-    fibertracking_df['Track_x'].replace(to_replace=0, value=None, inplace=True)
-    fibertracking_df['Track_y'].replace(to_replace=0, value=None, inplace=True)
-    
     return(fibertracking_df)
 
 def plot_fibertrack_heatmap(fibertracking_df, RES):
     
     #find space edges
-    (min_x, max_x) = (min(fibertracking_df['Track_x']), max(fibertracking_df['Track_x']))
-    (min_y, max_y) = (min(fibertracking_df['Track_y']), max(fibertracking_df['Track_y']))
+    (min_x, max_x) = (min(fibertracking_df['Track_x'].dropna()), max(fibertracking_df['Track_x'].dropna()))
+    (min_y, max_y) = (min(fibertracking_df['Track_y'].dropna()), max(fibertracking_df['Track_y'].dropna()))
     
     #define matrix
     space = np.zeros((RES, RES))
@@ -150,13 +191,13 @@ def plot_fibertrack_heatmap(fibertracking_df, RES):
             space[i][j] = mean_dFF.loc[(mean_dFF['Track_x']==i) and (mean_dFF['Track_y']==j),'Denoised dFF']
     
     #plot space array
-    fig2 = plt.figure(figsize=(20,20))
-    ax2 = fig2.add_subplot(111)
+    fig3 = plt.figure(figsize=(20,20))
+    ax3 = fig3.add_subplot(111)
     
     (min_dFF, max_dFF) = (min(mean_dFF['Denoised dFF']), max(mean_dFF['Denoised dFF']))
-    p2, = ax2.pcolormesh(space, cmap='magma', vmin = min_dFF, vmax = max_dFF)
+    p3, = ax3.pcolormesh(space, cmap='magma', vmin = min_dFF, vmax = max_dFF)
     
-    plt.savefig(mouse_path / f'{mouse}_dFFheatmap.pdf')
+    fig3.savefig(mouse_path / f'{mouse}_dFFheatmap.pdf')
     
     return()
 
@@ -200,7 +241,7 @@ fibertracking_df = align_dFFtrack(df_tracking, fiberpho, timevector, camera_star
 plot_tracking(df_tracking)
 
 #%%plot tracking density
-plot_trackingdensity(df_tracking)
+plot_densityheatmap(df_tracking)
 
 #%%plot 
 plot_fibertrack_heatmap(fibertracking_df, RES)
