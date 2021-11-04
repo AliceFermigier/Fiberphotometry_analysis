@@ -36,74 +36,14 @@ sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Fiberphotometry_analy
 from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df, SAMPLERATE, proto_df
 from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, THRESH_S, EVENT_TIME_THRESHOLD
 
-os.chdir(experiment_path)
+from Func_fiberplots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw
+
+#os.chdir(experiment_path)
 
 #%%
 ###################
 #DEFINED FUNCTIONS#
 ###################
-
-def session_code(session):
-    """
-    Generate session code in file name
-    """
-    if session in ['Habituation','Training','S1']:
-        code = '0'
-    if session in ['S2','Test 1h','Test']:
-        code = '1'
-    elif session in ['S3','Test 24h']:
-        code = '2'
-        
-    return(code)
-        
-
-def truncate(n, decimals=0):
-    multiplier = 10 ** decimals
-    return int(n * multiplier) / multiplier
-
-def time_vector(fiberpho, SAMPLERATE) :
-    """
-    Creates timevector on which to plot the data, in pd format
-    --> Parameters :
-        fiberpho = float, duration of trial in secs
-        samplerate = int, in Sps (for processed fiberpho data in Doric Neuroscience Studio, samplerate = 10Sps)
-    --> Returns :
-        timevector = pd series
-    """
-    #denoised_fiberpho = fiberpho['Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0_LowPass' + 
-    #                             '-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass'].dropna()
-    #--> if better timevector of the exact same lenght as fiberpho data
-    
-    duration =  math.ceil(fiberpho.at[len(fiberpho)-2,'Time(s)'])
-    return pd.Series(np.linspace(0.0, duration, num = int(duration*SAMPLERATE)+1))
-
-def timestamp_camera(camera) :
-    """
-    Function to extract the timestamps where the camera starts and stops
-    --> Parameters
-        camera : pd dataframe, camera I/O with sample rate = 12kSps
-    --> Returns
-        (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
-    """
-    ind_list = np.where(camera['Digital I/O | Ch.3 DI/O-3'] == 1)
-    ind_list = ind_list[0].tolist()
-    (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
-    return (truncate(camera.at[ind_start, 'Time(s)'], 1),
-            truncate(camera.at[ind_stop, 'Time(s)'], 1))
-
-def timestamp_camera_fromraw(rawdata_df) :
-    """
-    Function to extract the timestamps where the camera starts and stops
-    --> Parameters
-        camera : pd dataframe, camera I/O with sample rate = 12kSps
-    --> Returns
-        (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
-    """
-    ind_list = np.where(rawdata_df['DI/O-3'] == 1)
-    ind_list = ind_list[0].tolist()
-    (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
-    return (truncate(rawdata_df.at[ind_start, 'Time(s)'], 1),
-            truncate(rawdata_df.at[ind_stop, 'Time(s)'], 1))
     
 def align_behav(behav10Sps, fiberpho, timevector, timestart_camera):
     """
@@ -745,7 +685,7 @@ for exp_path in Path(analysis_path).iterdir():
                         fiberpho = pd.read_csv(fiberpho_path)
                         print(exp, session, mouse)
                         
-                         #list of behaviours to analyze
+                          #list of behaviours to analyze
                         list_BOI = behav10Sps.columns[1:].tolist()
                         
                         #align behaviour and fiberpho data, create fbprocess.xslx
@@ -783,22 +723,22 @@ for exp_path in Path(analysis_path).iterdir():
                                     PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
                                     plot_PETH(PETH_data, BOI, event, timewindow)
                                     
-#%%delete files
-repo_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')
-for subject in Path(repo_path).iterdir():
-    files_in_directory = os.listdir(subject)
-    filtered_files = [file for file in files_in_directory if file.endswith(".csv")]
-    for file in filtered_files:
-        path_to_file = os.path.join(subject, file)
-        os.remove(path_to_file)
+# #%%delete files
+# repo_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')
+# for subject in Path(repo_path).iterdir():
+#     files_in_directory = os.listdir(subject)
+#     filtered_files = [file for file in files_in_directory if file.endswith(".csv")]
+#     for file in filtered_files:
+#         path_to_file = os.path.join(subject, file)
+#         os.remove(path_to_file)
         
-#%%copy files
-new_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Data\\20211006_AliceF_CA2b2SRMmales1')
-session_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')
-for subject in Path(session_path).iterdir():
-    files_in_directory = os.listdir(subject)
-    filtered_files = [file for file in files_in_directory if file.endswith(".csv")]
-    for file in filtered_files:
-        path_to_file = os.path.join(subject, file)
-        newpath_to_file = os.path.join(new_path, file)
-        os.rename(path_to_file, newpath_to_file)
+# #%%copy files
+# new_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Data\\20211006_AliceF_CA2b2SRMmales1')
+# session_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')
+# for subject in Path(session_path).iterdir():
+#     files_in_directory = os.listdir(subject)
+#     filtered_files = [file for file in files_in_directory if file.endswith(".csv")]
+#     for file in filtered_files:
+#         path_to_file = os.path.join(subject, file)
+#         newpath_to_file = os.path.join(new_path, file)
+#         os.rename(path_to_file, newpath_to_file)

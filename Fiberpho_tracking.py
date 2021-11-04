@@ -33,9 +33,9 @@ sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
 ########
 
 #from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df
-from Fiberpho_loader import SAMPLERATE
+#from Fiberpho_loader import SAMPLERATE
 
-from Fiberpho_plots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw
+from Func_fiberplots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw
 
 #os.chdir(experiment_path)
 
@@ -168,6 +168,8 @@ def plot_interactive_heatmap(fibertracking_df, arena):
 
 
 #%%Run test
+
+SAMPLERATE = 10 #in Hz
 
 mouse_path = Path('/Users/alice/Desktop/Data_test')
 exp = 'OdDis'
