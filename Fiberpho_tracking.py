@@ -13,10 +13,18 @@ Bonsai file used to generate file : tracking_fiberOF.bonsai
 ##########
 
 import matplotlib.pyplot as plt
+plt.rcParams.update({'figure.max_open_warning' : 0})
+from pathlib import Path
 import pandas as pd
 import os
 import numpy as np
 import plotly.express as px
+import sys
+
+#Custom
+#put path to directory where python files are stored
+sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
+#sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Fiberphotometry_analysis')
 
 
 #%%
@@ -24,12 +32,12 @@ import plotly.express as px
 #LOADER#
 ########
 
-from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df, SAMPLERATE, proto_df
-from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, THRESH_S, EVENT_TIME_THRESHOLD
+#from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df
+from Fiberpho_loader import SAMPLERATE
 
 from Fiberpho_plots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw
 
-os.chdir(experiment_path)
+#os.chdir(experiment_path)
 
 
 #%%
@@ -44,7 +52,7 @@ def plot_tracking(df_tracking):
     
     p1, = ax1.plot('Item2.X', 'Item2.Y', linewidth=.5, color='black', data=df_tracking)
     
-    plt.savefig(mouse_path / f'{mouse}_tracking.pdf')
+    #fig1.savefig(mouse_path / f'{mouse}_tracking.pdf')
 
 def plot_trackingdensity(df_tracking):
     """
@@ -58,14 +66,15 @@ def plot_trackingdensity(df_tracking):
     values = np.ones(len(df_tracking['Item2.X']))
     
     #plot figure
-    fig2 = px.density_mapbox(df_tracking, lat='Item2.X', lon='Item2.Y', z='Magnitude', radius=10,
-                        center=dict(lat=(min_x+max_x/2), lon=(min_y+max_y/2)), zoom=0)
+    fig2 = px.density_mapbox(df_tracking, lat='Item2.X', lon='Item2.Y', z=values, radius=30,
+                        center=dict(lat=(min_x+max_x/2), lon=(min_y+max_y/2)), zoom=0, opacity=1,
+                        title = f'Position density - {exp} {session} {mouse}')
     
-    plt.savefig(mouse_path / f'{mouse}_trackingdensity.pdf')
+    fig2.savefig(mouse_path / f'{mouse}_trackingdensity.pdf')
     
     return()
     
-def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop):
+def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start):
     
     # #trouver samplerate df_tracking en temps avec camera_start - camera_stop
     # samplerate_tracking = len(df_tracking)/(camera_stop-camera_start)
@@ -153,22 +162,28 @@ def plot_fibertrack_heatmap(fibertracking_df, RES):
 
 def plot_interactive_heatmap(fibertracking_df, arena):
     
-    
+    return()
     
 #for plotly animations : https://plotly.com/python/sliders/
 
 
 #%%Run test
 
-mouse_path = analysis_path / '20211004_OdDis/Test/HFDm3'
-mouse = str(mouse_path).split('/')[-1]
+mouse_path = Path('/Users/alice/Desktop/Data_test')
+exp = 'OdDis'
+session = 'Habituation'
+mouse = 'CDf1'
+code = 0
+RES = 100 #number of pixels in fiberpho heatmap
 
-fiberpho_path = str(mouse_path) + '/' + mouse + '_dFFfilt.csv'
-camera_path = str(mouse_path) + '/' + mouse + '_camera.csv'
-rawdata_path = str(mouse_path) + '/' + mouse +  '_rawdata.csv'
+fiberpho_path = mouse_path / f'{mouse}_{code}_dFFfilt.csv'
+camera_path = mouse_path / f'{mouse}_{code}_camera.csv'
+#rawdata_path = mouse_path / f'{mouse}_{code}.csv'
+tracking_path = mouse_path / f'{mouse}_{code}_tracking.csv'
     
 fiberpho = pd.read_csv(fiberpho_path)
 camera = pd.read_csv(camera_path)
+df_tracking = pd.read_csv(tracking_path)
 #rawdata_df = pd.read_csv(rawdata_path)
 
 print('timevector')
@@ -177,34 +192,21 @@ print('timestamp')
 timestart_camera = timestamp_camera(camera)[0]
 print('start camera : ', timestart_camera)
 print('aligning')
-fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
-print('processing')
-(fiberbehav2_df, fbprocess_df) = behav_process(fiberbehav_df, list_BOI)
+fibertracking_df = align_dFFtrack(df_tracking, fiberpho, timevector, timestart_camera)
+
+#%%plot tracking
+plot_tracking(df_tracking)
+
+#%%plot tracking density
+plot_trackingdensity(df_tracking)
+
+#%%plot 
+plot_fibertrack_heatmap(fibertracking_df, RES)
 
 #%%Run for all 
 
 #list experiments, sessions and mice:
-for exp_path in Path(analysis_path).iterdir():
-    if exp_path.is_dir():
-        for session_path in Path(exp_path).iterdir():
-            if session_path.is_dir():
-                for mouse_path in Path(session_path).iterdir():
-                    #get the name of the mouse, session and experiment
-                    # '/' on mac, '\\' on windows
-                    exp = str(mouse_path).split('/')[-3]
-                    session = str(mouse_path).split('/')[-2]
-                    mouse = str(mouse_path).split('/')[-1]
-                    print(exp, session, mouse)
-                    
-                    #get data
-                    tracking_path = str(mouse_path) + '/tracking_' + mouse + '.csv'
-                    fiberpho_path = str(mouse_path) + '/' + mouse + '_dFFfilt.csv'
-                    camera_path = str(mouse_path) + '/' + mouse + '_camera.csv'
-                    
-                    if os.path.exists(behav_path):
-                        fiberpho = pd.read_csv(fiberpho_path)
-                        camera = pd.read_csv(camera_path)
-                        tracking = pd.read_csv(tracking_path)
+
                 
                     
 
