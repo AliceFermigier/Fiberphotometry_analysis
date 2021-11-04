@@ -38,7 +38,7 @@ from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BE
 
 from Func_fiberplots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw
 
-#os.chdir(experiment_path)
+os.chdir(experiment_path)
 
 #%%
 ###################

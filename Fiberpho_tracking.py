@@ -74,19 +74,19 @@ def plot_trackingdensity(df_tracking):
     
     return()
     
-def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start):
+def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop):
     
-    # #trouver samplerate df_tracking en temps avec camera_start - camera_stop
-    # samplerate_tracking = len(df_tracking)/(camera_stop-camera_start)
-    
-    #resample df_tracking
-    df_tracking_resampled = df_tracking.asfreq(SAMPLERATE)
+    #add timeframe to tracking data
+    timevector_tracking = np.linspace(camera_start, camera_stop, len(df_tracking))
+    timevector_tracking_trunc = truncate(timevector_tracking, 1)
+    df_tracking['Time(s)']=timevector_tracking_trunc
+    df_tracking_resampled = df_tracking.drop_duplicates('Time(s)')
     
     #index of df_tracking where camera starts
-    list_indstart = np.where(round(timevector,1) == timestart_camera)
+    list_indstart = np.where(round(timevector,1) == camera_start)
     indstart = list_indstart[0].tolist()[0]
     
-    #align tracking data
+    #align tracking data by adding zeros before camera starts
     tracking_x = [0]*indstart
     tracking_x.extend(df_tracking_resampled['Item2.X'])
     
@@ -191,10 +191,10 @@ df_tracking = pd.read_csv(tracking_path)
 print('timevector')
 timevector = time_vector(fiberpho, SAMPLERATE)
 print('timestamp')
-timestart_camera = timestamp_camera(camera)[0]
-print('start camera : ', timestart_camera)
+(camera_start, camera_stop) = timestamp_camera(camera)
+print('start camera : ', camera_start)
 print('aligning')
-fibertracking_df = align_dFFtrack(df_tracking, fiberpho, timevector, timestart_camera)
+fibertracking_df = align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop)
 
 #%%plot tracking
 plot_tracking(df_tracking)
