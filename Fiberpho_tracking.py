@@ -89,33 +89,43 @@ def plot_tracking(df_tracking):
 
 def plot_densityheatmap(df_tracking):
     
+    df_tracking_clean = df_tracking.dropna()
+    
     #find space edges
-    (min_x, max_x) = (min(df_tracking['Item2.X'].dropna()), max(df_tracking['Item2.X'].dropna()))
-    (min_y, max_y) = (min(df_tracking['Item2.Y'].dropna()), max(df_tracking['Item2.Y'].dropna()))
+    (min_x, max_x) = (min(df_tracking_clean['Item2.X']), max(df_tracking_clean['Item2.X']))
+    (min_y, max_y) = (min(df_tracking_clean['Item2.Y']), max(df_tracking_clean['Item2.Y']))
     
     #define matrix
-    space = np.zeros((RES, RES))
+    space = np.zeros((RES, RES))-0.1
     
     #discretize position in dataframe
-    dis_x = [int((RES*x)/(max_x-min_x)) for x in df_tracking['Item2.X'].dropna()]
-    dis_y = [int((RES*y)/(max_y-min_y)) for y in df_tracking['Item2.Y'].dropna()]
+    dis_x = [int(((RES-1)*(x-min_x))/(max_x-min_x)) for x in df_tracking_clean['Item2.X']]
+    dis_y = [int(((RES-1)*(y-min_y))/(max_y-min_y)) for y in df_tracking_clean['Item2.Y']]
     
     density_df = pd.DataFrame(data = {'Track_x' : dis_x, 'Track_y' : dis_y,
-                                      'Density' : [1]*len(df_tracking['Item2.X'])})
+                                      'Count' : [1]*len(dis_x)})
     
-    density = density_df.groupby(['Track_x','Track_y']).sum()
+    density = density_df.groupby(['Track_x','Track_y'], as_index=False).sum()
+    density['Density'] = [c/max(density['Count']) for c in density['Count']]
     
-    for j in density['Track_y']:
-        for i in density['Track_x']:
-            space[i][j] = density.loc[(density['Track_x']==i) and (density['Track_y']==j),'Density']
+    for (i,j) in zip(density['Track_x'], density['Track_y']):
+        space[j][i] = density.loc[(density['Track_x']==i) & (density['Track_y']==j),'Density'].values[0]
     
     #plot space array
-    fig2 = plt.figure(figsize=(20,20))
+    fig2 = plt.figure(figsize=(30,30))
     ax2 = fig2.add_subplot(111)
     
-    p2, = ax2.pcolormesh(space, cmap='viridis')
+    p2 = ax2.contourf(space, cmap='magma', vmin = -0.1, vmax = 1, levels=15)
+    #fig2.colorbar(p2, ax=ax2)
+    ax2.set_title(f'Position density - {exp} {session} {mouse}', fontsize=28)
+    ax2.set_xticks([])
+    ax2.set_yticks([])
     
-    fig2.savefig(mouse_path / f'{mouse}_densityheatmap.pdf')
+    #for discrete visualization
+    # ax2b = fig2.add_subplot(212,sharex=ax2)
+    # p2b = ax2b.pcolormesh(space, cmap='inferno', vmin = -0.1, vmax = 1)
+    
+    fig2.savefig(mouse_path / f'{mouse}_{code}_densityheatmap.png', transparent=True)
     
     return()
     
@@ -168,36 +178,56 @@ def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop)
     
     return(fibertracking_df)
 
-def plot_fibertrack_heatmap(fibertracking_df, RES):
+def plot_fibertrack_heatmap(fibertracking_df):
+    
+    fibertracking_df_clean = fibertracking_df.dropna()
     
     #find space edges
-    (min_x, max_x) = (min(fibertracking_df['Track_x'].dropna()), max(fibertracking_df['Track_x'].dropna()))
-    (min_y, max_y) = (min(fibertracking_df['Track_y'].dropna()), max(fibertracking_df['Track_y'].dropna()))
-    
-    #define matrix
-    space = np.zeros((RES, RES))
+    (min_x, max_x) = (min(fibertracking_df_clean['Track_x']), max(fibertracking_df_clean['Track_x']))
+    (min_y, max_y) = (min(fibertracking_df_clean['Track_y']), max(fibertracking_df_clean['Track_y']))
     
     #discretize position in dataframe
-    dis_x = [int((RES*x)/(max_x-min_x)) for x in fibertracking_df['Track_x']]
-    dis_y = [int((RES*y)/(max_y-min_y)) for y in fibertracking_df['Track_y']]
+    dis_x = [int(((RES-1)*(x-min_x))/(max_x-min_x)) for x in fibertracking_df_clean['Track_x']]
+    dis_y = [int(((RES-1)*(y-min_y))/(max_y-min_y)) for y in fibertracking_df_clean['Track_y']]
     
-    fibertracking_dis_df = pd.DataFrame(data = {'Denoised dFF' : fibertracking_df['Denoised dFF'],
+    fibertracking_dis_df = pd.DataFrame(data = {'Denoised dFF' : fibertracking_df_clean['Denoised dFF'],
                                                 'Track_x' : dis_x, 'Track_y' : dis_y})
     
-    mean_dFF = fibertracking_dis_df.groupby(['Track_x','Track_y']).mean()
+    mean_dFF = fibertracking_dis_df.groupby(['Track_x','Track_y'], as_index=False).mean()
+    (min_dFF, max_dFF) = (min(mean_dFF['Denoised dFF']), max(mean_dFF['Denoised dFF']))
     
-    for j in mean_dFF['Track_y']:
-        for i in mean_dFF['Track_x']:
-            space[i][j] = mean_dFF.loc[(mean_dFF['Track_x']==i) and (mean_dFF['Track_y']==j),'Denoised dFF']
+    #define matrix
+    space = np.zeros((RES, RES))-(abs(min_dFF)+0.05)
     
-    #plot space array
-    fig3 = plt.figure(figsize=(20,20))
+    for (i,j) in zip(mean_dFF['Track_x'], mean_dFF['Track_y']):
+        space[j][i] = mean_dFF.loc[(mean_dFF['Track_x']==i) & (mean_dFF['Track_y']==j),'Denoised dFF']
+    
+    #plot space array contourf
+    fig3 = plt.figure(figsize=(30,36))
     ax3 = fig3.add_subplot(111)
     
-    (min_dFF, max_dFF) = (min(mean_dFF['Denoised dFF']), max(mean_dFF['Denoised dFF']))
-    p3, = ax3.pcolormesh(space, cmap='magma', vmin = min_dFF, vmax = max_dFF)
+    p3 = ax3.contourf(space, cmap='turbo', vmin = min_dFF, vmax = max_dFF, levels=20)
+    #p3 = ax3.pcolormesh(space, cmap='turbo', vmin = min_dFF, vmax = max_dFF)
+    fig3.colorbar(p3, ax=ax3, aspect=60, orientation = 'horizontal', pad=0.01)
+    ax3.set_title(f'dFF tracking - {exp} {session} {mouse}', fontsize=28)
+    #fig3.suptitle(f'dFF tracking - {exp} {session} {mouse}', fontsize=20)
+    ax3.set_xticks([])
+    ax3.set_yticks([])
     
-    fig3.savefig(mouse_path / f'{mouse}_dFFheatmap.pdf')
+    #plot colormesh
+    fig3b = plt.figure(figsize=(30,36))
+    ax3b = fig3b.add_subplot(111)
+    
+    p3b = ax3b.pcolormesh(space, cmap='turbo', vmin = min_dFF, vmax = max_dFF)
+    #p3 = ax3.pcolormesh(space, cmap='turbo', vmin = min_dFF, vmax = max_dFF)
+    fig3b.colorbar(p3b, ax=ax3b, aspect=60, orientation = 'horizontal', pad=0.01)
+    ax3b.set_title(f'dFF tracking - {exp} {session} {mouse}', fontsize=28)
+    #fig3.suptitle(f'dFF tracking - {exp} {session} {mouse}', fontsize=20)
+    ax3b.set_xticks([])
+    ax3b.set_yticks([])
+    
+    fig3.savefig(mouse_path / f'{mouse}_{code}_dFFheatmap.png', transparent=True)
+    fig3b.savefig(mouse_path / f'{mouse}_{code}_dFFheatmap_cmesh.png', transparent=True)
     
     return()
 
@@ -217,7 +247,7 @@ exp = 'OdDis'
 session = 'Habituation'
 mouse = 'CDf1'
 code = 0
-RES = 100 #number of pixels in fiberpho heatmap
+RES = 150 #number of pixels in fiberpho heatmap
 
 fiberpho_path = mouse_path / f'{mouse}_{code}_dFFfilt.csv'
 camera_path = mouse_path / f'{mouse}_{code}_camera.csv'
@@ -244,7 +274,7 @@ plot_tracking(df_tracking)
 plot_densityheatmap(df_tracking)
 
 #%%plot 
-plot_fibertrack_heatmap(fibertracking_df, RES)
+plot_fibertrack_heatmap(fibertracking_df)
 
 #%%Run for all 
 

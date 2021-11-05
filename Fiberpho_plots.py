@@ -213,7 +213,7 @@ def plot_fiberpho(fiberbehav_df):
     fiberbehavsnip_df = fiberbehav_df[fiberbehav_df['Time(s)'] > 40]
        
     fig1 = plt.figure(figsize=(10,6))
-    ax0 = fig1.add_subplot(211)
+    ax0 = fig1.add_subplot(111)
     
     p1, = ax0.plot('Time(s)', '470nm deltaF/F', linewidth=1, color='deepskyblue', label='GCaMP', data = fiberbehavsnip_df) 
     p2, = ax0.plot('Time(s)', '405nm deltaF/F', linewidth=1, color='blueviolet', label='ISOS', data = fiberbehavsnip_df)
@@ -237,7 +237,7 @@ def plot_fiberpho_behav(behavprocess_df):
     behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 40]
     
     fig2 = plt.figure(figsize=(20,12))
-    ax1 = fig2.add_subplot(311)
+    ax1 = fig2.add_subplot(111)
     
     if session in ['Test 1h','Test 24h','Test','S3']:
         #plots fiberpho trace and behaviour
