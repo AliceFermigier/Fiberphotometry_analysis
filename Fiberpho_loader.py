@@ -50,6 +50,7 @@ SAMPLERATE = 10 #in Hz
 list_EVENT = ['onset', 'withdrawal']
 list_TIMEWINDOW = [[4,5],[4,7]] 
 
+#FIBER_BEHAV################################################################
 #time before behaviour for calculation of PETH baseline, in seconds
 PRE_EVENT_TIME = 1
 
@@ -61,6 +62,12 @@ THRESH_S = 3
 
 #threshold for PETH : if events are too short, not in PETH
 EVENT_TIME_THRESHOLD = 20 #2seconds
+
+#FIBER TRACKING#######################
+#number of pixels in fiberpho heatmap
+RES = 40 
+#behaviour used as 'start'
+BEHAV_START = 'Gate opens'
 
 #CAUTION : with the code as it is, can process up to 4 different behaviours
 #if more, add elif to align_behav function
