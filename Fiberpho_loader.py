@@ -17,6 +17,7 @@ Behavioral scoring is done using Boris software
 import os
 import pandas as pd
 from pathlib import Path
+import numpy as np
 #with pathlib.Path : file_to_open = data_folder / "raw_data.txt"
 
 #%%
@@ -25,15 +26,15 @@ from pathlib import Path
 ########
 experiment_path = Path('D:/Alice/Fiber/202110_CA2db2')
 analysis_path = experiment_path / 'Analysis'
-data_path = experiment_path / 'Data'
+data_path = experiment_path / 'Data//To_do'
 os.chdir(experiment_path)
 os.getcwd()
 
 #import ID and groups of all mice
-subjects_df = pd.read_excel('subjects.xlsx')
+subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx')
 
 #import tasks in protocol
-proto_df = pd.read_excel('protocol.xlsx')
+proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 
 #all analysis files in Batch/Experiment/Analysis/Subject_Trial
 #each trial of each subject has a specific directory called CD1_0, CD1_2, etc...
@@ -61,7 +62,7 @@ TIME_BEGIN = 60
 THRESH_S = 3
 
 #threshold for PETH : if events are too short, not in PETH
-EVENT_TIME_THRESHOLD = 20 #2seconds
+EVENT_TIME_THRESHOLD = 5 #0.5seconds
 
 #FIBER TRACKING#######################
 #number of pixels in fiberpho heatmap
@@ -87,3 +88,21 @@ BEHAV_START = 'Gate opens'
 #         for subject in subjects_df['Subject']:
 #             if not os.path.exists(analysis_path / task / session / subject):
 #                 os.mkdir(analysis_path / task / session / subject)
+                
+                
+# #%%                
+# #extract camera df from rawdata file
+# df_camera = pd.read_csv('/Volumes/My Passport/Alice/Fiber/202110_CA2db2/20211004_AliceF_CA2b2bedding/HFDm1_0_camera.csv')
+# df_rawdata = pd.read_csv('/Volumes/My Passport/Alice/Fiber/202110_CA2db2/20211004_AliceF_CA2b2bedding/HFDm1_0.csv')
+# ind_list_cam = np.where(df_camera['Digital I/O | Ch.3 DI/O-3'] == 1)
+# ind_list_raw = np.where(df_rawdata['Digital I/O | Ch.3'] == 1)
+# start_cam = df_camera.at[ind_list_cam[0][0], 'Time(s)']
+# start = df_rawdata.at[ind_list_raw[0][0], '---']
+
+
+# df_camera_2 = pd.read_csv('/Volumes/My Passport/Alice/Fiber/202110_CA2db2/20211004_AliceF_CA2b2bedding/HFDm1_1_camera.csv')
+# df_rawdata_2 = pd.read_csv('/Volumes/My Passport/Alice/Fiber/202110_CA2db2/20211004_AliceF_CA2b2bedding/HFDm1_1.csv')
+# ind_list_cam2 = np.where(df_camera_2['Digital I/O | Ch.3 DI/O-3'] == 1)
+# ind_list_raw2 = np.where(df_rawdata_2['Digital I/O | Ch.3'] == 1)
+# start_cam_2 = df_camera_2.at[ind_list_cam2[0][0], 'Time(s)']
+# start_2 = df_rawdata_2.at[ind_list_raw2[0][0], '---']
