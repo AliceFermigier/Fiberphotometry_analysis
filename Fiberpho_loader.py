@@ -26,15 +26,15 @@ import numpy as np
 ########
 experiment_path = Path('D:/Alice/Fiber/202110_CA2db2')
 analysis_path = experiment_path / 'Analysis'
-data_path = experiment_path / 'Data'
+data_path = experiment_path / 'Data//To_do'
 os.chdir(experiment_path)
 os.getcwd()
 
 #import ID and groups of all mice
-subjects_df = pd.read_excel('subjects.xlsx')
+subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx')
 
 #import tasks in protocol
-proto_df = pd.read_excel('protocol.xlsx')
+proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 
 #all analysis files in Batch/Experiment/Analysis/Subject_Trial
 #each trial of each subject has a specific directory called CD1_0, CD1_2, etc...
@@ -61,7 +61,7 @@ TIME_BEGIN = 60
 THRESH_S = 3
 
 #threshold for PETH : if events are too short, not in PETH
-EVENT_TIME_THRESHOLD = 20 #2seconds
+EVENT_TIME_THRESHOLD = 5 #0.5seconds
 
 #CAUTION : with the code as it is, can process up to 4 different behaviours
 #if more, add elif to align_behav function
@@ -71,16 +71,16 @@ EVENT_TIME_THRESHOLD = 20 #2seconds
 #SCRIPT#
 ########
 
-#create analysis folder nomenclature
-for task in ['Plethysmo']:
-    if not os.path.exists(analysis_path / task):
-        os.mkdir(analysis_path / task)
-    for session in proto_df.loc[proto_df['Task']==task,'Sessions'].values[0].split(','):
-        if not os.path.exists(analysis_path / task / session):
-            os.mkdir(analysis_path / task / session)
-        for subject in subjects_df['Subject']:
-            if not os.path.exists(analysis_path / task / session / subject):
-                os.mkdir(analysis_path / task / session / subject)
+# #create analysis folder nomenclature
+# for task in ['Plethysmo']:
+#     if not os.path.exists(analysis_path / task):
+#         os.mkdir(analysis_path / task)
+#     for session in proto_df.loc[proto_df['Task']==task,'Sessions'].values[0].split(','):
+#         if not os.path.exists(analysis_path / task / session):
+#             os.mkdir(analysis_path / task / session)
+#         for subject in subjects_df['Subject']:
+#             if not os.path.exists(analysis_path / task / session / subject):
+#                 os.mkdir(analysis_path / task / session / subject)
                 
                 
 # #%%                

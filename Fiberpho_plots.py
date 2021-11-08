@@ -702,11 +702,11 @@ for BOI in list_BOI:
 for exp_path in Path(analysis_path).iterdir():
     if exp_path.is_dir():
         exp = str(exp_path).split('\\')[-1]
-        print(exp)
         for session_path in Path(exp_path).iterdir():
             if session_path.is_dir():
                 session = str(session_path).split('\\')[-1]
-                print(session)
+                print(exp, session)
+                code = session_code(session)
                 #get data path related to the task in protocol excel file
                 data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
                 #create repository for values of thresholds : length and interbout
@@ -719,7 +719,6 @@ for exp_path in Path(analysis_path).iterdir():
                     # '/' on mac, '\\' on windows
                     mouse = str(mouse_path).split('\\')[-1]
                     print(mouse)
-                    code = 1
                     
                     #get data
                     behav_path = data_path_exp / f'behav_{code}_{mouse}.csv'
@@ -729,9 +728,8 @@ for exp_path in Path(analysis_path).iterdir():
                     
                     #begin analysis only if behaviour has been scored
                     ready = False
-                    if os.path.exists(behav_path):
+                    if os.path.exists(behav_path) and not os.path.exists(mouse_path / f'{mouse}_threshold{THRESH_S}s_fiberbehav_scaled.pdf'):
                         ready = True
-                        
                     print(f'ready? {ready}')
                     
                     if os.path.exists(camera_path) and ready == True:
@@ -740,7 +738,7 @@ for exp_path in Path(analysis_path).iterdir():
                     elif os.path.exists(rawdata_path) and ready == True:
                         rawdata_cam_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','DI/O-3'])
                     
-                    if os.path.exists(behav_path) and os.path.exists(fiberpho_path):
+                    if os.path.exists(behav_path) and os.path.exists(fiberpho_path) and ready == True:
                         behav10Sps = pd.read_csv(behav_path)
                         fiberpho = pd.read_csv(fiberpho_path)
                         print(exp, session, mouse)
