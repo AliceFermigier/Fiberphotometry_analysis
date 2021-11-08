@@ -20,6 +20,7 @@ import os
 import numpy as np
 import plotly.express as px
 import sys
+import cv2
 
 #Custom
 #put path to directory where python files are stored
@@ -231,6 +232,88 @@ def plot_fibertrack_heatmap(fibertracking_df):
     
     return()
 
+def plot_fibertrack_heatmap_timebins(fibertracking_df, n_timebins):
+    
+    nCOLS = n_timebins
+    
+    fibertracking_df_clean = fibertracking_df.dropna()
+    
+    #find space edges
+    (min_x, max_x) = (min(fibertracking_df_clean['Track_x']), max(fibertracking_df_clean['Track_x']))
+    (min_y, max_y) = (min(fibertracking_df_clean['Track_y']), max(fibertracking_df_clean['Track_y']))
+    
+    #discretize position in dataframe
+    dis_x = [int(((RES-1)*(x-min_x))/(max_x-min_x)) for x in fibertracking_df_clean['Track_x']]
+    dis_y = [int(((RES-1)*(y-min_y))/(max_y-min_y)) for y in fibertracking_df_clean['Track_y']]
+    
+    (min_dFF, max_dFF) = (min(fibertracking_df_clean['Denoised dFF']), 
+                          max(fibertracking_df_clean['Denoised dFF']))
+    
+    fibertracking_dis_df = pd.DataFrame(data = {'Denoised dFF' : fibertracking_df_clean['Denoised dFF'],
+                                                'Track_x' : dis_x, 'Track_y' : dis_y,
+                                                'Time(s)' : fibertracking_df_clean['Time(s)']})
+    
+    #find length of timebins
+    len_timebin = (fibertracking_df_clean['Time(s)'].values[-1])/n_timebins
+    
+    #figure for contourf-------------------------------------------------------------------------
+    fig4, axs = plt.subplots(1, nCOLS, figsize = (20.4*nCOLS,20), 
+                             sharey = True, sharex = True, constrained_layout=True)
+    
+    #splice data for each timebin
+    for ax, timebin in zip(axs.flat[:n_timebins], range(n_timebins)):
+        #define matrix
+        space = np.zeros((RES, RES))-(abs(min_dFF)+0.05)
+        #extract data during timebin
+        fibertracking_dis_df_timebin = fibertracking_dis_df.loc[(fibertracking_dis_df['Time(s)'] >= len_timebin*timebin) &
+                                                                (fibertracking_dis_df['Time(s)'] < len_timebin*(timebin+1))]
+        mean_dFF_timebin = fibertracking_dis_df_timebin.groupby(['Track_x','Track_y'], as_index=False).mean()
+        
+        for (i,j) in zip(mean_dFF_timebin['Track_x'], mean_dFF_timebin['Track_y']):
+            space[j][i] = mean_dFF_timebin.loc[(mean_dFF_timebin['Track_x']==i) & (mean_dFF_timebin['Track_y']==j),'Denoised dFF']
+        ax.set_title(f'{truncate(timebin*len_timebin,1)}s --> {truncate((timebin+1)*len_timebin,1)}s', fontsize=40)
+        
+        #plot space array contourf
+        p = ax.contourf(space, cmap='turbo', vmin = min_dFF, vmax = max_dFF, levels=20)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        
+    # for ax in axs.flat[len(n_timebins):]:
+    #     ax.set_visible(False)
+        
+    fig4.colorbar(p, aspect=110, ax=[axs[n_timebins-1]], location='right', pad=0.005)
+    fig4.suptitle(f'dFF tracking - {exp} {session} {mouse}', fontsize=78)
+    
+    #figure for colormesh-------------------------------------------------------------------------
+    fig4b, axs = plt.subplots(1, nCOLS, figsize = (20.4*nCOLS,20), 
+                             sharey = True, sharex = True, constrained_layout=True)
+    
+    #splice data for each timebin
+    for ax, timebin in zip(axs.flat[:n_timebins], range(n_timebins)):
+        #define matrix
+        space = np.zeros((RES, RES))-(abs(min_dFF)+0.05)
+        #extract data during timebin
+        fibertracking_dis_df_timebin = fibertracking_dis_df.loc[(fibertracking_dis_df['Time(s)'] >= len_timebin*timebin) &
+                                                                (fibertracking_dis_df['Time(s)'] < len_timebin*(timebin+1))]
+        mean_dFF_timebin = fibertracking_dis_df_timebin.groupby(['Track_x','Track_y'], as_index=False).mean()
+        
+        for (i,j) in zip(mean_dFF_timebin['Track_x'], mean_dFF_timebin['Track_y']):
+            space[j][i] = mean_dFF_timebin.loc[(mean_dFF_timebin['Track_x']==i) & (mean_dFF_timebin['Track_y']==j),'Denoised dFF']
+        ax.set_title(f'{truncate(timebin*len_timebin,1)}s --> {truncate((timebin+1)*len_timebin,1)}s', fontsize=40)
+        
+        #plot space array contourf
+        p = ax.pcolormesh(space, cmap='turbo', vmin = min_dFF, vmax = max_dFF)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        
+    fig4b.colorbar(p, aspect=110, ax=[axs[n_timebins-1]], location='right', pad=0.005)
+    fig4b.suptitle(f'dFF tracking - {exp} {session} {mouse}', fontsize=70)
+        
+    fig4.savefig(mouse_path / f'{mouse}_{code}_dFFheatmaptimebins.png', transparent=True)
+    fig4b.savefig(mouse_path / f'{mouse}_{code}_dFFheatmaptimebins_cmesh.png', transparent=True)
+    
+    return()
+
 def plot_interactive_heatmap(fibertracking_df, arena):
     
     return()
@@ -244,9 +327,9 @@ SAMPLERATE = 10 #in Hz
 
 mouse_path = Path('/Users/alice/Desktop/Data_test')
 exp = 'OdDis'
-session = 'Habituation'
+session = 'Test'
 mouse = 'CDf1'
-code = 0
+code = 1
 RES = 150 #number of pixels in fiberpho heatmap
 
 fiberpho_path = mouse_path / f'{mouse}_{code}_dFFfilt.csv'
@@ -273,8 +356,11 @@ plot_tracking(df_tracking)
 #%%plot tracking density
 plot_densityheatmap(df_tracking)
 
-#%%plot 
+#%%plot dFF intensity
 plot_fibertrack_heatmap(fibertracking_df)
+
+#%%plot dFF intensity with timebins
+plot_fibertrack_heatmap_timebins(fibertracking_df, 7)
 
 #%%Run for all 
 
