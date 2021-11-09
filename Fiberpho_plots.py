@@ -66,6 +66,8 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera):
     #index where camera starts
     list_indstart = np.where(round(timevector,1) == timestart_camera)
     indstart = list_indstart[0].tolist()[0]
+    
+    
 
     # create lists of behaviour data for each scored behaviour
     # aligned with start of the camera

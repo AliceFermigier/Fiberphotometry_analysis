@@ -34,7 +34,7 @@ sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Fiberphotometry_analy
 ########
 
 from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df
-from Fiberpho_loader import SAMPLERATE, proto_df, RES, BEHAV_START
+from Fiberpho_loader import SAMPLERATE, proto_df, RES, BEHAV_START, TIME_BASELINE
 
 from Func_fiberplots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw
 
@@ -90,7 +90,7 @@ def plot_tracking(df_tracking):
     
 def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop, behav10Sps):
     
-    #add timeframe to tracking data
+    #add timeframe to tracking data and resample to have exactly sampling rate = 10Hz
     timevector_tracking = np.linspace(camera_start, camera_stop, len(df_tracking))
     timevector_tracking_trunc = [truncate(i,1) for i in timevector_tracking]
     df_tracking['Time(s)']=timevector_tracking_trunc
@@ -107,9 +107,10 @@ def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop,
     tracking_y = [None]*indstart
     tracking_y.extend(df_tracking_resampled['Item2.Y'])
     
-    #create list of scored behaviour for when door opens
-    behav_list = [0]*indstart
-    behav_list.extend(behav10Sps[BEHAV_START].tolist())
+    if behav_scored == True:
+        #create list of scored behaviour for when door opens
+        behav_list = [0]*indstart
+        behav_list.extend(behav10Sps[BEHAV_START].tolist())
     
     # creates list of denoised fiberpho data    
     denoised_fiberpho = fiberpho['Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0' +
@@ -126,20 +127,30 @@ def align_dFFtrack(df_tracking, fiberpho, timevector, camera_start, camera_stop,
     timelist = timevector.tolist()
     
     # crops lists so that all lengths match
-    min_length = min([len(timelist), len(denoised_fiberpho_list), len(tracking_x),
-                      len(dff_405nm_list), len(dff_470nm_list), len(behav_list)])
+    if behav_scored == True:
+        min_length = min([len(timelist), len(denoised_fiberpho_list), len(tracking_x),
+                          len(dff_405nm_list), len(dff_470nm_list), len(behav_list)])
+    else:
+        min_length = min([len(timelist), len(denoised_fiberpho_list), len(tracking_x),
+                  len(dff_405nm_list), len(dff_470nm_list)])
+        
     timelist = timelist[:min_length]
     denoised_fiberpho_list = denoised_fiberpho_list[:min_length]
     dff_405nm_list = dff_405nm_list[:min_length]
     dff_470nm_list = dff_470nm_list[:min_length]
     tracking_x = tracking_x[:min_length]
     tracking_y = tracking_y[:min_length]
-    behav_list = behav_list[:min_length]
+    
+    if behav_scored == True:
+        behav_list = behav_list[:min_length]
 
-    # create dataframe
-    fibertracking_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
-                                             'Track_x' : tracking_x, 'Track_y' : tracking_y,
-                                             BEHAV_START : behav_list})
+        # create dataframe
+        fibertracking_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
+                                                 'Track_x' : tracking_x, 'Track_y' : tracking_y,
+                                                 BEHAV_START : behav_list})
+    else:
+        fibertracking_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
+                                         'Track_x' : tracking_x, 'Track_y' : tracking_y})
     
     return(fibertracking_df)
 
@@ -158,12 +169,19 @@ def plot_densityheatmap(fibertracking_df):
     dis_x = [int(((RES-1)*(x-min_x))/(max_x-min_x)) for x in fibertracking_df_clean['Track_x']]
     dis_y = [int(((RES-1)*(y-min_y))/(max_y-min_y)) for y in fibertracking_df_clean['Track_y']]
     
-    density_df = pd.DataFrame(data = {'Track_x' : dis_x, 'Track_y' : dis_y,
+    if behav_scored == True:
+        density_df = pd.DataFrame(data = {'Track_x' : dis_x, 'Track_y' : dis_y,
+                                          'Count' : [1]*len(dis_x),
+                                          'Time(s)' : fibertracking_df_clean['Time(s)'],
+                                          BEHAV_START : fibertracking_df_clean[BEHAV_START]})
+        #find where door opens
+        indstart = np.where(fibertracking_df[BEHAV_START]==1)[0].tolist()[0]
+    else:
+        density_df = pd.DataFrame(data = {'Track_x' : dis_x, 'Track_y' : dis_y,
                                       'Count' : [1]*len(dis_x),
-                                      BEHAV_START : fibertracking_df_clean[BEHAV_START]})
-    
-    #find where door opens
-    indstart = np.where(density_df[BEHAV_START]==1)[0].tolist()[0]
+                                      'Time(s)' : fibertracking_df_clean['Time(s)']})
+        #take from 2min
+        indstart = np.where(fibertracking_df['Time(s)']==TIME_BASELINE)[0].tolist()[0]
     
     density = density_df[indstart:].groupby(['Track_x','Track_y'], as_index=False).sum()
     density['Density'] = [c/max(density['Count']) for c in density['Count']]
@@ -177,7 +195,7 @@ def plot_densityheatmap(fibertracking_df):
     
     p2 = ax2.contourf(space, cmap='magma', vmin = -0.1, vmax = 1, levels=15)
     #fig2.colorbar(p2, ax=ax2)
-    ax2.set_title(f'Position density - {exp} {session} {mouse} - {RES}', fontsize=38)
+    ax2.set_title(f'Position density - {exp} {session} {mouse} - res {RES} - behav {behav_scored}', fontsize=38)
     ax2.set_xticks([])
     ax2.set_yticks([])
     
@@ -201,12 +219,20 @@ def plot_fibertrack_heatmap(fibertracking_df):
     dis_x = [int(((RES-1)*(x-min_x))/(max_x-min_x)) for x in fibertracking_df_clean['Track_x']]
     dis_y = [int(((RES-1)*(y-min_y))/(max_y-min_y)) for y in fibertracking_df_clean['Track_y']]
     
-    fibertracking_dis_df = pd.DataFrame(data = {'Denoised dFF' : fibertracking_df_clean['Denoised dFF'],
-                                                'Track_x' : dis_x, 'Track_y' : dis_y,
-                                                'Time(s)' : fibertracking_df_clean['Time(s)'],
-                                                BEHAV_START : fibertracking_df_clean[BEHAV_START]})
+    if behav_scored == True:
+        fibertracking_dis_df = pd.DataFrame(data = {'Denoised dFF' : fibertracking_df_clean['Denoised dFF'],
+                                                    'Track_x' : dis_x, 'Track_y' : dis_y,
+                                                    'Time(s)' : fibertracking_df_clean['Time(s)'],
+                                                    BEHAV_START : fibertracking_df_clean[BEHAV_START]})
+        indstart = np.where(fibertracking_df[BEHAV_START]==1)[0].tolist()[0]
+        
+    else:
+        fibertracking_dis_df = pd.DataFrame(data = {'Denoised dFF' : fibertracking_df_clean['Denoised dFF'],
+                                            'Track_x' : dis_x, 'Track_y' : dis_y,
+                                            'Time(s)' : fibertracking_df_clean['Time(s)']})
+        #take from 2min
+        indstart = np.where(fibertracking_df['Time(s)']==TIME_BASELINE)[0].tolist()[0]
     
-    indstart = np.where(fibertracking_dis_df[BEHAV_START]==1)[0].tolist()[0]
     
     mean_dFF = fibertracking_dis_df[indstart:].groupby(['Track_x','Track_y'], as_index=False).mean()
     mean_dFF2 = fibertracking_dis_df[:indstart].groupby(['Track_x','Track_y'], as_index=False).mean()
@@ -231,7 +257,7 @@ def plot_fibertrack_heatmap(fibertracking_df):
     p3 = ax3.contourf(space, cmap='twilight', vmin = min_dFF, vmax = max_dFF, levels=30)
     #p3 = ax3.pcolormesh(space, cmap='turbo', vmin = min_dFF, vmax = max_dFF)
     fig3.colorbar(p3, ax=ax3, aspect=60, orientation = 'horizontal', pad=0.01)
-    ax3.set_title(f'dFF tracking - {exp} {session} {mouse} - {RES}', fontsize=38)
+    ax3.set_title(f'dFF tracking - {exp} {session} {mouse} - res {RES} - behav {behav_scored}', fontsize=38)
     #fig3.suptitle(f'dFF tracking - {exp} {session} {mouse}', fontsize=20)
     ax3.set_xticks([])
     ax3.set_yticks([])
@@ -243,7 +269,7 @@ def plot_fibertrack_heatmap(fibertracking_df):
     p3b = ax3b.pcolormesh(space, cmap='twilight', vmin = min_dFF, vmax = max_dFF)
     #p3 = ax3.pcolormesh(space, cmap='turbo', vmin = min_dFF, vmax = max_dFF)
     fig3b.colorbar(p3b, ax=ax3b, aspect=60, orientation = 'horizontal', pad=0.01)
-    ax3b.set_title(f'dFF tracking - {exp} {session} {mouse} - {RES}', fontsize=38)
+    ax3b.set_title(f'dFF tracking - {exp} {session} {mouse} - res {RES} - behav {behav_scored}', fontsize=38)
     #fig3.suptitle(f'dFF tracking - {exp} {session} {mouse}', fontsize=20)
     ax3b.set_xticks([])
     ax3b.set_yticks([])
@@ -443,22 +469,28 @@ for exp_path in Path(analysis_path).iterdir():
                     tracking_path = data_path_exp / f'{mouse}_{code}_tracking.csv'
                     
                     #begin analysis only if tracking has been made
-                    ready = False
-                    if os.path.exists(tracking_path) and not os.path.exists(mouse_path / f'{mouse}_{code}_{RES}_dFFheatmap.png'):
-                        ready = True
-                    print(f'ready? {ready}')
+                    done = False
+                    if os.path.exists(mouse_path / f'{mouse}_{code}_{RES}_dFFheatmap.png'):
+                        done = True
+                    print(f'done? {done}')
                     
                     #camera file
-                    if os.path.exists(camera_path) and ready == True:
+                    if os.path.exists(camera_path) and done == False:
                         camera = pd.read_csv(camera_path)
-                    elif os.path.exists(rawdata_path) and ready == True:
+                    elif os.path.exists(rawdata_path) and done == False:
                         rawdata_cam_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','DI/O-3'])
                     
-                    if os.path.exists(behav_path) and os.path.exists(fiberpho_path) and ready == True:
+                    behav_scored = False
+                    if os.path.exists(behav_path) and done == False:
                         behav10Sps = pd.read_csv(behav_path)
+                        behav_scored = True
+                        
+                    if os.path.exists(tracking_path) and os.path.exists(fiberpho_path) and done == False:
+                        
                         fiberpho = pd.read_csv(fiberpho_path)
                         df_tracking = pd.read_csv(tracking_path)
                         print(exp, session, mouse)
+                        print(f'behaviour scored? {behav_scored}')
                         
                         #align behaviour, tracking and fiberpho data
                         print('timevector')
