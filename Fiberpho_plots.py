@@ -18,10 +18,13 @@ import pandas as pd
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 plt.rcParams.update({'figure.max_open_warning' : 0})
 from pathlib import Path
 import os
 import sys
+
 
 #Custom
 #put path to directory where python files are stored
@@ -125,11 +128,10 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera):
     
     return(fiberbehav_df)
 
-def meandFF_behav(behav10Sps, fiberbehav_df):
+def meandFF_behav(list_BOI, fiberbehav_df):
     """
     Calculate mean dFF during each behaviour
     """
-    list_behav = behav10Sps.columns[1:].tolist()
     list_behav_analyzed = []
     list_meandFF = []
     
@@ -138,7 +140,7 @@ def meandFF_behav(behav10Sps, fiberbehav_df):
     
     #create list of behaviours and list of correspondind mean dFFs
     for behav in list_behav:
-        if behav10Sps.sum(1)[behav] > 1:
+        if fiberbehav_df.sum(1)[behav] > 1:
             list_behav_analyzed.append(behav)
             meandFF_behav_df = fiberbehav_df.groupby([behav]).mean()
             list_meandFF.append(meandFF_behav_df.loc[meandFF_behav_df[behav]==1, 'Denoised dFF'].values[0])
@@ -171,13 +173,9 @@ def meandFF_behav(behav10Sps, fiberbehav_df):
         list_columns.append(behav)
     meandFFs_df = pd.DataFrame(data=[[list_dFFs]], columns=list_columns)
     
-    meandFFs_df.to_excel(mouse_path / f'{mouse}_meandFFs.xlsx')
+    meandFFs_df.to_excel(mouse_path / f'{mouse}_meandFFglob.xlsx')
     
     return(meandFFs_df)
-
-def plot_meandFF(meandFFs_df):
-    
-    return()
 
 def behav_process(fiberbehav_df, list_BOI):
 
@@ -231,6 +229,65 @@ def behav_process(fiberbehav_df, list_BOI):
     
     return(fiberbehav_df, behavprocess_df)
 
+def diff_dFF(fiberbehav_df, behavprocess_df, list_BOI):
+    """
+    Calculates dFF difference between beginning and end of bouts
+    Also calculates mean dFF during each bout
+    """
+    list_behav_analyzed = []
+    for behav in list_BOI:
+        if fiberbehav_df.sum(1)[behav] > 1:
+            list_behav_analyzed.append(behav)
+    list_deltadFF = []
+    list_meandFF = []
+    listind_behav = []
+    listind_bouts = []
+    
+    for i, behav in enumerate(list_BOI):
+        list_starts = np.where(behavprocess_df[behav]==1)[0].tolist()
+        list_stops = np.where(behavprocess_df[behav]==-1)[0].tolist()
+        bout_n = 1
+        for (start, stop) in zip(list_starts, list_stops):
+            delta = behavprocess_df.loc[stop, 'Denoised dFF']-behavprocess_df.loc[start, 'Denoised dFF']
+            mean = behavprocess_df.loc[start:stop, 'Denoised dFF'].mean()
+            list_deltadFF.append(delta)
+            list_meandFF.append(mean)
+            listind_behav.append(behav)
+            listind_bouts.append(bout_n)
+            bout_n+=1
+    
+    diffdFF_df = pd.DataFrame(data = {'Behaviour':listind_behav, 'Bout':listind_bouts,
+                                      'Mean dFF':list_meandFF, 'Delta dFF':list_deltadFF})
+    
+    return(diffdFF_df)
+    
+def plot_meandFF(meandFFs_df):
+    
+    fig6 = plt.figure(figsize=(7,6))
+    ax61 = fig6.add_subplot(111)
+
+    # Choose a colormap
+    colormap = cm.viridis
+    #colormap = cm.jet 
+    
+    colorparams = [i+1 for i in range(len(meandFFs_df.columns))]
+    normalize = mcolors.Normalize(vmin=1, vmax=colorparams[-1])
+    list_colors = []
+    
+    #Create color list
+    for param in colorparams:
+        color = colormap(normalize(param))
+        list_colors.append(color)
+        
+    #Plot histogram
+    p61, = ax61.bar(meandFFs_df.columns, meandFFs_df[0], list_colors)
+    ax61.set_ylabel(r'$\Delta$F/F')
+    
+    #save figure
+    fig6.savefig(mouse_path / f'{mouse}_mean.pdf')
+    
+    return()
+    
 def plot_rawdata(rawdata_df):
     """
     Plots raw isosbestic and GCaMP traces
@@ -266,7 +323,7 @@ def plot_fiberpho(fiberbehav_df):
     #crops starting artifacts
     fiberbehavsnip_df = fiberbehav_df[fiberbehav_df['Time(s)'] > 40]
        
-    fig1 = plt.figure(figsize=(10,6))
+    fig1 = plt.figure(figsize=(20,6))
     ax0 = fig1.add_subplot(111)
     
     p1, = ax0.plot('Time(s)', '470nm deltaF/F', linewidth=1, color='deepskyblue', label='GCaMP', data = fiberbehavsnip_df) 
