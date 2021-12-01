@@ -66,8 +66,6 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera):
     #index where camera starts
     list_indstart = np.where(round(timevector,1) == timestart_camera)
     indstart = list_indstart[0].tolist()[0]
-    
-    
 
     # create lists of behaviour data for each scored behaviour
     # aligned with start of the camera
@@ -126,6 +124,60 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera):
         print('Error : too many behaviours in Boris binary file. Score up to 4 or add line to function')
     
     return(fiberbehav_df)
+
+def meandFF_behav(behav10Sps, fiberbehav_df):
+    """
+    Calculate mean dFF during each behaviour
+    """
+    list_behav = behav10Sps.columns[1:].tolist()
+    list_behav_analyzed = []
+    list_meandFF = []
+    
+    #get index of when the gate opens
+    ind_start_trial = fiberbehav_df.index[fiberbehav_df['Gate opens'] == 1].tolist()[0]
+    
+    #create list of behaviours and list of correspondind mean dFFs
+    for behav in list_behav:
+        if behav10Sps.sum(1)[behav] > 1:
+            list_behav_analyzed.append(behav)
+            meandFF_behav_df = fiberbehav_df.groupby([behav]).mean()
+            list_meandFF.append(meandFF_behav_df.loc[meandFF_behav_df[behav]==1, 'Denoised dFF'].values[0])
+                                
+    #calculate mean dFF during baseline
+    
+    meandFF_baseline = fiberbehav_df.loc[:ind_start_trial, 'Denoised dFF'].mean()
+    
+    #calculate mean dFF when no exploration and after gate opens
+    
+    meandFF_postbaseline_df = fiberbehav_df.loc[ind_start_trial:]
+    for behav in list_behav_analyzed:
+        meandFF_postbaseline_df = meandFF_postbaseline_df.loc[meandFF_postbaseline_df[behav]==0]
+        
+    meandFF_postbaseline = meandFF_postbaseline_df['Denoised dFF'].mean()
+    
+    #calculate mean dFF when no exploration on total trial
+    meandFF_df = fiberbehav_df
+    for behav in list_behav_analyzed:
+        meandFF_df = meandFF_df.loc[meandFF_df[behav]==0]
+        
+    meandFF = meandFF_df['Denoised dFF'].mean()
+    
+    #create dataframe with values
+    
+    list_dFFs = [meandFF,meandFF_baseline,meandFF_postbaseline]
+    list_columns = ['Mean dFF','Mean dFF baseline', 'Mean dFF post_baseline']
+    for (behav,meandFF) in zip(list_behav_analyzed,list_meandFF):
+        list_dFFs.append(meandFF)
+        list_columns.append(behav)
+    meandFFs_df = pd.DataFrame(data=[[list_dFFs]], columns=list_columns)
+    
+    meandFFs_df.to_excel(mouse_path / f'{mouse}_meandFFs.xlsx')
+    
+    return(meandFFs_df)
+
+def plot_meandFF(meandFFs_df):
+    
+    return()
 
 def behav_process(fiberbehav_df, list_BOI):
 
@@ -238,7 +290,7 @@ def plot_fiberpho_behav(behavprocess_df):
     
     behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 40]
     
-    fig2 = plt.figure(figsize=(20,12))
+    fig2 = plt.figure(figsize=(20,4))
     ax1 = fig2.add_subplot(111)
     
     if session in ['Test 1h','Test 24h','Test','S3']:
