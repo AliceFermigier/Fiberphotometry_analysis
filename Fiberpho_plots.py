@@ -130,7 +130,7 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera):
 
 def meandFF_behav(list_BOI, fiberbehav_df):
     """
-    Calculate mean dFF during each behaviour
+    Calculates mean dFF during each behaviour
     """
     list_behav_analyzed = []
     list_meandFF = []
@@ -139,7 +139,7 @@ def meandFF_behav(list_BOI, fiberbehav_df):
     ind_start_trial = fiberbehav_df.index[fiberbehav_df['Gate opens'] == 1].tolist()[0]
     
     #create list of behaviours and list of correspondind mean dFFs
-    for behav in list_behav:
+    for behav in list_BOI:
         if fiberbehav_df.sum(1)[behav] > 1:
             list_behav_analyzed.append(behav)
             meandFF_behav_df = fiberbehav_df.groupby([behav]).mean()
@@ -166,14 +166,23 @@ def meandFF_behav(list_BOI, fiberbehav_df):
     
     #create dataframe with values
     
-    list_dFFs = [meandFF,meandFF_baseline,meandFF_postbaseline]
-    list_columns = ['Mean dFF','Mean dFF baseline', 'Mean dFF post_baseline']
+    list_dFFs = [mouse, meandFF,meandFF_baseline,meandFF_postbaseline]
+    list_columns = ['Subject','Mean dFF','Baseline', 'Post_baseline']
     for (behav,meandFF) in zip(list_behav_analyzed,list_meandFF):
         list_dFFs.append(meandFF)
         list_columns.append(behav)
     meandFFs_df = pd.DataFrame(data=[[list_dFFs]], columns=list_columns)
     
-    meandFFs_df.to_excel(mouse_path / f'{mouse}_meandFFglob.xlsx')
+    #Create figure of mean dFFs
+    fig7 = plt.figure(figsize=(7,6))
+    ax71 = fig7.add_subplot(111)
+    p71, = ax71.bar(meandFFs_df.columns, meandFFs_df[0])
+    ax71.set_ylabel(r'$\Delta$F/F')
+    ax71.set_title(f'Mean dFF - {exp} {session} {mouse}')
+    #save figure
+    fig7.savefig(mouse_path / f'{mouse}_meandFFs.pdf')
+    
+    #meandFFs_df.to_excel(mouse_path / f'{mouse}_meandFFglob.xlsx')
     
     return(meandFFs_df)
 
@@ -256,8 +265,8 @@ def diff_dFF(fiberbehav_df, behavprocess_df, list_BOI):
             listind_bouts.append(bout_n)
             bout_n+=1
     
-    diffdFF_df = pd.DataFrame(data = {'Behaviour':listind_behav, 'Bout':listind_bouts,
-                                      'Mean dFF':list_meandFF, 'Delta dFF':list_deltadFF})
+    diffdFF_df = pd.DataFrame(data = {'Subject':[mouse]*len(listind_behav), 'Behaviour':listind_behav, 
+                                      'Bout':listind_bouts, 'Mean dFF':list_meandFF, 'Delta dFF':list_deltadFF})
     
     return(diffdFF_df)
     
@@ -766,6 +775,10 @@ for exp_path in Path(analysis_path).iterdir():
                     os.mkdir(repo_path)
                     for subject in subjects_df['Subject']:
                         os.mkdir(repo_path / subject)
+                #create list of mean_dFFs and diff_dFFs
+                mean_dFFs_list = []
+                subject_list = []
+                diffdFF_list = []
                 for mouse_path in Path(repo_path).iterdir():
                     # '/' on mac, '\\' on windows
                     mouse = str(mouse_path).split('\\')[-1]
@@ -777,19 +790,24 @@ for exp_path in Path(analysis_path).iterdir():
                     camera_path = data_path_exp / f'{mouse}_{code}_camera.csv'
                     rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
                     
-                    #begin analysis only if behaviour has been scored
+                    #begin analysis only if behaviour has been scored and plots haven't been done
                     ready = False
-                    if os.path.exists(behav_path) and not os.path.exists(mouse_path / f'{mouse}_threshold{THRESH_S}s_fiberbehav_scaled.pdf'):
+                    if os.path.exists(behav_path):
                         ready = True
                     print(f'ready? {ready}')
                     
-                    if os.path.exists(camera_path) and ready == True:
+                    done = True
+                    if not os.path.exists(mouse_path / f'{mouse}_threshold{THRESH_S}s_fiberbehav_scaled.pdf'):
+                        done = False
+                    print(f'done? {done}')
+                    
+                    if os.path.exists(camera_path) and ready == True and done == False:
                         camera = pd.read_csv(camera_path)
                         
-                    elif os.path.exists(rawdata_path) and ready == True:
+                    elif os.path.exists(rawdata_path) and ready == True and done == False:
                         rawdata_cam_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','DI/O-3'])
                     
-                    if os.path.exists(behav_path) and os.path.exists(fiberpho_path) and ready == True:
+                    if os.path.exists(behav_path) and os.path.exists(fiberpho_path) and ready == True and done == False:
                         behav10Sps = pd.read_csv(behav_path)
                         fiberpho = pd.read_csv(fiberpho_path)
                         print(exp, session, mouse)
@@ -810,14 +828,18 @@ for exp_path in Path(analysis_path).iterdir():
                         print('start camera : ', timestart_camera)
                         print('aligning')
                         fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
+                        if EVENT_TIME_THRESHOLD==0 and THRESH_S==0:
+                            mean_dFFs_list.append(meandFF_behav(list_BOI, fiberbehav_df))
+                            #plot isosbestic and gcamp data
+                            plot_fiberpho(fiberbehav_df)
                         print('processing')
                         (fiberbehav2_df, fbprocess_df) = behav_process(fiberbehav_df, list_BOI)
                         
+                        #add diffdFFs to the list
+                        diffdFF_list.append(diff_dFF(fiberbehav_df, fbprocess_df, list_BOI))
+                        
                         # #plot raw data
                         #plot_rawdata(rawdata_df)
-                        
-                        # #plot isosbestic and gcamp data
-                        plot_fiberpho(fiberbehav_df)
                         
                         #plot fiberpho data aligned with behav
                         plot_fiberpho_behav(fbprocess_df)
@@ -831,6 +853,14 @@ for exp_path in Path(analysis_path).iterdir():
                                 for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
                                     PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
                                     plot_PETH(PETH_data, BOI, event, timewindow)
+                                    
+                meandFFs_allmice = pd.concat(mean_dFFs_list)
+                diffdFFs_allmice = pd.concat(diffdFF_list)
+                diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour']).mean()
+                
+                meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_meandFFs.xslx')
+                diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_diffdFFsall.xslx')
+                diffdFFsmean.to_excel(repo_path / f'{exp}_{session}_diffdFFsmean.xslx')
                                     
 # #%%delete files
 # repo_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')
