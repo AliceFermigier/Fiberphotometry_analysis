@@ -140,7 +140,7 @@ def meandFF_behav(list_BOI, fiberbehav_df):
     
     #create list of behaviours and list of correspondind mean dFFs
     for behav in list_BOI:
-        if fiberbehav_df.sum(1)[behav] > 1:
+        if fiberbehav_df.sum[behav]() > 1:
             list_behav_analyzed.append(behav)
             meandFF_behav_df = fiberbehav_df.groupby([behav]).mean()
             list_meandFF.append(meandFF_behav_df.loc[meandFF_behav_df[behav]==1, 'Denoised dFF'].values[0])
@@ -829,14 +829,16 @@ for exp_path in Path(analysis_path).iterdir():
                         print('aligning')
                         fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
                         if EVENT_TIME_THRESHOLD==0 and THRESH_S==0:
-                            mean_dFFs_list.append(meandFF_behav(list_BOI, fiberbehav_df))
+                            mean_dFF_df = meandFF_behav(list_BOI, fiberbehav_df)
+                            mean_dFFs_list.append(mean_dFF_df)
                             #plot isosbestic and gcamp data
                             plot_fiberpho(fiberbehav_df)
                         print('processing')
                         (fiberbehav2_df, fbprocess_df) = behav_process(fiberbehav_df, list_BOI)
                         
                         #add diffdFFs to the list
-                        diffdFF_list.append(diff_dFF(fiberbehav_df, fbprocess_df, list_BOI))
+                        diffdFF_df = diff_dFF(fiberbehav_df, fbprocess_df, list_BOI)
+                        diffdFF_list.append(diffdFF_df)
                         
                         # #plot raw data
                         #plot_rawdata(rawdata_df)
@@ -853,14 +855,17 @@ for exp_path in Path(analysis_path).iterdir():
                                 for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
                                     PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
                                     plot_PETH(PETH_data, BOI, event, timewindow)
-                                    
-                meandFFs_allmice = pd.concat(mean_dFFs_list)
-                diffdFFs_allmice = pd.concat(diffdFF_list)
-                diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour']).mean()
+               
+                if EVENT_TIME_THRESHOLD==0 and THRESH_S==0 and mean_dFFs_list != []: 
+                    meandFFs_allmice = pd.concat(mean_dFFs_list)
+                    meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_meandFFs.xslx')
+                    
+                if diffdFF_list != []:
+                    diffdFFs_allmice = pd.concat(diffdFF_list)
+                    diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour']).mean()
                 
-                meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_meandFFs.xslx')
-                diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_diffdFFsall.xslx')
-                diffdFFsmean.to_excel(repo_path / f'{exp}_{session}_diffdFFsmean.xslx')
+                    diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_diffdFFsall.xslx')
+                    diffdFFsmean.to_excel(repo_path / f'{exp}_{session}_diffdFFsmean.xslx')
                                     
 # #%%delete files
 # repo_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')
