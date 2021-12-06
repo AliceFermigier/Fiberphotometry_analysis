@@ -140,9 +140,10 @@ def meandFF_behav(list_BOI, fiberbehav_df):
     
     #create list of behaviours and list of correspondind mean dFFs
     for behav in list_BOI:
-        if fiberbehav_df.sum[behav]() > 1:
+        if fiberbehav_df[behav].sum() > 1:
             list_behav_analyzed.append(behav)
-            meandFF_behav_df = fiberbehav_df.groupby([behav]).mean()
+            meandFF_behav_df = fiberbehav_df.groupby([behav], as_index=False).mean()
+            print(meandFF_behav_df)
             list_meandFF.append(meandFF_behav_df.loc[meandFF_behav_df[behav]==1, 'Denoised dFF'].values[0])
                                 
     #calculate mean dFF during baseline
@@ -171,12 +172,16 @@ def meandFF_behav(list_BOI, fiberbehav_df):
     for (behav,meandFF) in zip(list_behav_analyzed,list_meandFF):
         list_dFFs.append(meandFF)
         list_columns.append(behav)
-    meandFFs_df = pd.DataFrame(data=[[list_dFFs]], columns=list_columns)
+    meandFFs_df = pd.DataFrame(data=[list_dFFs], columns=list_columns)
+    print(meandFFs_df)
     
     #Create figure of mean dFFs
     fig7 = plt.figure(figsize=(7,6))
     ax71 = fig7.add_subplot(111)
-    p71, = ax71.bar(meandFFs_df.columns, meandFFs_df[0])
+    print('x = ',meandFFs_df.columns.to_list()[1:])
+    print('y = ',meandFFs_df.iloc[0, 1:].to_list())
+    p71 = ax71.bar(meandFFs_df.columns.to_list()[1:], meandFFs_df.iloc[0, 1:])
+    ax71.axhline(y=0, linewidth=.6, color='black')
     ax71.set_ylabel(r'$\Delta$F/F')
     ax71.set_title(f'Mean dFF - {exp} {session} {mouse}')
     #save figure
@@ -245,7 +250,7 @@ def diff_dFF(fiberbehav_df, behavprocess_df, list_BOI):
     """
     list_behav_analyzed = []
     for behav in list_BOI:
-        if fiberbehav_df.sum(1)[behav] > 1:
+        if fiberbehav_df[behav].sum() > 1:
             list_behav_analyzed.append(behav)
     list_deltadFF = []
     list_meandFF = []
@@ -858,14 +863,14 @@ for exp_path in Path(analysis_path).iterdir():
                
                 if EVENT_TIME_THRESHOLD==0 and THRESH_S==0 and mean_dFFs_list != []: 
                     meandFFs_allmice = pd.concat(mean_dFFs_list)
-                    meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_meandFFs.xslx')
+                    meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_meandFFs.xlsx')
                     
                 if diffdFF_list != []:
                     diffdFFs_allmice = pd.concat(diffdFF_list)
-                    diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour']).mean()
+                    diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour'], as_index=False).mean()
                 
-                    diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_diffdFFsall.xslx')
-                    diffdFFsmean.to_excel(repo_path / f'{exp}_{session}_diffdFFsmean.xslx')
+                    diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_diffdFFsall.xlsx')
+                    diffdFFsmean.to_excel(repo_path / f'{exp}_{session}_diffdFFsmean.xlsx')
                                     
 # #%%delete files
 # repo_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')
