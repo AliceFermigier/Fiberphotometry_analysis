@@ -20,6 +20,7 @@ import math
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
+from scipy import signal
 plt.rcParams.update({'figure.max_open_warning' : 0})
 from pathlib import Path
 import os
@@ -242,6 +243,21 @@ def behav_process(fiberbehav_df, list_BOI):
 
     
     return(fiberbehav_df, behavprocess_df)
+
+def filter_dFF(fiberbehav_df):
+    """
+    Apply additional filter to dFF data
+    """
+    fiberpho = fiberbehav_df['Denoised dFF']
+    samplingrate = 1000/(fiberbehav_df.loc[1000,'Time(s)']-fiberbehav_df.loc[0,'Time(s)'])
+    sos = signal.butter(5, 1, btype='low', analog=False, output='sos', fs=samplingrate)
+    filtered_data = signal.sosfilt(sos, fiberpho)
+    
+    filtered_df = fiberbehav_df
+    filtered_df['Denoised dFF'] = filtered_data
+    
+    return(filtered_df)
+    
 
 def diff_dFF(fiberbehav_df, behavprocess_df, list_BOI):
     """
@@ -891,3 +907,17 @@ for exp_path in Path(analysis_path).iterdir():
 #         path_to_file = os.path.join(subject, file)
 #         newpath_to_file = os.path.join(new_path, file)
 #         os.rename(path_to_file, newpath_to_file)
+
+#%%test filter
+fiberdata = pd.read_csv('D:\\Alice\\Fiber\\202110_CA2db2\\Data\\To_do\\20211110_AliceF_CA2b2beddingRimo\\CDf1_1_dFFfilt.csv')
+fiberpho = fiberdata['Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass']
+samplingrate = 1000/(fiberdata.loc[1000,'Time(s)']-fiberdata.loc[0,'Time(s)'])
+sos = signal.butter(5, 1, btype='low', analog=False, output='sos', fs=samplingrate)
+filtered = signal.sosfilt(sos, fiberpho)
+
+fiberdata['Filtered_dFF'] = filtered
+
+fig8 = plt.figure(figsize=(20,4))
+ax81 = fig8.add_subplot(111)
+p81, = ax81.plot('Time(s)', 'Filtered_dFF',
+                linewidth=.6, color='black', label='_GCaMP', data = fiberdata)
