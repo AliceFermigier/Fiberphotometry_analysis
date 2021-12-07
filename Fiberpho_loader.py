@@ -64,6 +64,10 @@ THRESH_S = 0
 #threshold for PETH : if events are too short, not in PETH
 EVENT_TIME_THRESHOLD = 0 #0.5seconds
 
+#filter caractéristics
+ORDER = 4
+CUT_FREQ = 4 #in Hz
+
 #FIBER TRACKING#######################
 #number of pixels in fiberpho heatmap
 RES = 40 

@@ -38,7 +38,7 @@ sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Fiberphotometry_analy
 ########
 
 from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df, SAMPLERATE, proto_df
-from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, THRESH_S, EVENT_TIME_THRESHOLD
+from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, THRESH_S, EVENT_TIME_THRESHOLD, ORDER, CUT_FREQ
 
 from Func_fiberplots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw
 
@@ -168,25 +168,25 @@ def meandFF_behav(list_BOI, fiberbehav_df):
     
     #create dataframe with values
     
-    list_dFFs = [mouse, meandFF,meandFF_baseline,meandFF_postbaseline]
-    list_columns = ['Subject','Mean dFF','Baseline', 'Post_baseline']
+    list_dFFs = [mouse, group, meandFF,meandFF_baseline,meandFF_postbaseline]
+    list_columns = ['Subject','Group','Mean dFF','Baseline', 'Post_baseline']
     for (behav,meandFF) in zip(list_behav_analyzed,list_meandFF):
         list_dFFs.append(meandFF)
         list_columns.append(behav)
     meandFFs_df = pd.DataFrame(data=[list_dFFs], columns=list_columns)
     print(meandFFs_df)
     
-    #Create figure of mean dFFs
-    fig7 = plt.figure(figsize=(7,6))
-    ax71 = fig7.add_subplot(111)
-    print('x = ',meandFFs_df.columns.to_list()[1:])
-    print('y = ',meandFFs_df.iloc[0, 1:].to_list())
-    p71 = ax71.bar(meandFFs_df.columns.to_list()[1:], meandFFs_df.iloc[0, 1:])
-    ax71.axhline(y=0, linewidth=.6, color='black')
-    ax71.set_ylabel(r'$\Delta$F/F')
-    ax71.set_title(f'Mean dFF - {exp} {session} {mouse}')
-    #save figure
-    fig7.savefig(mouse_path / f'{mouse}_meandFFs.pdf')
+    # #Create figure of mean dFFs
+    # fig7 = plt.figure(figsize=(7,6))
+    # ax71 = fig7.add_subplot(111)
+    # print('x = ',meandFFs_df.columns.to_list()[1:])
+    # print('y = ',meandFFs_df.iloc[0, 1:].to_list())
+    # p71 = ax71.bar(meandFFs_df.columns.to_list()[1:], meandFFs_df.iloc[0, 1:])
+    # ax71.axhline(y=0, linewidth=.6, color='black')
+    # ax71.set_ylabel(r'$\Delta$F/F')
+    # ax71.set_title(f'Mean dFF - {exp} {session} {mouse}')
+    # #save figure
+    # fig7.savefig(mouse_path / f'{mouse}_meandFFs.pdf')
     
     #meandFFs_df.to_excel(mouse_path / f'{mouse}_meandFFglob.xlsx')
     
@@ -244,13 +244,13 @@ def behav_process(fiberbehav_df, list_BOI):
     
     return(fiberbehav_df, behavprocess_df)
 
-def filter_dFF(fiberbehav_df):
+def filter_dFF(fiberbehav_df, ORDER, CUT_FREQ):
     """
     Apply additional filter to dFF data
     """
     fiberpho = fiberbehav_df['Denoised dFF']
     samplingrate = 1000/(fiberbehav_df.loc[1000,'Time(s)']-fiberbehav_df.loc[0,'Time(s)'])
-    sos = signal.butter(5, 1, btype='low', analog=False, output='sos', fs=samplingrate)
+    sos = signal.butter(ORDER, CUT_FREQ, btype='low', analog=False, output='sos', fs=samplingrate)
     filtered_data = signal.sosfilt(sos, fiberpho)
     
     filtered_df = fiberbehav_df
@@ -266,7 +266,7 @@ def diff_dFF(fiberbehav_df, behavprocess_df, list_BOI):
     """
     list_behav_analyzed = []
     for behav in list_BOI:
-        if fiberbehav_df[behav].sum() > 1:
+        if fiberbehav_df[behav].sum() > 3:
             list_behav_analyzed.append(behav)
     list_deltadFF = []
     list_meandFF = []
@@ -278,6 +278,8 @@ def diff_dFF(fiberbehav_df, behavprocess_df, list_BOI):
         list_stops = np.where(behavprocess_df[behav]==-1)[0].tolist()
         bout_n = 1
         for (start, stop) in zip(list_starts, list_stops):
+            mean_start = behavprocess_df.loc[start-5:start+5, 'Denoised dFF'].mean()
+            mean_stop = behavprocess_df.loc[stop-5:stop+5, 'Denoised dFF'].mean()
             delta = behavprocess_df.loc[stop, 'Denoised dFF']-behavprocess_df.loc[start, 'Denoised dFF']
             mean = behavprocess_df.loc[start:stop, 'Denoised dFF'].mean()
             list_deltadFF.append(delta)
@@ -286,8 +288,9 @@ def diff_dFF(fiberbehav_df, behavprocess_df, list_BOI):
             listind_bouts.append(bout_n)
             bout_n+=1
     
-    diffdFF_df = pd.DataFrame(data = {'Subject':[mouse]*len(listind_behav), 'Behaviour':listind_behav, 
-                                      'Bout':listind_bouts, 'Mean dFF':list_meandFF, 'Delta dFF':list_deltadFF})
+    diffdFF_df = pd.DataFrame(data = {'Subject':[mouse]*len(listind_behav), 'Group':[group]*len(listind_behav),
+                                      'Behaviour':listind_behav, 'Bout':listind_bouts, 'Mean dFF':list_meandFF,
+                                      'Delta dFF':list_deltadFF})
     
     return(diffdFF_df)
     
@@ -470,10 +473,10 @@ def plot_fiberpho_behav(behavprocess_df):
     ax1.set_ylim(-1,2)
     ax1.legend(loc = 'upper right')
     ax1.margins(0.01,0.03)
-    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {session} {mouse} - interbout {THRESH_S}')
+    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {session} {mouse} - interbout {THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
     
     #save figure
-    fig2.savefig(mouse_path / f'{mouse}_threshold{THRESH_S}s_fiberbehav_scaled.pdf')
+    fig2.savefig(mouse_path / f'{mouse}_threshold{THRESH_S}s_filtero{ORDER}f{CUT_FREQ}_fiberbehav_scaled.pdf')
     
     return
 
@@ -791,7 +794,7 @@ for exp_path in Path(analysis_path).iterdir():
                 #get data path related to the task in protocol excel file
                 data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
                 #create repository for values of thresholds : length and interbout
-                repo_path = session_path / f'length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}'
+                repo_path = session_path / f'length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
                 if not os.path.exists(repo_path):
                     os.mkdir(repo_path)
                     for subject in subjects_df['Subject']:
@@ -804,6 +807,7 @@ for exp_path in Path(analysis_path).iterdir():
                     # '/' on mac, '\\' on windows
                     mouse = str(mouse_path).split('\\')[-1]
                     print(mouse)
+                    group = mouse[:-1]
                     
                     #get data
                     behav_path = data_path_exp / f'behav_{code}_{mouse}.csv'
@@ -879,14 +883,42 @@ for exp_path in Path(analysis_path).iterdir():
                
                 if EVENT_TIME_THRESHOLD==0 and THRESH_S==0 and mean_dFFs_list != []: 
                     meandFFs_allmice = pd.concat(mean_dFFs_list)
-                    meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_meandFFs.xlsx')
+                    meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.xlsx')
+                    
+                    #plot figure
+                    fig_meandFF = plt.figure(figsize=(7,6))
+                    axmean = fig_meandFF.add_subplot(111)
+                    labels = meandFFs_allmice.columns[2:]
+                    groups = set(meandFFs_allmice['Group'])
+                    x = np.arange(len(labels))  # the label locations
+                    width = 0.2  # the width of the bars
+                    
+                    for i,group in enumerate(groups):
+                        rects = axmean.bar(x+(i-(3/2))*width, meandFFs_allmice.loc[meandFFs_allmice['Group']==group],
+                                           width, label=group)
+                        
+                    axmean.set_ylabel('Diff dFF')
+                    axmean.set_title(f'Diff dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
+                    axmean.set_xticks(x, labels)
+                    axmean.legend()
+                    
+                    fig_meandFF.savefig(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.pdf')
                     
                 if diffdFF_list != []:
                     diffdFFs_allmice = pd.concat(diffdFF_list)
                     diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour'], as_index=False).mean()
                 
-                    diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_diffdFFsall.xlsx')
-                    diffdFFsmean.to_excel(repo_path / f'{exp}_{session}_diffdFFsmean.xlsx')
+                    diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsall.xlsx')
+                    diffdFFsmean.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsmean.xlsx')
+                    
+                    fig_diffdFF = plt.figure(figsize=(7,6))
+                    axdiff = fig_diffdFF.add_subplot(111)
+                    p71 = ax71.bar(meandFFs_df.columns.to_list()[1:], meandFFs_df.iloc[0, 1:])
+                    ax71.axhline(y=0, linewidth=.6, color='black')
+                    ax71.set_ylabel(r'$\Delta$F/F')
+                    ax71.set_title(f'Mean dFF - {exp} {session} {mouse}')
+                    #save figure
+                    fig7.savefig(mouse_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.pdf')
                                     
 # #%%delete files
 # repo_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')
@@ -912,7 +944,7 @@ for exp_path in Path(analysis_path).iterdir():
 fiberdata = pd.read_csv('D:\\Alice\\Fiber\\202110_CA2db2\\Data\\To_do\\20211110_AliceF_CA2b2beddingRimo\\CDf1_1_dFFfilt.csv')
 fiberpho = fiberdata['Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass']
 samplingrate = 1000/(fiberdata.loc[1000,'Time(s)']-fiberdata.loc[0,'Time(s)'])
-sos = signal.butter(5, 1, btype='low', analog=False, output='sos', fs=samplingrate)
+sos = signal.butter(5, 0.1, btype='low', analog=False, output='sos', fs=samplingrate)
 filtered = signal.sosfilt(sos, fiberpho)
 
 fiberdata['Filtered_dFF'] = filtered
