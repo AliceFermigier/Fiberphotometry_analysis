@@ -280,7 +280,8 @@ def diff_dFF(fiberbehav_df, behavprocess_df, list_BOI):
         for (start, stop) in zip(list_starts, list_stops):
             mean_start = behavprocess_df.loc[start-5:start+5, 'Denoised dFF'].mean()
             mean_stop = behavprocess_df.loc[stop-5:stop+5, 'Denoised dFF'].mean()
-            delta = behavprocess_df.loc[stop, 'Denoised dFF']-behavprocess_df.loc[start, 'Denoised dFF']
+            delta = mean_stop-mean_start
+            #delta = behavprocess_df.loc[stop, 'Denoised dFF']-behavprocess_df.loc[start, 'Denoised dFF']
             mean = behavprocess_df.loc[start:stop, 'Denoised dFF'].mean()
             list_deltadFF.append(delta)
             list_meandFF.append(mean)
@@ -894,11 +895,11 @@ for exp_path in Path(analysis_path).iterdir():
                     width = 0.2  # the width of the bars
                     
                     for i,group in enumerate(groups):
-                        rects = axmean.bar(x+(i-(3/2))*width, meandFFs_allmice.loc[meandFFs_allmice['Group']==group],
+                        rects = axmean.bar(x+(i-(3/2))*width, meandFFs_allmice.loc[meandFFs_allmice['Group']==group,2:],
                                            width, label=group)
                         
-                    axmean.set_ylabel('Diff dFF')
-                    axmean.set_title(f'Diff dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
+                    axmean.set_ylabel('Mean dFF')
+                    axmean.set_title(f'Mean dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
                     axmean.set_xticks(x, labels)
                     axmean.legend()
                     
@@ -907,18 +908,30 @@ for exp_path in Path(analysis_path).iterdir():
                 if diffdFF_list != []:
                     diffdFFs_allmice = pd.concat(diffdFF_list)
                     diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour'], as_index=False).mean()
+                    diffdFFsmean = diffdFFsmean[diffdFFsmean['Bout']>1]
                 
                     diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsall.xlsx')
                     diffdFFsmean.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsmean.xlsx')
                     
+                    #plot figure
                     fig_diffdFF = plt.figure(figsize=(7,6))
                     axdiff = fig_diffdFF.add_subplot(111)
-                    p71 = ax71.bar(meandFFs_df.columns.to_list()[1:], meandFFs_df.iloc[0, 1:])
-                    ax71.axhline(y=0, linewidth=.6, color='black')
-                    ax71.set_ylabel(r'$\Delta$F/F')
-                    ax71.set_title(f'Mean dFF - {exp} {session} {mouse}')
+                    labels = set(diffdFFsmean['Group'])
+                    list_behav = set(diffdFFsmean['Behaviour'])
+                    x = np.arange(len(labels))
+                    width = 0.35
+                    
+                    for i,behav in enumerate(list_behav):
+                        data = diffdFFsmean.loc[diffdFFsmean['Behaviour']==behav]
+                        rects = axdiff.bar(x+(i-(1/2))*width, data['Group','Delta dFF'],
+                                           width, label=behav)
+                    
+                    axdiff.set_ylabel('Diff dFF')
+                    axdiff.set_title(f'Diff dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
+                    axdiff.set_xticks(x, labels)
+                    axdiff.legend()
                     #save figure
-                    fig7.savefig(mouse_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.pdf')
+                    fig_diffdFF.savefig(mouse_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFs.pdf')
                                     
 # #%%delete files
 # repo_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')
