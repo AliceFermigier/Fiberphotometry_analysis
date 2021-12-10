@@ -36,7 +36,7 @@ sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Fiberphotometry_analy
 ########
 
 from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df, SAMPLERATE, proto_df
-from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, ORDER, #THRESH_S, EVENT_TIME_THRESHOLD, CUT_FREQ
+from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, ORDER #THRESH_S, EVENT_TIME_THRESHOLD, CUT_FREQ
 
 from Func_fiberplots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw
 
@@ -828,6 +828,7 @@ for EVENT_TIME_THRESHOLD in [0.5, 1, 2]:
                                     print('start camera : ', timestart_camera)
                                     print('aligning')
                                     fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
+                                    fiberbehav_df = filter_dFF(fiberbehav_df, ORDER, CUT_FREQ)
                                     if EVENT_TIME_THRESHOLD==0 and THRESH_S==0:
                                         mean_dFF_df = meandFF_behav(list_BOI, fiberbehav_df)
                                         mean_dFFs_list.append(mean_dFF_df)
@@ -907,7 +908,7 @@ for EVENT_TIME_THRESHOLD in [0.5, 1, 2]:
                                 #plot figure
                                 fig_diffdFF, axdiff = plt.subplots(1, 1, figsize=(7, 6))
                                 
-                                means_diff.plot.bar(y=list_behav, yerr=errors[list_behav], rot=0,
+                                means_diff.plot.bar(y=list_behav, yerr=errors_diff[list_behav], rot=0,
                                                     ax=axdiff, capsize=2, colormap='summer')
                                 
                                 axdiff.set_ylabel('Diff dFF')
