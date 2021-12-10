@@ -18,8 +18,6 @@ import pandas as pd
 import numpy as np
 import math
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import matplotlib.colors as mcolors
 from scipy import signal
 plt.rcParams.update({'figure.max_open_warning' : 0})
 from pathlib import Path
@@ -886,22 +884,19 @@ for exp_path in Path(analysis_path).iterdir():
                     meandFFs_allmice = pd.concat(mean_dFFs_list)
                     meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.xlsx')
                     
+                    df_plotmean=meandFFs_allmice.groupby('Group')
+                    means=df_plotmean.mean()
+                    errors=df_plotmean.std()
+                    
                     #plot figure
                     fig_meandFF = plt.figure(figsize=(7,6))
                     axmean = fig_meandFF.add_subplot(111)
                     labels = meandFFs_allmice.columns[2:]
-                    groups = set(meandFFs_allmice['Group'])
-                    x = np.arange(len(labels))  # the label locations
-                    width = 0.2  # the width of the bars
                     
-                    for i,group in enumerate(groups):
-                        rects = axmean.bar(x+(i-(3/2))*width, meandFFs_allmice.loc[meandFFs_allmice['Group']==group,2:],
-                                           width, label=group)
+                    axmean = means.plot.bar(y=labels, yerr=errors[labels], capsize=4, colormap='viridis')
                         
                     axmean.set_ylabel('Mean dFF')
                     axmean.set_title(f'Mean dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
-                    axmean.set_xticks(x, labels)
-                    axmean.legend()
                     
                     fig_meandFF.savefig(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.pdf')
                     
@@ -909,27 +904,38 @@ for exp_path in Path(analysis_path).iterdir():
                     diffdFFs_allmice = pd.concat(diffdFF_list)
                     diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour'], as_index=False).mean()
                     diffdFFsmean = diffdFFsmean[diffdFFsmean['Bout']>1]
-                
+                    
+                    #group diffdFFsmean dataframe to plot it!
+                    cols = ['Group','Subject']
+                    list_behav = set(diffdFFsmean['Behaviour']).tolist()
+                    for behav in list_behav:
+                        cols.append(behav)
+                    list_subjects = set(diffdFFsmean['Subject']).tolist()
+                    
+                    diffdFFsmeanplot = pd.DataFrame(3*[[0]*len(list_subjects)],
+                                                    columns=cols, index=list_subjects)
+                    for subject in list_subjects:
+                        diffdFFsmeanplot.loc[subject, 'Group']=subject[:-1]
+                        for behav in list_behav:
+                            diffdFFsmeanplot.loc[subject, behav]=diffdFFsmean.loc[diffdFFsmean['Subject']==subject &
+                                                                                  diffdFFsmean['Behaviour']==behav,
+                                                                                  'Delta dFF']
+                    
                     diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsall.xlsx')
-                    diffdFFsmean.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsmean.xlsx')
+                    diffdFFsmeanplot.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsmean.xlsx')
+                    
+                    df_plotdiff=diffdFFsmeanplot.groupby('Group')
+                    means_diff=df_plotdiff.mean()
+                    errors_diff=df_plotdiff.std()
                     
                     #plot figure
                     fig_diffdFF = plt.figure(figsize=(7,6))
                     axdiff = fig_diffdFF.add_subplot(111)
-                    labels = set(diffdFFsmean['Group'])
-                    list_behav = set(diffdFFsmean['Behaviour'])
-                    x = np.arange(len(labels))
-                    width = 0.35
                     
-                    for i,behav in enumerate(list_behav):
-                        data = diffdFFsmean.loc[diffdFFsmean['Behaviour']==behav]
-                        rects = axdiff.bar(x+(i-(1/2))*width, data['Group','Delta dFF'],
-                                           width, label=behav)
+                    axdiff = means_diff.plot.bar(y=list_behav, yerr=errors[list_behav], capsize=4, colormap='plasma')
                     
                     axdiff.set_ylabel('Diff dFF')
                     axdiff.set_title(f'Diff dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
-                    axdiff.set_xticks(x, labels)
-                    axdiff.legend()
                     #save figure
                     fig_diffdFF.savefig(mouse_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFs.pdf')
                                     
