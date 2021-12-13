@@ -573,7 +573,7 @@ def PETH(behavprocess_df, BOI, event, timewindow):
     --> Returns
         PETHo_array : np array, normalized fiberpho data centered on event
     """
-    print('PETH')
+    print(f'PETH {BOI}')
     #set time window relative to event
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
@@ -587,9 +587,9 @@ def PETH(behavprocess_df, BOI, event, timewindow):
     
     #if event too short, don't process it
     for (start,end) in zip(list_ind_event_o, list_ind_event_w):
-        print(start,end)
+        #print(start,end)
         if end-start<EVENT_TIME_THRESHOLD and end-start>1:
-            print(end-start)
+            #print(end-start)
             list_ind_event_o.remove(start)
             list_ind_event_w.remove(end)
     
@@ -754,7 +754,7 @@ for BOI in list_BOI:
 
 #%%Run for all 
 
-for EVENT_TIME_THRESHOLD in [0.5, 1, 2]:
+for EVENT_TIME_THRESHOLD in [5, 10, 20]:
     for THRESH_S in [0.5, 1, 2, 3]:
         for CUT_FREQ in [1,2,3,4]:
             
@@ -764,7 +764,9 @@ for EVENT_TIME_THRESHOLD in [0.5, 1, 2]:
                     for session_path in Path(exp_path).iterdir():
                         if session_path.is_dir():
                             session = str(session_path).split('\\')[-1]
-                            print(exp, session)
+                            print('##########################################')
+                            print(f'EXPERIMENT : {exp} - SESSION : {session}')
+                            print('##########################################')
                             code = session_code(session)
                             #get data path related to the task in protocol excel file
                             data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
@@ -778,10 +780,11 @@ for EVENT_TIME_THRESHOLD in [0.5, 1, 2]:
                             mean_dFFs_list = []
                             subject_list = []
                             diffdFF_list = []
-                            for mouse_path in Path(repo_path).iterdir():
+                            for mouse_path in [Path(f.path) for f in os.scandir(repo_path) if f.is_dir()]:
                                 # '/' on mac, '\\' on windows
                                 mouse = str(mouse_path).split('\\')[-1]
-                                print(mouse)
+                                print("################")
+                                print(f'MOUSE : {mouse}')
                                 group = mouse[:-1]
                                 
                                 #get data
@@ -880,7 +883,7 @@ for EVENT_TIME_THRESHOLD in [0.5, 1, 2]:
                             if diffdFF_list != []:
                                 diffdFFs_allmice = pd.concat(diffdFF_list)
                                 diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour'], as_index=False).mean()
-                                diffdFFsmean = diffdFFsmean[diffdFFsmean['Bout']>1]
+                                diffdFFsmean = diffdFFsmean[diffdFFsmean['Bout']>2]
                                 
                                 #group diffdFFsmean dataframe to plot it!
                                 cols = ['Group']
@@ -895,8 +898,9 @@ for EVENT_TIME_THRESHOLD in [0.5, 1, 2]:
                                     diffdFFsmeanplot.loc[subject, 'Group']=subject[:-1]
                                     df_subj = diffdFFsmean[diffdFFsmean['Subject']==subject]
                                     for behav in list_behav:
-                                        value = df_subj.loc[df_subj['Behaviour']==behav,'Delta dFF'].values[0]
-                                        diffdFFsmeanplot.loc[subject, behav]=value
+                                        if behav in df_subj['Behaviour']
+                                            value = df_subj.loc[df_subj['Behaviour']==behav,'Delta dFF'].values[0]
+                                            diffdFFsmeanplot.loc[subject, behav]=value
                                 
                                 diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsall.xlsx')
                                 diffdFFsmeanplot.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsmean.xlsx')
