@@ -898,10 +898,10 @@ for EVENT_TIME_THRESHOLD in [5, 10, 20]:
                                     diffdFFsmeanplot.loc[subject, 'Group']=subject[:-1]
                                     df_subj = diffdFFsmean[diffdFFsmean['Subject']==subject]
                                     for behav in list_behav:
-                                        if behav in df_subj['Behaviour']
+                                        if behav in df_subj['Behaviour']:
                                             value = df_subj.loc[df_subj['Behaviour']==behav,'Delta dFF'].values[0]
                                             diffdFFsmeanplot.loc[subject, behav]=value
-                                
+                                 
                                 diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsall.xlsx')
                                 diffdFFsmeanplot.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsmean.xlsx')
                                 
