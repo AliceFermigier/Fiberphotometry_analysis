@@ -872,8 +872,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 
 #%%Run for all 
 
-for EVENT_TIME_THRESHOLD in [5, 10, 20]:
-    for THRESH_S in [0.5, 1, 2, 3]:
+for EVENT_TIME_THRESHOLD in [0, 5, 10, 20]:
+    for THRESH_S in [0, 0.5, 1, 2, 3]:
         for CUT_FREQ in [1,2,3,4]:
             
             for exp_path in [Path(f.path) for f in os.scandir(analysis_path) if f.is_dir()]:
