@@ -24,9 +24,9 @@ import numpy as np
 ########
 #LOADER#
 ########
-experiment_path = Path('D:/Alice/Fiber/202110_CA2db2')
+experiment_path = Path('/Users/alice/Desktop/Fiber_alice/')
 analysis_path = experiment_path / 'Analysis'
-data_path = experiment_path / 'Data//To_do'
+data_path = experiment_path / 'Data/To_do'
 os.chdir(experiment_path)
 os.getcwd()
 
