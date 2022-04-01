@@ -31,10 +31,10 @@ os.chdir(experiment_path)
 os.getcwd()
 
 #import ID and groups of all mice
-subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx')
+#subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx')
 
 #import tasks in protocol
-proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
+#proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 
 #all analysis files in Batch/Experiment/Analysis/Subject_Trial
 #each trial of each subject has a specific directory called CD1_0, CD1_2, etc...
@@ -59,14 +59,14 @@ PRE_EVENT_TIME = 1
 TIME_BEGIN = 60
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 1.5
 
 #threshold for PETH : if events are too short, not in PETH
-EVENT_TIME_THRESHOLD = 0 #0.5seconds
+EVENT_TIME_THRESHOLD = 0.5
 
 #filter caractéristics
-ORDER = 4
-CUT_FREQ = 4 #in Hz
+ORDER = 3
+CUT_FREQ = 1 #in Hz
 
 #FIBER TRACKING#######################
 #number of pixels in fiberpho heatmap

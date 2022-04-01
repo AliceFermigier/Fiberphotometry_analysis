@@ -59,7 +59,7 @@ def time_vector(fiberpho, SAMPLERATE) :
     #--> if better timevector of the exact same lenght as fiberpho data
     
     duration =  math.ceil(fiberpho.at[len(fiberpho)-2,'Time(s)'])
-    #duration = len(fiberpho)
+    #duration = len(fiberpho) #for Roman data
     return pd.Series(np.linspace(0.0, duration, num = int(duration*SAMPLERATE)+1))
 
 def timestamp_camera(camera) :

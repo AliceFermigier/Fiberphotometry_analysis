@@ -23,25 +23,28 @@ import sys
 
 #Custom
 #put path to directory where python files are stored
-#sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
-sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Fiberphotometry_analysis')
+sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
+#sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Fiberphotometry_analysis')
 
 #%%
 ########
 #LOADER#
 ########
 
-from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df, SAMPLERATE, proto_df
-from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, ORDER #THRESH_S, EVENT_TIME_THRESHOLD, CUT_FREQ
+from Fiberpho_loader import experiment_path, analysis_path, data_path, SAMPLERATE
+from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, ORDER, THRESH_S, EVENT_TIME_THRESHOLD, CUT_FREQ
 
-from Func_fiberplots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw
+from Func_fiberplots import session_code, truncate, timestamp_camera, timestamp_camera_fromraw
 
 os.chdir(experiment_path)
 
+mouse_path = Path('/Users/alice/Desktop/Fiber_alice/Data/To_do/83275T09')
+mouse = '83275T09'
 #%%
 ###################
 #DEFINED FUNCTIONS#
 ###################
+
 def align_behav(behav10Sps, fiberpho, timestart_camera):
     """
     Aligns fiberpho data with behavioural data from Boris on timevector
@@ -55,10 +58,7 @@ def align_behav(behav10Sps, fiberpho, timestart_camera):
         fiberbehav_df : pd df of aligned data
 
     """
-    #change names in behaviour file
-    behav10Sps.rename(columns={"time": "Time(s)", "e": 'Animal entry',
-                               "f" : 'Running', 's': 'Feeding', 'z': 'Door opening'}, 
-                          inplace= True)
+
     #scored behaviours in Boris
     list_behav = behav10Sps.columns[1:].tolist()
     behav_comp = [0]*len(list_behav)
@@ -91,9 +91,14 @@ def align_behav(behav10Sps, fiberpho, timestart_camera):
         fiberbehav_df = pd.DataFrame(data = {'Time(s)':fiberpho['Time(s)'], 'Denoised dFF' : fiberpho['Denoised dFF'],
                                              list_behav[0] : behav_comp[0], list_behav[1] : behav_comp[1],
                                              list_behav[2] : behav_comp[2], list_behav[3] : behav_comp[3] })
+    elif len(list_behav) == 5 :
+        fiberbehav_df = pd.DataFrame(data = {'Time(s)':fiberpho['Time(s)'], 'Denoised dFF' : fiberpho['Denoised dFF'],
+                                             list_behav[0] : behav_comp[0], list_behav[1] : behav_comp[1],
+                                             list_behav[2] : behav_comp[2], list_behav[3] : behav_comp[3],
+                                             list_behav[4] : behav_comp[4]})
         
     else :
-        print('Error : too many behaviours in Boris binary file. Score up to 4 or add line to function')
+        print('Error : too many behaviours in Boris binary file. Score up to 5 or add line to function')
     
     return(fiberbehav_df)
 
@@ -157,6 +162,14 @@ def behav_process(fiberbehav_df, list_BOI):
                                                list_BOI[1] : fiberbehav_df[list_BOI[1]].diff(),
                                                list_BOI[2] : fiberbehav_df[list_BOI[2]].diff(),
                                                list_BOI[3] : fiberbehav_df[list_BOI[3]].diff()})
+    elif len(list_BOI) == 5:
+        behavprocess_df = pd.DataFrame(data = {'Time(s)': fiberbehav_df['Time(s)'], 
+                                               'Denoised dFF' : fiberbehav_df['Denoised dFF'],
+                                               list_BOI[0] : fiberbehav_df[list_BOI[0]].diff(),
+                                               list_BOI[1] : fiberbehav_df[list_BOI[1]].diff(),
+                                               list_BOI[2] : fiberbehav_df[list_BOI[2]].diff(),
+                                               list_BOI[3] : fiberbehav_df[list_BOI[3]].diff(),
+                                               list_BOI[4] : fiberbehav_df[list_BOI[4]].diff()})
         
     behavprocess_df.to_excel(mouse_path / f'{mouse}_fbprocess.xlsx')
 
@@ -181,6 +194,7 @@ def plot_fiberpho_behav(behavprocess_df, fiberbehav_df):
     #makes areas corresponding to behaviours
     i = 0
     j = 0
+    m = 0
     for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Running'].tolist()):
         if y == 1:
             x_start = x
@@ -195,6 +209,13 @@ def plot_fiberpho_behav(behavprocess_df, fiberbehav_df):
             ax1.axvspan(x_start, x, facecolor='purple', alpha=0.5, label = '_'*j + 'Feeding')
             x_start=0
             j+=1
+    for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Hand'].tolist()):
+        if y == 1:
+            x_start = x
+        if y == -1 and x_start!=0:
+            ax1.axvspan(x_start, x, facecolor='cornflowerblue', alpha=0.5, label = '_'*m + 'Hand')
+            x_start=0
+            m+=1
 
     #makes vertical line for entry opening of gate
     k = 0
@@ -214,13 +235,13 @@ def plot_fiberpho_behav(behavprocess_df, fiberbehav_df):
     
     ax1.set_ylabel(r'$\Delta$F/F')
     ax1.set_xlabel('Seconds')
-    ax1.set_ylim(-2,3)
+    ax1.set_ylim(-0.5,1)
     ax1.legend(loc = 'upper right')
     ax1.margins(0.01,0.03)
-    ax1.set_title(f'dFF with Behavioural Scoring - {mouse} - interbout {THRESH_S}')
+    ax1.set_title(f'dFF with Behavioural Scoring - {mouse} - interbout {THRESH_S} - filter {ORDER}o{CUT_FREQ}')
     
     #save figure
-    fig2.savefig(mouse_path / f'{mouse}_threshold{THRESH_S}s_fiberbehav_scaled.pdf')
+    fig2.savefig(mouse_path / f'{mouse}_threshold{THRESH_S}s_filter{ORDER}o{CUT_FREQ}_fiberbehav_scaled.pdf')
     
     return
 
@@ -248,9 +269,10 @@ def PETH(behavprocess_df, BOI, event, timewindow):
     list_ind_event_w = np.where(behavprocess_df[BOI] == -1)[0].tolist()
     
     #if event too short, don't process it
+    EVENT_TIME_THRESHOLDms = EVENT_TIME_THRESHOLD*10
     for (start,end) in zip(list_ind_event_o, list_ind_event_w):
         #print(start,end)
-        if end-start<EVENT_TIME_THRESHOLD and end-start>1:
+        if end-start<EVENT_TIME_THRESHOLDms and end-start>1:
             #print(end-start)
             list_ind_event_o.remove(start)
             list_ind_event_w.remove(end)
@@ -277,8 +299,90 @@ def PETH(behavprocess_df, BOI, event, timewindow):
     
     return(PETH_array)
 
+def plot_PETH(PETH_data, BOI, event, timewindow):
+    """
+    Plots PETH average and heatmap
+    """
+    PRE_TIME = timewindow[0]
+    POST_TIME = timewindow[1]
+    
+    #create figure
+    fig4 = plt.figure(figsize=(6,10))
+    
+    #create time vector
+    peri_time = np.arange(-PRE_TIME, POST_TIME+0.1, 0.1)
+    
+    #calculate mean dFF and std error
+    mean_dFF_snips = np.mean(PETH_data, axis=0)
+    std_dFF_snips = np.std(PETH_data, axis=0)
+        
+    #plot individual traces and mean
+    ax5 = fig4.add_subplot(212)
+    for snip in PETH_data:
+        p1, = ax5.plot(peri_time, snip, linewidth=.5,
+                       color=[.7, .7, .7], label='Individual trials')
+    p2, = ax5.plot(peri_time, mean_dFF_snips, linewidth=2,
+                   color='green', label='Mean response')
+    
+    #plot standard error bars
+    p3 = ax5.fill_between(peri_time, mean_dFF_snips+std_dFF_snips,
+                      mean_dFF_snips-std_dFF_snips, facecolor='green', alpha=0.2)
+    p4 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label='Exploration '+event)
+    
+    #ax5.axis('tight')
+    ax5.set_xlabel('Seconds')
+    ax5.set_ylabel('z-scored $\Delta$F/F')
+    ax5.legend(handles=[p1, p2, p4], loc='upper left', fontsize = 'small')
+    ax5.margins(0,0.01)
+    
+    #add heatmap
+    ax6 = fig4.add_subplot(211)
+    cs = ax6.imshow(PETH_data, cmap='magma', aspect = 'auto',
+                    interpolation='none', extent=[-PRE_TIME, POST_TIME, len(PETH_data), 0],
+                    vmin = -6, vmax = 9)
+    ax6.set_ylabel('Bout Number')
+    ax6.set_yticks(np.arange(.5, len(PETH_data), 2))
+    ax6.set_yticklabels(np.arange(0, len(PETH_data), 2))
+    ax6.axvline(x=0, linewidth=2, color='black', ls = '--')
+    ax6.set_title(BOI+' '+event+' - '+mouse)
+    
+    fig4.subplots_adjust(right=0.8, hspace = 0.1)
+    cbar_ax = fig4.add_axes([0.85, 0.54, 0.02, 0.34])
+    fig4.colorbar(cs, cax=cbar_ax)
+    
+    #save figure
+    fig4.savefig(mouse_path / f'{mouse}{BOI}_PETH{event[0]}_interbout{THRESH_S}_filter{ORDER}o{CUT_FREQ}.pdf')
+    
+    return
+
 #%%
 
+#Boris file + list of behaviours
+behav10Sps = pd.read_csv(mouse_path / '83275T09_26_08_21_boris.csv')
+behav10Sps.rename(columns={"time": "Time(s)", "e": 'Animal entry',
+                           "f" : 'Running', 's': 'Feeding', 'z': 'Door opening',
+                           "a":'Hand'}, inplace= True)
+list_BOI = list_behav = behav10Sps.columns[1:].tolist()
+
+#Fiberpho data
+fiberpho = pd.read_csv(mouse_path / '83275T09_26_08_21_dff.csv').squeeze("columns")
+timevector = pd.Series(np.arange(0.0, len(fiberpho)/SAMPLERATE, 0.1))
+fiberpho_df = pd.DataFrame(data = {'Time(s)' : timevector, 'Denoised dFF' : fiberpho})
+
+#Timestamp of start camera
+rawdata_df = pd.read_csv(mouse_path / '83275T09_26_08_21_rec.csv', skiprows=1, usecols=['Time(s)','DI/O-3'])
+(timestart_camera, timestop_camera) = timestamp_camera_fromraw(rawdata_df)
+
+#Process dataframes
+fiberbehav_df = align_behav(behav10Sps, fiberpho_df, timestart_camera)
+filtered_df = filter_dFF(fiberbehav_df, ORDER, CUT_FREQ)
+(fiberbehav2_df, behavprocess_df) = behav_process(filtered_df, list_BOI)
+
+#Plot dFF and behav
+plot_fiberpho_behav(behavprocess_df, fiberbehav_df)
+
+#Plot PETH
+list_BOI = ['Hand', 'Animal entry', 'Feeding', 'Door opening']
 for BOI in list_BOI:
     # if BOI == 'Entry in arena' or BOI == 'Gate opens':
     #     PETH_data = PETH(behavprocess_df, BOI, 'onset', [6,10])
