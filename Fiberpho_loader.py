@@ -24,17 +24,17 @@ import numpy as np
 ########
 #LOADER#
 ########
-experiment_path = Path('/Users/alice/Desktop/Fiber_alice/')
+experiment_path = Path('K:\\Alice\\Fiber\\202110_CA2db2')
 analysis_path = experiment_path / 'Analysis'
-data_path = experiment_path / 'Data/To_do'
+data_path = experiment_path / 'Data\\Plethysmo'
 os.chdir(experiment_path)
 os.getcwd()
 
 #import ID and groups of all mice
-#subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx')
+subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx')
 
 #import tasks in protocol
-#proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
+proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 
 #all analysis files in Batch/Experiment/Analysis/Subject_Trial
 #each trial of each subject has a specific directory called CD1_0, CD1_2, etc...

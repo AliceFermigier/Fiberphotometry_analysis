@@ -25,13 +25,11 @@ import pandas as pd
 # citing pyabf : 
 # Harden, SW (2020). pyABF 2.2.3. [Online]. Available: https://pypi.org/project/pyabf/
 
-#Custom
 #put path to directory where python files are stored
-sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Plethysmograph_analysis')
-sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Fiberphotometry_analysis')
-
-from PlethyL_process import r_slowvar_crop, find_stim, find_inspirations, resp_freq, resp_amp_AUC
-
+if 'D:\\Profil\\Documents\\GitHub\\Fiberphotometry_analysis' not in sys.path:
+    sys.path.append('D:\\Profil\\Documents\\GitHub\\Fiberphotometry_analysis')
+if 'D:\\Profil\\Documents\\GitHub\\Plethysmograph_analysis' not in sys.path:
+    sys.path.append('D:\\Profil\\Documents\\GitHub\\Plethysmograph_analysis')
 
 #%%
 ########
@@ -155,9 +153,9 @@ def plethyfiber_plot_raw(fiberpho_df, plethys_df):
 #                 data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
 
 exp_path = analysis_path / 'Plethysmo'
-session_path = exp_path / 'HC'
+session_path = exp_path / 'Novel'
 session = str(session_path).split('\\')[-1]
-data_path_exp = data_path / '20211021_AliceF_CA2b2plethysmoHC'
+data_path_exp = data_path / '20211022_AliceF_CA2b2plethysmoNovel'
 
 for mouse_path in Path(session_path).iterdir():
     # '/' on mac, '\\' on windows
@@ -167,12 +165,16 @@ for mouse_path in Path(session_path).iterdir():
     #get data
     rawdata_path = data_path_exp / f'{mouse}_0.csv'
     fiberpho_path = data_path_exp / f'{mouse}_0_dFFfilt.csv'
-    
     plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
     fiberpho_df = pd.read_csv(fiberpho_path)
+    if len(fiberpho_df.columns) == 5:
+        fiberpho_df.drop(columns='Unnamed: 4', inplace = True)
+        fiberpho_df.interpolate(methode = 'nearest', inplace = True)
     
     #plot figure
+    #if not (mouse_path / f'{mouse}_WBPfiberpho_raw.pdf').is_file():
     fig4 = plethyfiber_plot_raw(fiberpho_df, plethys_df)
+    fig4.savefig(mouse_path / f'{mouse}_WBPfiberpho_raw.png') 
     fig4.savefig(mouse_path / f'{mouse}_WBPfiberpho_raw.pdf')
 
 # #remove artifacts
