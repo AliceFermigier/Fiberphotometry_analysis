@@ -45,7 +45,7 @@ proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 #all analysis files in experimentpath/date_Analysis/date_Experiment/Session/Mouse
 #example : /Volumes/My Passport/Alice/Fiber/202103_CDHFDdvHPC/202103_Analysis/20210302_ORM/Test 1h/CD1
     
-SAMPLERATE = 10 #in Hz
+#SAMPLERATE = 10 #in Hz
 
 #list of behaviours on which to do peri event time histograms (PETH)
 list_EVENT = ['onset', 'withdrawal']
@@ -59,7 +59,7 @@ PRE_EVENT_TIME = 1
 TIME_BEGIN = 60
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 1.5
+THRESH_S = 0
 
 #threshold for PETH : if events are too short, not in PETH
 EVENT_TIME_THRESHOLD = 0.5

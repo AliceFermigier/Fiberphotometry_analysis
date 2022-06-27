@@ -16,12 +16,12 @@ if 'D:\\Profil\\Documents\\GitHub\\Fiberphotometry_analysis' not in sys.path:
     sys.path.append('D:\\Profil\\Documents\\GitHub\\Fiberphotometry_analysis')
 from Fiberpho_loader import analysis_path, data_path
 
-session = 'Novel'
+session = 'HC'
 mouse = 'CDm1'
 
 exp_path = analysis_path / 'Plethysmo'
 session_path = exp_path / f'{session}'
-data_path_exp = data_path / '20211022_AliceF_CA2b2plethysmoNovel'
+data_path_exp = data_path / '20211021_AliceF_CA2b2plethysmoHC'
 mouse_path = Path(f'K:/Alice/Fiber/202110_CA2db2/Analysis/Plethysmo/{session}/{mouse}')
 
 rawdata_path = data_path_exp / f'{mouse}_0.csv'
