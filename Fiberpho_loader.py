@@ -24,14 +24,14 @@ import numpy as np
 ########
 #LOADER#
 ########
-experiment_path = Path('K:\\Alice\\Fiber\\202110_CA2db2')
+experiment_path = Path('K:\\Alice\\Fiber\\202207_CA2db3')
 analysis_path = experiment_path / 'Analysis'
-data_path = experiment_path / 'Data\\Plethysmo'
+data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
 os.getcwd()
 
 #import ID and groups of all mice
-subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx')
+subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Included')
 
 #import tasks in protocol
 proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
@@ -45,7 +45,7 @@ proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 #all analysis files in experimentpath/date_Analysis/date_Experiment/Session/Mouse
 #example : /Volumes/My Passport/Alice/Fiber/202103_CDHFDdvHPC/202103_Analysis/20210302_ORM/Test 1h/CD1
     
-#SAMPLERATE = 10 #in Hz
+SAMPLERATE = 10 #in Hz
 
 #list of behaviours on which to do peri event time histograms (PETH)
 list_EVENT = ['onset', 'withdrawal']
@@ -85,7 +85,7 @@ TIME_BASELINE = 120.0 #in seconds
 ########
 
 # #create analysis folder nomenclature
-# for task in ['Plethysmo']:
+# for task in ['OdDis_1']:
 #     if not os.path.exists(analysis_path / task):
 #         os.mkdir(analysis_path / task)
 #     for session in proto_df.loc[proto_df['Task']==task,'Sessions'].values[0].split(','):

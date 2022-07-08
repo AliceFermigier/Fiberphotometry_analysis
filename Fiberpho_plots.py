@@ -28,7 +28,7 @@ import sys
 #Custom
 #put path to directory where python files are stored
 #sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
-sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Fiberphotometry_analysis')
+sys.path.append('D:\Profil\Documents\GitHub\Fiberphotometry_analysis')
 
 #%%
 ########
@@ -357,7 +357,7 @@ def plot_fiberpho_behav(behavprocess_df):
     
     if session in ['Test 1h','Test 24h','Test','S3']:
         #plots fiberpho trace and behaviour
-        p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = behavprocesssnip_df)
+        p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data = behavprocesssnip_df)
         # p2, = ax1.plot(behavprocesssnip_df['Time(s)'], behavprocesssnip_df['Exploration fam'], linewidth=1, 
         #                color='moccasin', label='Exploration fam')
         
@@ -368,14 +368,14 @@ def plot_fiberpho_behav(behavprocess_df):
             if y == 1:
                 x_start = x
             if y == -1 and x_start!=0:
-                ax1.axvspan(x_start, x, facecolor='gold', alpha=0.5, label = '_'*i + 'Exploration fam')
+                ax1.axvspan(x_start, x, facecolor='gold', alpha=0.3, label = '_'*i + 'Exploration fam')
                 x_start=0
                 i+=1
         for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Exploration new'].tolist()):
             if y == 1:
                 x_start = x
             if y == -1 and x_start!=0:
-                ax1.axvspan(x_start, x, facecolor='purple', alpha=0.5, label = '_'*j + 'Exploration new')
+                ax1.axvspan(x_start, x, facecolor='purple', alpha=0.3, label = '_'*j + 'Exploration new')
                 x_start=0
                 j+=1
         # for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Climbing'].tolist()):
@@ -393,14 +393,14 @@ def plot_fiberpho_behav(behavprocess_df):
             if y == 1:
                 x_start = x
             if y == -1 and x_start!=0:
-                ax1.axvspan(x_start, x, facecolor='orange', alpha=0.5, label = '_'*i + 'Exploration left')
+                ax1.axvspan(x_start, x, facecolor='orange', alpha=0.3, label = '_'*i + 'Exploration left')
                 x_start=0
                 i+=1
         for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Exploration right'].tolist()):
             if y == 1:
                 x_start = x
             if y == -1 and x_start!=0:
-                ax1.axvspan(x_start, x, facecolor='darkturquoise', alpha=0.5, label = '_'*j + 'Exploration right')
+                ax1.axvspan(x_start, x, facecolor='darkturquoise', alpha=0.3, label = '_'*j + 'Exploration right')
                 x_start=0
                 j+=1
         # for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Climbing'].tolist()):
@@ -418,14 +418,14 @@ def plot_fiberpho_behav(behavprocess_df):
             if y == 1:
                 x_start = x
             if y == -1 and x_start!=0:   
-                ax1.axvspan(x_start, x, facecolor='grey', alpha=0.5, label = '_'*i + 'Exploration non social')
+                ax1.axvspan(x_start, x, facecolor='grey', alpha=0.3, label = '_'*i + 'Exploration non social')
                 x_start=0
                 i += 1
         for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Exploration social'].tolist()):
             if y == 1:
                 x_start = x
             if y == -1 and x_start!=0:   
-                ax1.axvspan(x_start, x, facecolor='mediumvioletred', alpha=0.5, label = '_'*j + 'Exploration social')
+                ax1.axvspan(x_start, x, facecolor='mediumvioletred', alpha=0.3, label = '_'*j + 'Exploration social')
                 x_start=0
                 j += 1
         # for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Climbing'].tolist()):
@@ -438,7 +438,7 @@ def plot_fiberpho_behav(behavprocess_df):
             
     #makes vertical line for entry in open field
     x_entry = fiberbehav_df.at[int(np.where(fiberbehav_df['Entry in arena'] == 1)[0][0]), 'Time(s)']
-    ax1.axvline(x_entry, color='slategrey', ls = '--', label = 'Entry OF' )
+    ax1.axvline(x_entry, color='slategrey', ls = '--', label = 'Entry in arena' )
     
     ax1.set_ylabel(r'$\Delta$F/F')
     ax1.set_xlabel('Seconds')
@@ -707,11 +707,11 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
 
 #%%Run test
            
-EVENT_TIME_THRESHOLD = 5
-THRESH_S = 0.5
+EVENT_TIME_THRESHOLD = 0
+THRESH_S = 0
 CUT_FREQ = 1
             
-exp_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\OdDis')
+exp_path = Path('K://Alice//Fiber//202207_CA2db3//Analysis//OdDis_3')
 exp = str(exp_path).split('\\')[-1]
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = str(session_path).split('\\')[-1]
@@ -873,10 +873,13 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 
 #%%Run for all 
 
-for EVENT_TIME_THRESHOLD in [0, 5, 10, 20]:
-    for THRESH_S in [0, 0.5, 1, 2, 3]:
-        for CUT_FREQ in [1,2,3,4]:
+# for EVENT_TIME_THRESHOLD in [0, 5, 10, 20]:
+#     for THRESH_S in [0, 0.5, 1, 2, 3]:
+#         for CUT_FREQ in [1,2,3,4]:
             
+for EVENT_TIME_THRESHOLD in [0]:
+    for THRESH_S in [0]:
+        for CUT_FREQ in [1]:
             for exp_path in [Path(f.path) for f in os.scandir(analysis_path) if f.is_dir()]:
                 exp = str(exp_path).split('\\')[-1]
                 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
