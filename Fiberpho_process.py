@@ -19,6 +19,7 @@ import numpy as np
 import math
 import os
 import sys
+from scipy import signal
 
 #Custom
 #put path to directory where python files are stored
@@ -39,11 +40,24 @@ os.chdir(experiment_path)
 #DEFINED FUNCTIONS#
 ###################
 
+def filter_dFF(fiberbehav_df, ORDER, CUT_FREQ):
+    """
+    Apply additional filter to dFF data
+    """
+    fiberpho = fiberbehav_df['Denoised dFF']
+    samplingrate = 1000/(fiberbehav_df.loc[1000,'Time(s)']-fiberbehav_df.loc[0,'Time(s)'])
+    sos = signal.butter(ORDER, CUT_FREQ, btype='low', analog=False, output='sos', fs=samplingrate)
+    filtered_data = signal.sosfilt(sos, fiberpho)
+    
+    filtered_df = fiberbehav_df
+    filtered_df['Denoised dFF'] = filtered_data
+    
+    return(filtered_df)
+
 def rem_artifacts(rawdata_df):
     """
     rawdata_df = pandas dataframe from csv file
     """
-    
     
     
     return(data)
