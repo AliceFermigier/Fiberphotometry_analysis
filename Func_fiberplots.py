@@ -28,16 +28,19 @@ import sys
 #DEFINED FUNCTIONS#
 ###################
 
-def session_code(session):
+def session_code(session,exp):
     """
     Generate session code in file name
     """
-    if session in ['Habituation','Training','S1']:
+    if exp=='NewContext':
         code = '0'
-    if session in ['S2','Test 1h','Test']:
-        code = '1'
-    elif session in ['S3','Test 24h']:
-        code = '2'
+    else:
+        if session in ['Habituation','Training','S1','Conditioning']:
+            code = '0'
+        elif session in ['S2','Test 1h','Test']:
+            code = '1'
+        elif session in ['S3','Test 24h']:
+            code = '2'
         
     return(code)
 
