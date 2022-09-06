@@ -39,6 +39,7 @@ from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_
 from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, ORDER #THRESH_S, EVENT_TIME_THRESHOLD, CUT_FREQ
 
 from Func_fiberplots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw
+from Fiberpho_process import filter_dFF
 
 os.chdir(experiment_path)
 
@@ -181,19 +182,19 @@ def meandFF_behav(list_BOI, fiberbehav_df):
     meandFFs_df = pd.DataFrame(data=[list_dFFs], columns=list_columns)
     print(meandFFs_df)
     
-    # #Create figure of mean dFFs
-    # fig7 = plt.figure(figsize=(7,6))
-    # ax71 = fig7.add_subplot(111)
-    # print('x = ',meandFFs_df.columns.to_list()[1:])
-    # print('y = ',meandFFs_df.iloc[0, 1:].to_list())
-    # p71 = ax71.bar(meandFFs_df.columns.to_list()[1:], meandFFs_df.iloc[0, 1:])
-    # ax71.axhline(y=0, linewidth=.6, color='black')
-    # ax71.set_ylabel(r'$\Delta$F/F')
-    # ax71.set_title(f'Mean dFF - {exp} {session} {mouse}')
-    # #save figure
-    # fig7.savefig(mouse_path / f'{mouse}_meandFFs.pdf')
+    #Create figure of mean dFFs
+    fig7 = plt.figure(figsize=(7,6))
+    ax71 = fig7.add_subplot(111)
+    print('x = ',meandFFs_df.columns.to_list()[1:])
+    print('y = ',meandFFs_df.iloc[0, 1:].to_list())
+    p71 = ax71.bar(meandFFs_df.columns.to_list()[1:], meandFFs_df.iloc[0, 1:])
+    ax71.axhline(y=0, linewidth=.6, color='black')
+    ax71.set_ylabel(r'$\Delta$F/F')
+    ax71.set_title(f'Mean dFF - {exp} {session} {mouse}')
+    #save figure
+    fig7.savefig(mouse_path / f'{mouse}_meandFFs.pdf')
     
-    #meandFFs_df.to_excel(mouse_path / f'{mouse}_meandFFglob.xlsx')
+    meandFFs_df.to_excel(mouse_path / f'{mouse}_meandFFglob.xlsx')
     
     return(meandFFs_df)
 
@@ -257,20 +258,6 @@ def behav_process(fiberbehav_df, list_BOI):
 
     
     return(fiberbehav_df, behavprocess_df)
-
-def filter_dFF(fiberbehav_df, ORDER, CUT_FREQ):
-    """
-    Apply additional filter to dFF data
-    """
-    fiberpho = fiberbehav_df['Denoised dFF']
-    samplingrate = 1000/(fiberbehav_df.loc[1000,'Time(s)']-fiberbehav_df.loc[0,'Time(s)'])
-    sos = signal.butter(ORDER, CUT_FREQ, btype='low', analog=False, output='sos', fs=samplingrate)
-    filtered_data = signal.sosfilt(sos, fiberpho)
-    
-    filtered_df = fiberbehav_df
-    filtered_df['Denoised dFF'] = filtered_data
-    
-    return(filtered_df)
     
 
 def diff_dFF(fiberbehav_df, behavprocess_df, list_BOI):
@@ -313,9 +300,6 @@ def plot_rawdata(rawdata_df):
     """
     Plots raw isosbestic and GCaMP traces
     """
-    
-    time_stop = rawdata_df.loc[len(rawdata_df)-1,'Time(s)']
-    time_stop = np.ceil(time_stop)
     
     fig5 = plt.figure(figsize=(10,6))
     ax7 = fig5.add_subplot(211)
@@ -831,7 +815,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             diffdFF_list.append(diffdFF_df)
             
             # #plot raw data
-            #plot_rawdata(rawdata_df)
+            plot_rawdata(rawdata_df)
             
             #plot fiberpho data aligned with behav
             plot_fiberpho_behav(fbprocess_df)
@@ -999,8 +983,8 @@ for EVENT_TIME_THRESHOLD in [0]:
                             diffdFF_df = diff_dFF(fiberbehav_df, fbprocess_df, list_BOI)
                             diffdFF_list.append(diffdFF_df)
                             
-                            # #plot raw data
-                            #plot_rawdata(rawdata_df)
+                            #plot raw data
+                            plot_rawdata(rawdata_df)
                             
                             #plot fiberpho data aligned with behav
                             plot_fiberpho_behav(fbprocess_df)
