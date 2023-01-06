@@ -24,8 +24,8 @@ from pathlib import Path
 #############
 # A REMPLIR #
 ######################################################################################
-analysis_dir = Path('D:/Alice/Fiber/202110_CA2db2')
-data_path = analysis_dir / 'Data' / 'Behav_todo'
+analysis_dir = Path('K:\\Alice\\Fiber\\202110_CA2db2')
+data_path = analysis_dir / 'Data' / 'To_do'
 TIMEBIN = 60 #in seconds
 SAMPLERATE = 0,1 #in seconds
 ######################################################################################
@@ -45,11 +45,6 @@ SAMPLERATE = 0.1 #(in seconds)
 
 df_subjects = pd.read_excel(subjects_path)
 
-set_behav = set(df_data['Behavior'])
-list_behav = list(set_behav)
-list_behav.sort()
-print(list_behav)
-
 ###################
 #DEFINED FUNCTIONS#
 ###################
@@ -68,8 +63,12 @@ def gen_data(subject, behav10Sps, TIMEBIN, SAMPLERATE):
     time_start = behav10Sps.at[ind_start,'time']
     time_stop = behav10Sps.at[len(behav10Sps)-1,'time']
     
+    list_sum = []
     for time in range(time_start,time_stop,TIMEBIN):
-        df_behav_bin = behav10Sps[behav10Sps['time']>=time_start & behav10Sps['time']<time]
+        sum_behav = behav10Sps[behav10Sps['time']>=time_start & behav10Sps['time']<time].sum()
+        list_sum.append(sum_behav)
+        
+        
     
 def plot_data_indiv(df_subjects, df_data):
     """

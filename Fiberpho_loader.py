@@ -24,7 +24,7 @@ import numpy as np
 ########
 #LOADER#
 ########
-experiment_path = Path('K:\\Alice\\Fiber\\202207_CA2db3')
+experiment_path = Path('K:\\Alice\\Fiber\\202209_CA2db4')
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -59,10 +59,10 @@ PRE_EVENT_TIME = 1
 TIME_BEGIN = 60
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 2
 
 #threshold for PETH : if events are too short, not in PETH
-EVENT_TIME_THRESHOLD = 0.5
+EVENT_TIME_THRESHOLD = 0
 
 #filter caractéristics
 ORDER = 3
