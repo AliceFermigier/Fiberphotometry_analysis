@@ -47,9 +47,9 @@ df_subjects = pd.read_excel(subjects_path)
 #DEFINED FUNCTIONS#
 ###################
     
-def get_data(subject, behav10Sps):
+def get_data_timedep(subject, behav10Sps):
     """
-    Plots data all time for eachgroup
+    Gets data all time for eachgroup
     Need Boris binary file
     """
     
@@ -66,32 +66,63 @@ def get_data(subject, behav10Sps):
     list_time_behavs = [[]]*len(list_behav)
     for i,time in enumerate(range(time_start+TIMEBIN,time_stop+1,TIMEBIN)):
         df_timebin = behav10Sps[behav10Sps['time']>=time_start & behav10Sps['time']<time]
-        list_time.append((i+1)*TIMEBIN)
+        list_time.append(time)
         for i,behav in enumerate(list_behav):
-            list_time_behavs[i].append(df_timebin[behav].sum())
+            list_time_behavs[i].append(df_timebin[behav].sum()/10)
     
-    return([subject]*len(list_time),
-           [df_subjects.loc[df_subjects['Subject']==subject,['Group']]]*len(list_time),
-           list_time,
+    return(list_time,
+           list_behav,
            list_time_behavs)
+
+def get_data(subject, behav10Sps):
+    """
+    Gets data exploration on whole trial
+    Need Boris binary file
+    """
     
-def plot_data_indiv(df_subjects, df_data):
-    """
-    Plots data all time for each subject
-    """
+    list_behav = behav10Sps.columns[1:].tolist()
+    list_behav.remove('Entry in arena')
+    list_behav.remove('Gate opens')
+    list_behav.remove('Climbing')
+    
+    ind_start = np.where(behav10Sps['Gate opens'] == 1)[0].tolist()[0]
+    time_start = behav10Sps.at[ind_start,'time']
+    time_stop = behav10Sps.at[len(behav10Sps)-1,'time']
+    
+    list_time_behavs = []
+    for behav in list_behav:
+        list_time_behavs.append(behav10Sps[behav].sum()/10)
+        
+    return(list_behav, list_time_behavs)
     
 ########
 #SCRIPT#
 ########
 
-behav_test = 'D:\\Alice\\Fiber\\202110_CA2db2\\Data\\To_do\\20211006_AliceF_CA2b2SRM\\behav_2_HFDm3.csv'
-behav_df = pd.read_csv(behav_test)
+exp_path = data_path / '20211004_AliceF_CA2b2bedding'
+exp = exp_path.split('_')[-1]
 
-for exp_path in os.listdir(data_path):
-    exp = exp_path.split('_')[-1]
-    for file in glob.glob(f'{data_path}\\{exp_path}\\behav_*'):
-        code 
-        
+session = 'Habituation'
+code = 0
+
+list_behav = []
+
+#generate dataframe with all timepoints and all subjects
+list_subj = []
+list_time = []
+list_timebins = []
+
+for file in glob.glob(f'{data_path}\\{exp_path}\\behav_{code}_*'):
+    subject = file.split('_')[-1]
+    group = df_subjects.loc[df_subjects['Subject']==subject,'Group']
+    [subject]*len(list_time),
+    [df_subjects.loc[df_subjects['Subject']==subject,['Group']]]*len(list_time)
+     
+#generate dataframe with all subjects
+for file in glob.glob(f'{data_path}\\{exp_path}\\behav_{code}_*'):
+    subject = file.split('_')[-1]
+    group = df_subjects.loc[df_subjects['Subject']==subject,'Group']
+    
         
 
 subject = 'HFDm3'
