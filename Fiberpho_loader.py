@@ -17,14 +17,13 @@ Behavioral scoring is done using Boris software
 import os
 import pandas as pd
 from pathlib import Path
-import numpy as np
 #with pathlib.Path : file_to_open = data_folder / "raw_data.txt"
 
 #%%
 ########
 #LOADER#
 ########
-experiment_path = Path('K:\\Alice\\Fiber\\202209_CA2db4')
+experiment_path = Path('K:\\Alice\\Fiber\\202301_CA2b5')
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -59,7 +58,7 @@ PRE_EVENT_TIME = 1
 TIME_BEGIN = 60
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 0.5
 
 #threshold for PETH : if events are too short, not in PETH
 EVENT_TIME_THRESHOLD = 0
