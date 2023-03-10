@@ -36,7 +36,7 @@ sys.path.append('D:\Profil\Documents\GitHub\Fiberphotometry_analysis')
 ########
 
 from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df, SAMPLERATE, proto_df
-from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, ORDER #THRESH_S, EVENT_TIME_THRESHOLD, CUT_FREQ
+from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, ORDER, THRESH_S, EVENT_TIME_THRESHOLD, CUT_FREQ
 
 from Func_fiberplots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw
 
@@ -266,7 +266,6 @@ def behav_process(fiberbehav_df, list_BOI):
         
     behavprocess_df.to_excel(mouse_path / f'{mouse}_fbprocess.xlsx')
 
-    
     return(fiberbehav_df, behavprocess_df)
 
 def filter_dFF(fiberbehav_df, ORDER, CUT_FREQ):
@@ -283,7 +282,6 @@ def filter_dFF(fiberbehav_df, ORDER, CUT_FREQ):
     
     return(filtered_df)
     
-
 def diff_dFF(fiberbehav_df, behavprocess_df, list_BOI):
     """
     Calculates dFF difference between beginning and end of bouts
@@ -452,13 +450,14 @@ def plot_fiberpho_behav(behavprocess_df):
             j = 0
             m = 0
             n = 0
-            for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Exploration fam'].tolist()):
-                if y == 1:
-                    x_start = x
-                if y == -1 and x_start!=0:
-                    ax1.axvspan(x_start, x, facecolor='gold', alpha=0.3, label = '_'*i + 'Exploration fam')
-                    x_start=0
-                    i+=1
+            if 'Exploration fam' in list_BOI:
+                for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Exploration fam'].tolist()):
+                    if y == 1:
+                        x_start = x
+                    if y == -1 and x_start!=0:
+                        ax1.axvspan(x_start, x, facecolor='gold', alpha=0.3, label = '_'*i + 'Exploration fam')
+                        x_start=0
+                        i+=1
             for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Exploration new'].tolist()):
                 if y == 1:
                     x_start = x
@@ -627,10 +626,14 @@ def PETH(behavprocess_df, BOI, event, timewindow):
     #if event happens too late in dataframe, don't process it
     if list_ind_event[-1]+POST_TIME*SAMPLERATE >= len(behavprocess_df):
         list_ind_event.pop(-1)
+    
+    #take the beginning of the behaviour as the beginning of the slope : min(dFF) on 3 secs before entry
+    if BOI in ['Gate opens','Entry in arena']:
+        for i,ind_onset in enumerate(list_ind_event):
+            list_ind_event[i] = behavprocess_df.loc[ind_onset-3*SAMPLERATE:ind_onset, 'Denoised dFF'].idxmin()
         
-    list_i = np.arange(len(list_ind_event), dtype = int).tolist()
     PETH_array = np.zeros((len(list_ind_event),(POST_TIME+PRE_TIME)*SAMPLERATE+1))
-    for (ind_event, i) in zip(list_ind_event, list_i) :
+    for i, ind_event in enumerate(list_ind_event) :
         #calculates baseline F0 on time window before event (from PRE_TIME to PRE_EVENT_TIME)
         F0 = np.mean(behavprocess_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event-PRE_EVENT_TIME*SAMPLERATE, 'Denoised dFF'])
         std0 = np.std(behavprocess_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event-PRE_EVENT_TIME*SAMPLERATE, 'Denoised dFF'])
@@ -725,9 +728,292 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
     #save figure
     fig4.savefig(mouse_path / f'{mouse}{BOI}_PETH.pdf')
     
+def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow):
+    
+    PRE_TIME = timewindow[0]
+    POST_TIME = timewindow[1]
+    
+    #create figure
+    fig4 = plt.figure(figsize=(6,4))
+    ax5 = fig4.add_subplot(111)
+    
+    #create time vector
+    peri_time = np.arange(-PRE_TIME, POST_TIME+0.1, 0.1)       
+    
+    listmean_dFF_snips = []
+    liststd_dFF_snips = []
+    #calculate mean dFF and std error
+    for (i,PETH_data) in enumerate(PETHarray_list):
+        listmean_dFF_snips.append(np.mean(PETH_data, axis=0))
+        liststd_dFF_snips.append(np.std(PETH_data, axis=0))
+        
+    #plot individual traces and mean CD
+    for snip in PETHarray_list[0]:
+        p1, = ax5.plot(peri_time, snip, linewidth=.5,
+                       color='blue', alpha=.3)
+    p2, = ax5.plot(peri_time, listmean_dFF_snips[0], linewidth=2,
+                   color='blue', label=included_groups[0])   
+    #plot standard error bars
+    p3 = ax5.fill_between(peri_time, listmean_dFF_snips[0]+liststd_dFF_snips[0],
+                      listmean_dFF_snips[0]-liststd_dFF_snips[0], facecolor='blue', alpha=0.2)
+    
+    #plot individual traces and mean HFD
+    for snip in PETHarray_list[1]:
+        p4, = ax5.plot(peri_time, snip, linewidth=.5,
+                       color='red', alpha=.3)
+    p5, = ax5.plot(peri_time, listmean_dFF_snips[1], linewidth=2,
+                   color='red', label=included_groups[1])   
+    #plot standard error bars
+    p6 = ax5.fill_between(peri_time, listmean_dFF_snips[1]+liststd_dFF_snips[1],
+                      listmean_dFF_snips[1]-liststd_dFF_snips[1], facecolor='red', alpha=0.2)
+    
+    p8 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=BOI)
+    
+    ax5.set_xlabel('Seconds')
+    ax5.set_ylabel('z-scored $\Delta$F/F')
+    ax5.legend(handles=[p2], loc='upper left', fontsize = 'small')
+    ax5.margins(0, 0.1)
+    ax5.set_title(f'{BOI} - {exp} {session} {included_groups[0]} {included_groups[1]}')
+    
+    #save figure
+    fig4.savefig(mouse_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETH.pdf')
+    fig4.savefig(mouse_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETH.png')
+    
 ########
 #SCRIPT#
 ########
+
+#%%Plots for entry in zone
+#for exp_path in [Path(f.path) for f in os.scandir(analysis_path) if f.is_dir()]:
+for exp_path in ['K:\\Alice\\Fiber\\202301_CA2b5\\Analysis\\Essai1']:
+    exp = str(exp_path).split('\\')[-1]
+    for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
+        session = str(session_path).split('\\')[-1]
+        print('##########################################')
+        print(f'EXPERIMENT : {exp} - SESSION : {session}')
+        print('##########################################')
+        code = session_code(session,exp)
+        for repo_path in [Path(f.path) for f in os.scandir(session_path) if f.is_dir()]:
+            #create list of mean_dFFs, max_dFFs
+            meandFF_list = []
+            subject_list = []
+            group_list = []
+            maxdFF_list = []
+            PETH_array = None
+            for mouse_path in [Path(f.path) for f in os.scandir(repo_path) if f.is_dir()]:
+                # '/' on mac, '\\' on windows
+                mouse = str(mouse_path).split('\\')[-1]
+                print("################")
+                print(f'MOUSE : {mouse}')
+                if os.path.exists(mouse_path / f'{mouse}_fbprocess.xlsx'):
+                    fbprocess_df = pd.read_excel(mouse_path / f'{mouse}_fbprocess.xlsx')
+                    group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+                    
+                    #1 - subjects
+                    subject_list.append(mouse)
+                    group_list.append(group)
+                    #2 - mean and max dFF
+                    ind_event = np.where(fbprocess_df['Entry in arena'] == 1)[0][0]
+                    ind_event = fbprocess_df.loc[ind_event-3*SAMPLERATE:ind_event, 'Denoised dFF'].idxmin()
+                    meandFF_list.append(fbprocess_df.loc[ind_event:ind_event+30*SAMPLERATE, 'Denoised dFF'].mean())
+                    maxdFF_list.append(max(fbprocess_df.loc[ind_event:ind_event+30*SAMPLERATE, 'Denoised dFF']))
+                    #3 - PETH data
+                    if PETH_array is None:
+                        PETH_array = PETH(fbprocess_df, 'Entry in arena', 'onset', [6,10])
+                    else:
+                        PETH_array = np.concatenate((PETH_array,PETH(fbprocess_df, 'Entry in arena', 'onset', [6,10])))
+                    
+            #plot PETH
+            included_groups = ['CD','HFD']
+            PETHarray_list=[]
+            for group in included_groups:
+                print(group)
+                PETH_array_group = PETH_array
+                print(len(PETH_array_group))
+                for (j,row) in enumerate(PETH_array_group): 
+                    if group not in group_list[j]:
+                        np.delete(PETH_array_group,(j),axis=0)
+                        print(f'delete {group}')
+                print(len(PETH_array_group))
+                PETHarray_list.append(PETH_array_group)
+            plot_PETH_pooled(included_groups, PETHarray_list, 'Entry in arena', 'onset', [6,10])
+            
+            #export data to excel
+            if not os.path.exists(repo_path / f'{exp}_{session}_maxmeandFFentry.xlsx'):
+                meanmaxdFFs_df = pd.DataFrame(data={'Subject' : subject_list, 'Group' : group_list, 
+                                                    'Mean dFF entry' : meandFF_list, 'Max dFF entry' : maxdFF_list})
+                meanmaxdFFs_df.to_excel(repo_path / f'{exp}_{session}_maxmeandFFentry.xlsx')
+                
+
+#%%Run for all 
+
+# for EVENT_TIME_THRESHOLD in [0, 1, 2]:
+#     for THRESH_S in [0, 0.5, 1, 2, 3]:
+#         for CUT_FREQ in [1,2,3,4]:
+
+for exp_path in [Path(f.path) for f in os.scandir(analysis_path) if f.is_dir()]:
+    exp = str(exp_path).split('\\')[-1]
+    for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
+        session = str(session_path).split('\\')[-1]
+        print('##########################################')
+        print(f'EXPERIMENT : {exp} - SESSION : {session}')
+        print('##########################################')
+        code = session_code(session,exp)
+        #get data path related to the task in protocol excel file
+        data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
+        #create repository for values of thresholds : length and interbout
+        repo_path = session_path / f'length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+        if not os.path.exists(repo_path):
+            os.mkdir(repo_path)
+            for subject in subjects_df['Subject']:
+                os.mkdir(repo_path / subject)
+        #create list of mean_dFFs and diff_dFFs
+        mean_dFFs_list = []
+        subject_list = []
+        diffdFF_list = []
+        for mouse_path in [Path(f.path) for f in os.scandir(repo_path) if f.is_dir()]:
+            # '/' on mac, '\\' on windows
+            mouse = str(mouse_path).split('\\')[-1]
+            subject_list.append(mouse)
+            print("################")
+            print(f'MOUSE : {mouse}')
+            group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+            
+            #get data
+            behav_path = data_path_exp / f'behav_{code}_{mouse}.csv'
+            fiberpho_path = data_path_exp / f'{mouse}_{code}_dFFfilt.csv'
+            camera_path = data_path_exp / f'{mouse}_{code}_camera.csv'
+            rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
+            
+            #begin analysis only if behaviour has been scored and plots haven't been done
+            ready = False
+            if os.path.exists(behav_path):
+                ready = True
+            print(f'ready? {ready}')
+            
+            done = True
+            if not os.path.exists(mouse_path / f'{mouse}_threshold{THRESH_S}s_filtero{ORDER}f{CUT_FREQ}_fiberbehav_scaled.pdf'):
+                done = False
+            print(f'done? {done}')
+            
+            if os.path.exists(camera_path) and ready == True and done == False:
+                camera = pd.read_csv(camera_path)
+                
+            elif os.path.exists(rawdata_path) and ready == True and done == False:
+                rawdata_cam_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','DI/O-3'])
+            
+            if os.path.exists(behav_path) and os.path.exists(fiberpho_path) and ready == True and done == False:
+                behav10Sps = pd.read_csv(behav_path)
+                fiberpho = pd.read_csv(fiberpho_path)
+                print(exp, session, mouse)
+                
+                #list of behaviours to analyze
+                list_BOI = behav10Sps.columns[1:].tolist()
+                
+                #align behaviour and fiberpho data, create fbprocess.xslx
+                print('timevector')
+                timevector = time_vector(fiberpho, SAMPLERATE)
+                print('timestamp')
+                if os.path.exists(camera_path):
+                    print('---------> from camera')
+                    timestart_camera = timestamp_camera(camera)[0]
+                else:
+                    print('---------> from rawdata')
+                    timestart_camera = timestamp_camera_fromraw(rawdata_cam_df)[0]
+                print('start camera : ', timestart_camera)
+                print('aligning')
+                fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
+                fiberbehav_df = filter_dFF(fiberbehav_df, ORDER, CUT_FREQ)
+                
+                mean_dFF_df = meandFF_behav(list_BOI, fiberbehav_df)
+                mean_dFFs_list.append(mean_dFF_df)
+                
+                if EVENT_TIME_THRESHOLD==0 and THRESH_S==0:
+                    #plot isosbestic and gcamp data
+                    plot_fiberpho(fiberbehav_df)
+                print('processing')
+                (fiberbehav2_df, fbprocess_df) = behav_process(fiberbehav_df, list_BOI)
+                
+                #add diffdFFs to the list
+                diffdFF_df = diff_dFF(fiberbehav_df, fbprocess_df, list_BOI)
+                diffdFF_list.append(diffdFF_df)
+                
+                # #plot raw data
+                #plot_rawdata(rawdata_df)
+                
+                #plot fiberpho data aligned with behav
+                plot_fiberpho_behav(fbprocess_df)
+                #plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
+                
+                for BOI in list_BOI:
+                    if BOI in ['Entry in arena','Gate opens']:
+                        PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
+                        plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
+                    else:
+                        for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
+                            PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
+                            plot_PETH(PETH_data, BOI, event, timewindow)
+       
+        if mean_dFFs_list != []: 
+            meandFFs_allmice = pd.concat(mean_dFFs_list)
+            meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.xlsx')
+            
+            df_plotmean=meandFFs_allmice.groupby('Group')
+            means=df_plotmean.mean()
+            errors=df_plotmean.std()
+            
+            #plot figure
+            fig_meandFF, axmean = plt.subplots(1, 1, figsize=(7, 6))
+            labels = meandFFs_allmice.columns[2:]
+            
+            means.plot.bar(y=labels, yerr=errors[labels], capsize=2, rot=0, 
+                           ax=axmean, linewidth=.1, colormap='viridis')
+                
+            axmean.set_ylabel('Mean dFF')
+            axmean.set_title(f'Mean dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
+            
+            fig_meandFF.savefig(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.png')
+            
+        if diffdFF_list != []:
+            diffdFFs_allmice = pd.concat(diffdFF_list)
+            diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour'], as_index=False).mean()
+            diffdFFsmean = diffdFFsmean[diffdFFsmean['Bout']>2]
+            
+            #group diffdFFsmean dataframe to plot it!
+            cols = ['Group']
+            list_behav = set(diffdFFsmean['Behaviour'])
+            for behav in list_behav:
+                cols.append(behav)
+            list_subjects = set(diffdFFsmean['Subject'])
+            
+            diffdFFsmeanplot = pd.DataFrame(len(list_subjects)*[[0]*3],
+                                            columns=cols, index=list_subjects)
+            for subject in list_subjects:
+                diffdFFsmeanplot.loc[subject, 'Group']=subject[:-1]
+                df_subj = diffdFFsmean[diffdFFsmean['Subject']==subject]
+                for behav in list_behav:
+                    if behav in df_subj['Behaviour'].values:
+                        value = df_subj.loc[df_subj['Behaviour']==behav,'Delta dFF'].values[0]
+                        diffdFFsmeanplot.loc[subject, behav]=value
+             
+            diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsall.xlsx')
+            diffdFFsmeanplot.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsmean.xlsx')
+            
+            df_plotdiff=diffdFFsmeanplot.groupby('Group')
+            means_diff=df_plotdiff.mean()
+            errors_diff=df_plotdiff.std()
+            
+            #plot figure
+            fig_diffdFF, axdiff = plt.subplots(1, 1, figsize=(7, 6))
+            
+            means_diff.plot.bar(y=list_behav, yerr=errors_diff[list_behav], rot=0,
+                                ax=axdiff, capsize=2, colormap='summer')
+            
+            axdiff.set_ylabel('Diff dFF')
+            axdiff.set_title(f'Diff dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
+            #save figure
+            fig_diffdFF.savefig(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFs.png')
+   
 
 # #%%Run test
            
@@ -894,180 +1180,6 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow):
 #         axdiff.set_title(f'Diff dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
 #         #save figure
 #         fig_diffdFF.savefig(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFs.png')
-
-#%%Run for all 
-
-# for EVENT_TIME_THRESHOLD in [0, 1, 2]:
-#     for THRESH_S in [0, 0.5, 1, 2, 3]:
-#         for CUT_FREQ in [1,2,3,4]:
-            
-for EVENT_TIME_THRESHOLD in [0]:
-    for THRESH_S in [0]:
-        for CUT_FREQ in [1]:
-            for exp_path in [Path(f.path) for f in os.scandir(analysis_path) if f.is_dir()]:
-                exp = str(exp_path).split('\\')[-1]
-                for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-                    session = str(session_path).split('\\')[-1]
-                    print('##########################################')
-                    print(f'EXPERIMENT : {exp} - SESSION : {session}')
-                    print('##########################################')
-                    code = session_code(session,exp)
-                    #get data path related to the task in protocol excel file
-                    data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
-                    #create repository for values of thresholds : length and interbout
-                    repo_path = session_path / f'length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
-                    if not os.path.exists(repo_path):
-                        os.mkdir(repo_path)
-                        for subject in subjects_df['Subject']:
-                            os.mkdir(repo_path / subject)
-                    #create list of mean_dFFs and diff_dFFs
-                    mean_dFFs_list = []
-                    subject_list = []
-                    diffdFF_list = []
-                    for mouse_path in [Path(f.path) for f in os.scandir(repo_path) if f.is_dir()]:
-                        # '/' on mac, '\\' on windows
-                        mouse = str(mouse_path).split('\\')[-1]
-                        print("################")
-                        print(f'MOUSE : {mouse}')
-                        group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
-                        
-                        #get data
-                        behav_path = data_path_exp / f'behav_{code}_{mouse}.csv'
-                        fiberpho_path = data_path_exp / f'{mouse}_{code}_dFFfilt.csv'
-                        camera_path = data_path_exp / f'{mouse}_{code}_camera.csv'
-                        rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
-                        
-                        #begin analysis only if behaviour has been scored and plots haven't been done
-                        ready = False
-                        if os.path.exists(behav_path):
-                            ready = True
-                        print(f'ready? {ready}')
-                        
-                        done = True
-                        if not os.path.exists(mouse_path / f'{mouse}_threshold{THRESH_S}s_filtero{ORDER}f{CUT_FREQ}_fiberbehav_scaled.pdf'):
-                            done = False
-                        print(f'done? {done}')
-                        
-                        if os.path.exists(camera_path) and ready == True and done == False:
-                            camera = pd.read_csv(camera_path)
-                            
-                        elif os.path.exists(rawdata_path) and ready == True and done == False:
-                            rawdata_cam_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','DI/O-3'])
-                        
-                        if os.path.exists(behav_path) and os.path.exists(fiberpho_path) and ready == True and done == False:
-                            behav10Sps = pd.read_csv(behav_path)
-                            fiberpho = pd.read_csv(fiberpho_path)
-                            print(exp, session, mouse)
-                            
-                              #list of behaviours to analyze
-                            list_BOI = behav10Sps.columns[1:].tolist()
-                            
-                            #align behaviour and fiberpho data, create fbprocess.xslx
-                            print('timevector')
-                            timevector = time_vector(fiberpho, SAMPLERATE)
-                            print('timestamp')
-                            if os.path.exists(camera_path):
-                                print('---------> from camera')
-                                timestart_camera = timestamp_camera(camera)[0]
-                            else:
-                                print('---------> from rawdata')
-                                timestart_camera = timestamp_camera_fromraw(rawdata_cam_df)[0]
-                            print('start camera : ', timestart_camera)
-                            print('aligning')
-                            fiberbehav_df = align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
-                            fiberbehav_df = filter_dFF(fiberbehav_df, ORDER, CUT_FREQ)
-                            
-                            mean_dFF_df = meandFF_behav(list_BOI, fiberbehav_df)
-                            mean_dFFs_list.append(mean_dFF_df)
-                            
-                            if EVENT_TIME_THRESHOLD==0 and THRESH_S==0:
-                                #plot isosbestic and gcamp data
-                                plot_fiberpho(fiberbehav_df)
-                            print('processing')
-                            (fiberbehav2_df, fbprocess_df) = behav_process(fiberbehav_df, list_BOI)
-                            
-                            #add diffdFFs to the list
-                            diffdFF_df = diff_dFF(fiberbehav_df, fbprocess_df, list_BOI)
-                            diffdFF_list.append(diffdFF_df)
-                            
-                            # #plot raw data
-                            #plot_rawdata(rawdata_df)
-                            
-                            #plot fiberpho data aligned with behav
-                            plot_fiberpho_behav(fbprocess_df)
-                            #plot_fiberpho_behav_snip(fiberbehav2_df, timestart_camera)
-                            
-                            for BOI in list_BOI:
-                                if BOI == 'Entry in arena' or BOI == 'Gate opens':
-                                    PETH_data = PETH(fbprocess_df, BOI, 'onset', [6,10])
-                                    plot_PETH_average(PETH_data, BOI, 'onset', [6,10])
-                                else:
-                                    for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
-                                        PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
-                                        plot_PETH(PETH_data, BOI, event, timewindow)
-                   
-                    if mean_dFFs_list != []: 
-                        meandFFs_allmice = pd.concat(mean_dFFs_list)
-                        meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.xlsx')
-                        
-                        df_plotmean=meandFFs_allmice.groupby('Group')
-                        means=df_plotmean.mean()
-                        errors=df_plotmean.std()
-                        
-                        #plot figure
-                        fig_meandFF, axmean = plt.subplots(1, 1, figsize=(7, 6))
-                        labels = meandFFs_allmice.columns[2:]
-                        
-                        means.plot.bar(y=labels, yerr=errors[labels], capsize=2, rot=0, 
-                                       ax=axmean, linewidth=.1, colormap='viridis')
-                            
-                        axmean.set_ylabel('Mean dFF')
-                        axmean.set_title(f'Mean dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
-                        
-                        fig_meandFF.savefig(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.png')
-                        
-                    # if diffdFF_list != []:
-                    #     diffdFFs_allmice = pd.concat(diffdFF_list)
-                    #     diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour'], as_index=False).mean()
-                    #     diffdFFsmean = diffdFFsmean[diffdFFsmean['Bout']>2]
-                        
-                    #     #group diffdFFsmean dataframe to plot it!
-                    #     cols = ['Group']
-                    #     list_behav = set(diffdFFsmean['Behaviour'])
-                    #     for behav in list_behav:
-                    #         cols.append(behav)
-                    #     list_subjects = set(diffdFFsmean['Subject'])
-                        
-                    #     diffdFFsmeanplot = pd.DataFrame(len(list_subjects)*[[0]*3],
-                    #                                     columns=cols, index=list_subjects)
-                    #     for subject in list_subjects:
-                    #         diffdFFsmeanplot.loc[subject, 'Group']=subject[:-1]
-                    #         df_subj = diffdFFsmean[diffdFFsmean['Subject']==subject]
-                    #         for behav in list_behav:
-                    #             if behav in df_subj['Behaviour'].values:
-                    #                 value = df_subj.loc[df_subj['Behaviour']==behav,'Delta dFF'].values[0]
-                    #                 diffdFFsmeanplot.loc[subject, behav]=value
-                         
-                    #     diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsall.xlsx')
-                        #diffdFFsmeanplot.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsmean.xlsx')
-                        
-                        # df_plotdiff=diffdFFsmeanplot.groupby('Group')
-                        # means_diff=df_plotdiff.mean()
-                        # errors_diff=df_plotdiff.std()
-                        
-                        # #plot figure
-                        # fig_diffdFF, axdiff = plt.subplots(1, 1, figsize=(7, 6))
-                        
-                        # means_diff.plot.bar(y=list_behav, yerr=errors_diff[list_behav], rot=0,
-                        #                     ax=axdiff, capsize=2, colormap='summer')
-                        
-                        # axdiff.set_ylabel('Diff dFF')
-                        # axdiff.set_title(f'Diff dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
-                        # #save figure
-                        # fig_diffdFF.savefig(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFs.png')
-       
-
-
                                          
 # #%%delete files
 # repo_path = Path('D:\\Alice\\Fiber\\202110_CA2db2\\Analysis\\SRM\\S2\\length2_interbout2')

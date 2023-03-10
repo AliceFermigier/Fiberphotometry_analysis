@@ -58,7 +58,7 @@ PRE_EVENT_TIME = 1
 TIME_BEGIN = 60
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0.5
+THRESH_S = 0
 
 #threshold for PETH : if events are too short, not in PETH
 EVENT_TIME_THRESHOLD = 0

@@ -16,18 +16,18 @@ if 'D:\\Profil\\Documents\\GitHub\\Fiberphotometry_analysis' not in sys.path:
     sys.path.append('D:\\Profil\\Documents\\GitHub\\Fiberphotometry_analysis')
 from Fiberpho_loader import analysis_path, data_path
 
-session = 'HC'
-mouse = 'CDm1'
+#session = 'HC'
+mouse = 'C2m'
 
 exp_path = analysis_path / 'Plethysmo'
-session_path = exp_path / f'{session}'
-data_path_exp = data_path / '20211021_AliceF_CA2b2plethysmoHC'
-mouse_path = Path(f'K:/Alice/Fiber/202110_CA2db2/Analysis/Plethysmo/{session}/{mouse}')
+#session_path = exp_path / f'{session}'
+data_path_exp = data_path / '20230128_AliceF_CA2b5Plethysmo'
+#mouse_path = Path(f'K:/Alice/Fiber/202110_CA2db2/Analysis/Plethysmo/{session}/{mouse}')
 
-rawdata_path = data_path_exp / f'{mouse}_0.csv'
+rawdata_path = data_path_exp / f'{mouse}_1.csv'
 plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
 plethys_df = plethys_df.loc[[i for i in range(0,len(plethys_df),600)]] #downsample plethys_df
-fiberpho_path = data_path_exp / f'{mouse}_0_dFFfilt.csv'
+fiberpho_path = data_path_exp / f'{mouse}_1_dFFfilt.csv'
 fiberpho_df = pd.read_csv(fiberpho_path)
 
 
@@ -41,7 +41,7 @@ fig = px.line(plethys_df, x='Time(s)', y='AIn-4')
 #fig = px.line(fiberpho_df, x='Time(s)', y='Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass')
 
 app.layout = html.Div([
-    html.H4(f'Plethysmo {session} {mouse}'),
+    html.H4(f'Plethysmo {mouse}'),
     dcc.Graph(
         id='plethysmo',
         figure=fig
