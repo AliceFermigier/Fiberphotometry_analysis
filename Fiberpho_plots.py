@@ -748,9 +748,9 @@ def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow):
         listsem_dFF_snips.append(np.std(PETH_data, axis=0))
         
     #plot individual traces and mean CD
-    for snip in PETHarray_list[0]:
-        p1, = ax5.plot(peri_time, snip, linewidth=.5,
-                       color='cornflowerblue', alpha=.3)
+    # for snip in PETHarray_list[0]:
+    #     p1, = ax5.plot(peri_time, snip, linewidth=.5,
+    #                    color='cornflowerblue', alpha=.3)
     p2, = ax5.plot(peri_time, listmean_dFF_snips[0], linewidth=2,
                    color='cornflowerblue', label=included_groups[0])   
     #plot standard error bars
@@ -758,14 +758,14 @@ def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow):
                       listmean_dFF_snips[0]-(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))), facecolor='cornflowerblue', alpha=0.2)
     
     #plot individual traces and mean HFD
-    for snip in PETHarray_list[1]:
-        p4, = ax5.plot(peri_time, snip, linewidth=.5,
-                       color='coral', alpha=.3)
+    # for snip in PETHarray_list[1]:
+    #     p4, = ax5.plot(peri_time, snip, linewidth=.5,
+    #                    color='coral', alpha=.3)
     p5, = ax5.plot(peri_time, listmean_dFF_snips[1], linewidth=2,
-                   color='coral', label=included_groups[1])   
+                   color='orangered', label=included_groups[1])   
     #plot standard error bars
     p6 = ax5.fill_between(peri_time, listmean_dFF_snips[1]+(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))),
-                      listmean_dFF_snips[1]-(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))), facecolor='coral', alpha=0.2)
+                      listmean_dFF_snips[1]-(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))), facecolor='orangered', alpha=0.2)
     
     p8 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=BOI)
     
@@ -776,8 +776,8 @@ def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow):
     ax5.set_title(f'{BOI} - {exp} {session} {included_groups[0]} {included_groups[1]}')
     
     #save figure
-    fig4.savefig(mouse_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETH.pdf')
-    fig4.savefig(mouse_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETH.png')
+    fig4.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETHred.pdf')
+    fig4.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETHred.png')
     
 ########
 #SCRIPT#
@@ -795,7 +795,7 @@ for exp_path in ['K:\\Alice\\Fiber\\202301_CA2b5\\Analysis\\Essai1', 'K:\\Alice\
         print(f'EXPERIMENT : {exp} - SESSION : {session}')
         print('##########################################')
         code = session_code(session,exp)
-        repo_path = session_path / 'length0.0_interbout0_o3f1'
+        repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
         
         #create list of mean_dFFs, max_dFFs
         meandFF_list = []
