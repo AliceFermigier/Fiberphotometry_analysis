@@ -741,37 +741,37 @@ def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow):
     peri_time = np.arange(-PRE_TIME, POST_TIME+0.1, 0.1)       
     
     listmean_dFF_snips = []
-    liststd_dFF_snips = []
+    listsem_dFF_snips = []
     #calculate mean dFF and std error
     for (i,PETH_data) in enumerate(PETHarray_list):
         listmean_dFF_snips.append(np.mean(PETH_data, axis=0))
-        liststd_dFF_snips.append(np.std(PETH_data, axis=0))
+        listsem_dFF_snips.append(np.std(PETH_data, axis=0))
         
     #plot individual traces and mean CD
     for snip in PETHarray_list[0]:
         p1, = ax5.plot(peri_time, snip, linewidth=.5,
-                       color='blue', alpha=.3)
+                       color='cornflowerblue', alpha=.3)
     p2, = ax5.plot(peri_time, listmean_dFF_snips[0], linewidth=2,
-                   color='blue', label=included_groups[0])   
+                   color='cornflowerblue', label=included_groups[0])   
     #plot standard error bars
-    p3 = ax5.fill_between(peri_time, listmean_dFF_snips[0]+liststd_dFF_snips[0],
-                      listmean_dFF_snips[0]-liststd_dFF_snips[0], facecolor='blue', alpha=0.2)
+    p3 = ax5.fill_between(peri_time, listmean_dFF_snips[0]+(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))),
+                      listmean_dFF_snips[0]-(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))), facecolor='cornflowerblue', alpha=0.2)
     
     #plot individual traces and mean HFD
     for snip in PETHarray_list[1]:
         p4, = ax5.plot(peri_time, snip, linewidth=.5,
-                       color='red', alpha=.3)
+                       color='coral', alpha=.3)
     p5, = ax5.plot(peri_time, listmean_dFF_snips[1], linewidth=2,
-                   color='red', label=included_groups[1])   
+                   color='coral', label=included_groups[1])   
     #plot standard error bars
-    p6 = ax5.fill_between(peri_time, listmean_dFF_snips[1]+liststd_dFF_snips[1],
-                      listmean_dFF_snips[1]-liststd_dFF_snips[1], facecolor='red', alpha=0.2)
+    p6 = ax5.fill_between(peri_time, listmean_dFF_snips[1]+(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))),
+                      listmean_dFF_snips[1]-(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))), facecolor='coral', alpha=0.2)
     
     p8 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=BOI)
     
     ax5.set_xlabel('Seconds')
     ax5.set_ylabel('z-scored $\Delta$F/F')
-    ax5.legend(handles=[p2], loc='upper left', fontsize = 'small')
+    ax5.legend(handles=[p2,p5,p8], loc='upper left', fontsize = 'small')
     ax5.margins(0, 0.1)
     ax5.set_title(f'{BOI} - {exp} {session} {included_groups[0]} {included_groups[1]}')
     
@@ -785,7 +785,9 @@ def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow):
 
 #%%Plots for entry in zone
 #for exp_path in [Path(f.path) for f in os.scandir(analysis_path) if f.is_dir()]:
-for exp_path in ['K:\\Alice\\Fiber\\202301_CA2b5\\Analysis\\Essai1']:
+for exp_path in ['K:\\Alice\\Fiber\\202301_CA2b5\\Analysis\\Essai1', 'K:\\Alice\\Fiber\\202301_CA2b5\\Analysis\\Essai2',
+                 'K:\\Alice\\Fiber\\202301_CA2b5\\Analysis\\OdDis1', 'K:\\Alice\\Fiber\\202301_CA2b5\\Analysis\\OdDis_postshock',
+                 'K:\\Alice\\Fiber\\202301_CA2b5\\Analysis\\SRM']:
     exp = str(exp_path).split('\\')[-1]
     for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         session = str(session_path).split('\\')[-1]
@@ -793,56 +795,55 @@ for exp_path in ['K:\\Alice\\Fiber\\202301_CA2b5\\Analysis\\Essai1']:
         print(f'EXPERIMENT : {exp} - SESSION : {session}')
         print('##########################################')
         code = session_code(session,exp)
-        for repo_path in [Path(f.path) for f in os.scandir(session_path) if f.is_dir()]:
-            #create list of mean_dFFs, max_dFFs
-            meandFF_list = []
-            subject_list = []
-            group_list = []
-            maxdFF_list = []
-            PETH_array = None
-            for mouse_path in [Path(f.path) for f in os.scandir(repo_path) if f.is_dir()]:
-                # '/' on mac, '\\' on windows
-                mouse = str(mouse_path).split('\\')[-1]
-                print("################")
-                print(f'MOUSE : {mouse}')
-                if os.path.exists(mouse_path / f'{mouse}_fbprocess.xlsx'):
-                    fbprocess_df = pd.read_excel(mouse_path / f'{mouse}_fbprocess.xlsx')
-                    group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+        repo_path = session_path / 'length0.0_interbout0_o3f1'
+        
+        #create list of mean_dFFs, max_dFFs
+        meandFF_list = []
+        subject_list = []
+        group_list = []
+        maxdFF_list = []
+        PETH_array = None
+        for mouse_path in [Path(f.path) for f in os.scandir(repo_path) if f.is_dir()]:
+            # '/' on mac, '\\' on windows
+            mouse = str(mouse_path).split('\\')[-1]
+            print("################")
+            print(f'MOUSE : {mouse}')
+            if os.path.exists(mouse_path / f'{mouse}_fbprocess.xlsx'):
+                fbprocess_df = pd.read_excel(mouse_path / f'{mouse}_fbprocess.xlsx')
+                group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+                
+                #1 - subjects
+                subject_list.append(mouse)
+                group_list.append(group)
+                #2 - mean and max dFF
+                ind_event = np.where(fbprocess_df['Entry in arena'] == 1)[0][0]
+                ind_event = fbprocess_df.loc[ind_event-3*SAMPLERATE:ind_event, 'Denoised dFF'].idxmin()
+                meandFF_list.append(fbprocess_df.loc[ind_event:ind_event+30*SAMPLERATE, 'Denoised dFF'].mean())
+                maxdFF_list.append(max(fbprocess_df.loc[ind_event:ind_event+30*SAMPLERATE, 'Denoised dFF']))
+                #3 - PETH data
+                if PETH_array is None:
+                    PETH_array = PETH(fbprocess_df, 'Entry in arena', 'onset', [6,10])
+                else:
+                    PETH_array = np.concatenate((PETH_array,PETH(fbprocess_df, 'Entry in arena', 'onset', [6,10])))
                     
-                    #1 - subjects
-                    subject_list.append(mouse)
-                    group_list.append(group)
-                    #2 - mean and max dFF
-                    ind_event = np.where(fbprocess_df['Entry in arena'] == 1)[0][0]
-                    ind_event = fbprocess_df.loc[ind_event-3*SAMPLERATE:ind_event, 'Denoised dFF'].idxmin()
-                    meandFF_list.append(fbprocess_df.loc[ind_event:ind_event+30*SAMPLERATE, 'Denoised dFF'].mean())
-                    maxdFF_list.append(max(fbprocess_df.loc[ind_event:ind_event+30*SAMPLERATE, 'Denoised dFF']))
-                    #3 - PETH data
-                    if PETH_array is None:
-                        PETH_array = PETH(fbprocess_df, 'Entry in arena', 'onset', [6,10])
-                    else:
-                        PETH_array = np.concatenate((PETH_array,PETH(fbprocess_df, 'Entry in arena', 'onset', [6,10])))
-                    
-            #plot PETH
-            included_groups = ['CD','HFD']
-            PETHarray_list=[]
-            for group in included_groups:
-                print(group)
-                PETH_array_group = PETH_array
-                print(len(PETH_array_group))
-                for (j,row) in enumerate(PETH_array_group): 
-                    if group not in group_list[j]:
-                        np.delete(PETH_array_group,(j),axis=0)
-                        print(f'delete {group}')
-                print(len(PETH_array_group))
-                PETHarray_list.append(PETH_array_group)
-            plot_PETH_pooled(included_groups, PETHarray_list, 'Entry in arena', 'onset', [6,10])
-            
-            #export data to excel
-            if not os.path.exists(repo_path / f'{exp}_{session}_maxmeandFFentry.xlsx'):
-                meanmaxdFFs_df = pd.DataFrame(data={'Subject' : subject_list, 'Group' : group_list, 
-                                                    'Mean dFF entry' : meandFF_list, 'Max dFF entry' : maxdFF_list})
-                meanmaxdFFs_df.to_excel(repo_path / f'{exp}_{session}_maxmeandFFentry.xlsx')
+        #plot PETH
+        included_groups = ['CD','HFD']
+        PETHarray_list=[]
+        for group in included_groups:
+            PETH_array_group = PETH_array
+            list_todelete = []
+            for (i,group_mouse) in enumerate(group_list): 
+                if group not in group_mouse:
+                    list_todelete.append(i)
+            np.delete(PETH_array_group,(list_todelete),axis=0)
+            PETHarray_list.append(np.delete(PETH_array_group,(list_todelete),axis=0))
+        plot_PETH_pooled(included_groups, PETHarray_list, 'Entry in arena', 'onset', [6,10])
+        
+        #export data to excel
+        if not os.path.exists(repo_path / f'{exp}_{session}_maxmeandFFentry.xlsx'):
+            meanmaxdFFs_df = pd.DataFrame(data={'Subject' : subject_list, 'Group' : group_list, 
+                                                'Mean dFF entry' : meandFF_list, 'Max dFF entry' : maxdFF_list})
+            meanmaxdFFs_df.to_excel(repo_path / f'{exp}_{session}_maxmeandFFentry.xlsx')
                 
 
 #%%Run for all 
@@ -954,65 +955,65 @@ for exp_path in [Path(f.path) for f in os.scandir(analysis_path) if f.is_dir()]:
                             PETH_data = PETH(fbprocess_df, BOI, event, timewindow)
                             plot_PETH(PETH_data, BOI, event, timewindow)
        
-        if mean_dFFs_list != []: 
-            meandFFs_allmice = pd.concat(mean_dFFs_list)
-            meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.xlsx')
+        # if mean_dFFs_list != []: 
+        #     meandFFs_allmice = pd.concat(mean_dFFs_list)
+        #     meandFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.xlsx')
             
-            df_plotmean=meandFFs_allmice.groupby('Group')
-            means=df_plotmean.mean()
-            errors=df_plotmean.std()
+        #     df_plotmean=meandFFs_allmice.groupby('Group')
+        #     means=df_plotmean.mean()
+        #     errors=df_plotmean.std()
             
-            #plot figure
-            fig_meandFF, axmean = plt.subplots(1, 1, figsize=(7, 6))
-            labels = meandFFs_allmice.columns[2:]
+        #     #plot figure
+        #     fig_meandFF, axmean = plt.subplots(1, 1, figsize=(7, 6))
+        #     labels = meandFFs_allmice.columns[2:]
             
-            means.plot.bar(y=labels, yerr=errors[labels], capsize=2, rot=0, 
-                           ax=axmean, linewidth=.1, colormap='viridis')
+        #     means.plot.bar(y=labels, yerr=errors[labels], capsize=2, rot=0, 
+        #                    ax=axmean, linewidth=.1, colormap='viridis')
                 
-            axmean.set_ylabel('Mean dFF')
-            axmean.set_title(f'Mean dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
+        #     axmean.set_ylabel('Mean dFF')
+        #     axmean.set_title(f'Mean dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
             
-            fig_meandFF.savefig(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.png')
+        #     fig_meandFF.savefig(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_meandFFs.png')
             
-        if diffdFF_list != []:
-            diffdFFs_allmice = pd.concat(diffdFF_list)
-            diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour'], as_index=False).mean()
-            diffdFFsmean = diffdFFsmean[diffdFFsmean['Bout']>2]
+        # if diffdFF_list != []:
+        #     diffdFFs_allmice = pd.concat(diffdFF_list)
+        #     diffdFFsmean = diffdFFs_allmice.groupby(['Subject','Behaviour'], as_index=False).mean()
+        #     diffdFFsmean = diffdFFsmean[diffdFFsmean['Bout']>2]
             
-            #group diffdFFsmean dataframe to plot it!
-            cols = ['Group']
-            list_behav = set(diffdFFsmean['Behaviour'])
-            for behav in list_behav:
-                cols.append(behav)
-            list_subjects = set(diffdFFsmean['Subject'])
+        #     #group diffdFFsmean dataframe to plot it!
+        #     cols = ['Group']
+        #     list_behav = set(diffdFFsmean['Behaviour'])
+        #     for behav in list_behav:
+        #         cols.append(behav)
+        #     list_subjects = set(diffdFFsmean['Subject'])
             
-            diffdFFsmeanplot = pd.DataFrame(len(list_subjects)*[[0]*3],
-                                            columns=cols, index=list_subjects)
-            for subject in list_subjects:
-                diffdFFsmeanplot.loc[subject, 'Group']=subject[:-1]
-                df_subj = diffdFFsmean[diffdFFsmean['Subject']==subject]
-                for behav in list_behav:
-                    if behav in df_subj['Behaviour'].values:
-                        value = df_subj.loc[df_subj['Behaviour']==behav,'Delta dFF'].values[0]
-                        diffdFFsmeanplot.loc[subject, behav]=value
+        #     diffdFFsmeanplot = pd.DataFrame(len(list_subjects)*[[0]*3],
+        #                                     columns=cols, index=list_subjects)
+        #     for subject in list_subjects:
+        #         diffdFFsmeanplot.loc[subject, 'Group']=subject[:-1]
+        #         df_subj = diffdFFsmean[diffdFFsmean['Subject']==subject]
+        #         for behav in list_behav:
+        #             if behav in df_subj['Behaviour'].values:
+        #                 value = df_subj.loc[df_subj['Behaviour']==behav,'Delta dFF'].values[0]
+        #                 diffdFFsmeanplot.loc[subject, behav]=value
              
-            diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsall.xlsx')
-            diffdFFsmeanplot.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsmean.xlsx')
+        #     diffdFFs_allmice.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsall.xlsx')
+        #     diffdFFsmeanplot.to_excel(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFsmean.xlsx')
             
-            df_plotdiff=diffdFFsmeanplot.groupby('Group')
-            means_diff=df_plotdiff.mean()
-            errors_diff=df_plotdiff.std()
+        #     df_plotdiff=diffdFFsmeanplot.groupby('Group')
+        #     means_diff=df_plotdiff.mean()
+        #     errors_diff=df_plotdiff.std()
             
-            #plot figure
-            fig_diffdFF, axdiff = plt.subplots(1, 1, figsize=(7, 6))
+        #     #plot figure
+        #     fig_diffdFF, axdiff = plt.subplots(1, 1, figsize=(7, 6))
             
-            means_diff.plot.bar(y=list_behav, yerr=errors_diff[list_behav], rot=0,
-                                ax=axdiff, capsize=2, colormap='summer')
+        #     means_diff.plot.bar(y=list_behav, yerr=errors_diff[list_behav], rot=0,
+        #                         ax=axdiff, capsize=2, colormap='summer')
             
-            axdiff.set_ylabel('Diff dFF')
-            axdiff.set_title(f'Diff dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
-            #save figure
-            fig_diffdFF.savefig(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFs.png')
+        #     axdiff.set_ylabel('Diff dFF')
+        #     axdiff.set_title(f'Diff dFF - {exp} {session} - length{EVENT_TIME_THRESHOLD/10} interbout{THRESH_S} - filtero{ORDER}f{CUT_FREQ}')
+        #     #save figure
+        #     fig_diffdFF.savefig(repo_path / f'{exp}_{session}_length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_filtero{ORDER}f{CUT_FREQ}_diffdFFs.png')
    
 
 # #%%Run test

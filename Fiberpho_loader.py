@@ -65,7 +65,7 @@ EVENT_TIME_THRESHOLD = 0
 
 #filter caractéristics
 ORDER = 3
-CUT_FREQ = 1 #in Hz
+CUT_FREQ = 2 #in Hz
 
 #FIBER TRACKING#######################
 #number of pixels in fiberpho heatmap
