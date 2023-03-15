@@ -17,7 +17,7 @@ if 'D:\\Profil\\Documents\\GitHub\\Fiberphotometry_analysis' not in sys.path:
 from Fiberpho_loader import analysis_path, data_path
 
 #session = 'HC'
-mouse = 'C2m'
+mouse = 'A1f'
 
 exp_path = analysis_path / 'Plethysmo'
 #session_path = exp_path / f'{session}'

@@ -42,8 +42,10 @@ from Plethyfiber_params import Shift, SamplingRate, LOW_CUTOFF_FREQ, HIGH_CUTOFF
 from Plethyfiber_params import PostStimDur, minpeakdist, thresh, ArTfact, CROP
 
 #Imported from fiberpho file
-from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df, proto_df
-from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, THRESH_S, EVENT_TIME_THRESHOLD
+from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df, SAMPLERATE, proto_df
+from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, ORDER, THRESH_S, EVENT_TIME_THRESHOLD, CUT_FREQ
+
+from Func_fiberplots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw, filter_dFF
 
 
 #%%
@@ -110,7 +112,7 @@ def plethyfiber_plot_raw(fiberpho_df, plethys_df):
     #plot plethysmo data
     p1, = ax3.plot('Time(s)', 'AIn-4', linewidth=.5, color='black', data=plethys_df)    
     ax3.set_ylabel('WBP (A.U.)')
-    ax3.set_title(f'Whole body plethysmography and fiberphotometry - {session} {mouse}')
+    ax3.set_title(f'Whole body plethysmography and fiberphotometry - {mouse}')
     #ax3.legend(loc='lower left')
     ax3.margins(0,0.1)
     
@@ -138,57 +140,6 @@ def plethyfiber_plot_raw(fiberpho_df, plethys_df):
     
     return(fig4)
 
-def plethyfiber_plot_sniffs(fiberpho_df, plethys_df, sniffs_df):
-    """
-    Take fiberpho data, plethysmo data and stims
-    Plots data
-    """
-    fig5 = plt.figure(figsize=(20,7))
-    ax8 = fig5.add_subplot(211)
-    
-    #plot plethysmo data
-    p1, = ax8.plot('Time(s)', 'AIn-4', linewidth=.5, color='black', data=plethys_df.loc[plethys_df['Time(s)']>300])    
-    ax8.set_ylabel('WBP (A.U.)')
-    ax8.set_title(f'Whole body plethysmography and fiberphotometry - {session} {mouse}')
-    #ax8.legend(loc='lower left')
-    ax8.margins(0,0.1)
-    
-    #plot denoised fiberphotometry data
-    ax9 = fig5.add_subplot(212, sharex=ax8)
-    p2, = ax9.plot('Time(s)', 'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass',
-                   linewidth=.6, color='black', label='GCaMP-ISOS', data = fiberpho_df.loc[fiberpho_df['Time(s)']>300])
-    ax9.set_ylabel(r'$\Delta$F/F')
-    ax9.legend(handles=[p2], loc='upper right')
-    #ax9.set_ylim(-1,2)
-    ax9.margins(0,0.1)
-    ax9.set_xlabel('Time(s)')
-
-    #makes areas corresponding to behaviours
-    i = 0
-    j = 0
-    for list_sniffs in sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']=='Clean'),['Start_Stop']].values:
-        for [x_start, x_stop] in literal_eval(list_sniffs[0]):
-            if [x_start, x_stop] != [0,0]:
-                ax8.axvspan(x_start, x_stop, facecolor='grey', alpha=0.5, label = '_'*i + 'Sniff Clean')
-                ax9.axvspan(x_start, x_stop, facecolor='grey', alpha=0.5)
-                i+=1
-    for list_sniffs in sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']==session),['Start_Stop']].values:
-        for [x_start, x_stop] in literal_eval(list_sniffs[0]):
-            if [x_start, x_stop] != [0,0]:
-                ax8.axvspan(x_start, x_stop, facecolor='gold', alpha=0.5, label = '_'*i + f'Sniff {session}')
-                ax9.axvspan(x_start, x_stop, facecolor='gold', alpha=0.5)
-                j+=1
-        
-    #makes vertical lines for stims
-    for stim in sniffs_df.loc[(sniffs_df['Subject']==mouse),['Stim']].values:
-        [x_start,x_stop] = literal_eval(stim[0])
-        ax8.axvline(x_start, color='lightsteelblue', ls = '--')
-        ax8.axvline(x_stop, color='slategrey', ls = '--')
-        ax9.axvline(x_start, color='lightsteelblue', ls = '--')
-        ax9.axvline(x_stop, color='slategrey', ls = '--')
-    
-    return(fig5)
-
 def PETH(fiberpho_df, odor, sniffs_df, event, timewindow):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI
@@ -207,14 +158,14 @@ def PETH(fiberpho_df, odor, sniffs_df, event, timewindow):
     SAMPLERATE = round(len(fiberpho_df)/fiberpho_df['Time(s)'].values[-1])
     
     #if behaviour not recognized
-    if odor not in sniffs_df['Odor'] :
+    if odor not in set(sniffs_df['Odor']) :
         print('Odor not recognized')
     
     list_t_event_o = []
     list_t_event_w = []
     for list_sniffs in sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']==odor),['Start_Stop']].values:
         for [x_start, x_stop] in literal_eval(list_sniffs[0]): 
-            if [x_start, x_stop] != [0,0] and x_start-list_t_event_w[-1]>THRESH_S: #if length behav < threshold
+            if [x_start, x_stop] != [0,0]: #if length behav < threshold
                 list_t_event_o.append(x_start)
                 list_t_event_w.append(x_stop)
 
@@ -230,33 +181,29 @@ def PETH(fiberpho_df, odor, sniffs_df, event, timewindow):
     elif event == 'withdrawal':
         list_t_event = list_t_event_w
         
-    #if event happens too late in dataframe, don't process it
-    if list_t_event[-1]+POST_TIME >= fiberpho_df['Time(s)'][len(fiberpho_df)-1]:
-        list_t_event.pop(-1)
-        
+    print(list_t_event)
     PETH_array = np.zeros((len(list_t_event),(POST_TIME+PRE_TIME)*SAMPLERATE+1))
     for (ind_event, i) in enumerate(list_t_event) :
         #calculates baseline F0 on time window before event (from PRE_TIME to PRE_EVENT_TIME)
-        F0 = np.mean(fiberpho_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event-PRE_EVENT_TIME*SAMPLERATE, 'Denoised dFF'])
-        std0 = np.std(fiberpho_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event-PRE_EVENT_TIME*SAMPLERATE, 'Denoised dFF'])
+        F0 = np.mean(fiberpho_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event-PRE_EVENT_TIME*SAMPLERATE, 'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass'])
+        std0 = np.std(fiberpho_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event-PRE_EVENT_TIME*SAMPLERATE, 'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass'])
         #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
-        if len(fiberpho_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event+POST_TIME*SAMPLERATE, 'Denoised dFF']) == len(PETH_array[0]):
-            PETH_array[i] = (fiberpho_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event+(POST_TIME*SAMPLERATE), 'Denoised dFF']-F0)/std0
+        PETH_array[i] = (fiberpho_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event+(POST_TIME*SAMPLERATE), 'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass']-F0)/std0
     
     return(PETH_array)
 
-def plethyfiber_plot_sniffscontrol(fiberpho_df, plethys_df, list_sniffs):
+def plethyfiber_plot_sniffs(fiberpho_df, plethys_df, list_sniffs):
     """
     Take fiberpho data, plethysmo data and stims
     Plots data
     """
-    fig6 = plt.figure(figsize=(20,7))
+    fig5 = plt.figure(figsize=(20,7))
     ax8 = fig5.add_subplot(211)
     
     #plot plethysmo data
     p1, = ax8.plot('Time(s)', 'AIn-4', linewidth=.5, color='black', data=plethys_df.loc[plethys_df['Time(s)']>300])    
     ax8.set_ylabel('WBP (A.U.)')
-    ax8.set_title(f'Whole body plethysmography and fiberphotometry - {session} {mouse}')
+    ax8.set_title(f'Whole body plethysmography and fiberphotometry - {mouse}')
     #ax8.legend(loc='lower left')
     ax8.margins(0,0.1)
     
@@ -271,20 +218,27 @@ def plethyfiber_plot_sniffscontrol(fiberpho_df, plethys_df, list_sniffs):
     ax9.set_xlabel('Time(s)')
 
     #makes areas corresponding to behaviours
-    i = 0
-    j = 0
+    i=0
+    j=0
+    k=0
     for list_sniffs in sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']=='Clean'),['Start_Stop']].values:
         for [x_start, x_stop] in literal_eval(list_sniffs[0]):
             if [x_start, x_stop] != [0,0]:
                 ax8.axvspan(x_start, x_stop, facecolor='grey', alpha=0.5, label = '_'*i + 'Sniff Clean')
                 ax9.axvspan(x_start, x_stop, facecolor='grey', alpha=0.5)
                 i+=1
-    for list_sniffs in sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']==session),['Start_Stop']].values:
+    for list_sniffs in sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']=='HC'),['Start_Stop']].values:
         for [x_start, x_stop] in literal_eval(list_sniffs[0]):
             if [x_start, x_stop] != [0,0]:
-                ax8.axvspan(x_start, x_stop, facecolor='gold', alpha=0.5, label = '_'*i + f'Sniff {session}')
+                ax8.axvspan(x_start, x_stop, facecolor='gold', alpha=0.5, label = '_'*j + f'Sniff HC')
                 ax9.axvspan(x_start, x_stop, facecolor='gold', alpha=0.5)
                 j+=1
+    for list_sniffs in sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']=='Novel'),['Start_Stop']].values:
+        for [x_start, x_stop] in literal_eval(list_sniffs[0]):
+            if [x_start, x_stop] != [0,0]:
+                ax8.axvspan(x_start, x_stop, facecolor='purple', alpha=0.5, label = '_'*k + f'Sniff Novel')
+                ax9.axvspan(x_start, x_stop, facecolor='purple', alpha=0.5)
+                k+=1
         
     #makes vertical lines for stims
     for stim in sniffs_df.loc[(sniffs_df['Subject']==mouse),['Stim']].values:
@@ -327,7 +281,7 @@ def plot_PETH(PETH_data, odor, event, timewindow):
     p4 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=f'Sniff {event}')
     
     #ax5.axis('tight')
-    ax5.set_xlabel('Seconds')
+    ax5.set_xlabel('Time (s)')
     ax5.set_ylabel('z-scored $\Delta$F/F')
     ax5.legend(handles=[p1, p2, p4], loc='upper left', fontsize = 'small')
     ax5.margins(0,0.01)
@@ -341,16 +295,13 @@ def plot_PETH(PETH_data, odor, event, timewindow):
     ax6.set_yticks(np.arange(.5, len(PETH_data), 2))
     ax6.set_yticklabels(np.arange(0, len(PETH_data), 2))
     ax6.axvline(x=0, linewidth=2, color='black', ls = '--')
-    ax6.set_title('{odor} {event} - Plethysmo {session} {mouse}')
+    ax6.set_title(f'{odor} {event} - Plethysmo {mouse}')
     
     fig7.subplots_adjust(right=0.8, hspace = 0.1)
     cbar_ax = fig7.add_axes([0.85, 0.54, 0.02, 0.34])
     fig7.colorbar(cs, cax=cbar_ax)
     
-    #save figure
-    fig7.savefig(mouse_path / f'{mouse}{odor}_PETH{event[0]}.pdf')
-    
-    return
+    return(fig7)
 
 
 #%%
@@ -368,23 +319,28 @@ def plot_PETH(PETH_data, odor, event, timewindow):
 #                 data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
 
 exp_path = analysis_path / 'Plethysmo'
-session_path = exp_path / 'HC'
-session = str(session_path).split('\\')[-1]
-data_path_exp = data_path / '20211021_AliceF_CA2b2plethysmoHC'
-sniffs_path = data_path_exp / f'Sniffs_{session}.xlsx'
+exp = str(exp_path).split('\\')[-1]
+data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
+sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx') #converters={'Stim': pd.eval, 'Start_Stop': pd.eval})
 
-for mouse_path in Path(session_path).iterdir():
+#create repository for values of thresholds : length and interbout
+repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD/10}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+if not os.path.exists(repo_path):
+    os.mkdir(repo_path)
+    for subject in subjects_df['Subject']:
+        os.mkdir(repo_path / subject)
+
+for mouse_path in Path(repo_path).iterdir():
     # '/' on mac, '\\' on windows
     mouse = str(mouse_path).split('\\')[-1]
     print(mouse)
-    if mouse == 'CDm1':
+    if mouse in set(sniffs_df['Subject']):
         
         #get data
-        rawdata_path = data_path_exp / f'{mouse}_0.csv'
-        fiberpho_path = data_path_exp / f'{mouse}_0_dFFfilt.csv'
+        rawdata_path = data_path_exp / f'{mouse}_1.csv'
+        fiberpho_path = data_path_exp / f'{mouse}_1_dFFfilt.csv'
         plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
         fiberpho_df = pd.read_csv(fiberpho_path)
-        sniffs_df = pd.read_excel(sniffs_path) #converters={'Stim': pd.eval, 'Start_Stop': pd.eval})
         if len(fiberpho_df.columns) == 5:
             fiberpho_df.drop(columns='Unnamed: 4', inplace = True)
             fiberpho_df.interpolate(methode = 'nearest', inplace = True)
@@ -406,8 +362,8 @@ for mouse_path in Path(session_path).iterdir():
                 if not (mouse_path / f'{mouse}{odor}_PETH{event[0]}.pdf').is_file():
                     PETH_data = PETH(fiberpho_df, odor, sniffs_df, event, timewindow)
                     fig7 = plot_PETH(PETH_data, odor, event, timewindow)
-                    fig7.savefig(mouse_path / f'{mouse}{odor}{THRESH_S}_PETH{event[0]}.pdf')
-                    fig7.savefig(mouse_path / f'{mouse}{odor}{THRESH_S}_PETH{event[0]}.png')
+                    fig7.savefig(mouse_path / f'{mouse}{odor}_PETH{event[0]}.png')
+                    fig7.savefig(mouse_path / f'{mouse}{odor}_PETH{event[0]}.pdf')
                 
 
 # #remove artifacts
