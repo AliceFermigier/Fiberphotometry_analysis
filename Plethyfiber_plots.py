@@ -156,6 +156,7 @@ def PETH(fiberpho_df, odor, sniffs_df, event, timewindow):
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
     SAMPLERATE = round(len(fiberpho_df)/fiberpho_df['Time(s)'].values[-1])
+    print(SAMPLERATE)
     
     #if behaviour not recognized
     if odor not in set(sniffs_df['Odor']) :
@@ -183,12 +184,12 @@ def PETH(fiberpho_df, odor, sniffs_df, event, timewindow):
         
     print(list_t_event)
     PETH_array = np.zeros((len(list_t_event),(POST_TIME+PRE_TIME)*SAMPLERATE+1))
-    for (ind_event, i) in enumerate(list_t_event) :
+    for (i, ind_event) in enumerate(list_t_event) :
         #calculates baseline F0 on time window before event (from PRE_TIME to PRE_EVENT_TIME)
-        F0 = np.mean(fiberpho_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event-PRE_EVENT_TIME*SAMPLERATE, 'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass'])
-        std0 = np.std(fiberpho_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event-PRE_EVENT_TIME*SAMPLERATE, 'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass'])
+        F0 = np.mean(fiberpho_df.loc[(ind_event-PRE_TIME)*SAMPLERATE:(ind_event-PRE_EVENT_TIME)*SAMPLERATE, 'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass'])
+        std0 = np.std(fiberpho_df.loc[(ind_event-PRE_TIME)*SAMPLERATE:(ind_event-PRE_EVENT_TIME)*SAMPLERATE, 'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass'])
         #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
-        PETH_array[i] = (fiberpho_df.loc[ind_event-PRE_TIME*SAMPLERATE:ind_event+(POST_TIME*SAMPLERATE), 'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass']-F0)/std0
+        PETH_array[i] = (fiberpho_df.loc[(ind_event-PRE_TIME)*SAMPLERATE:(ind_event+POST_TIME)*SAMPLERATE, 'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass']-F0)/std0
     
     return(PETH_array)
 
@@ -257,11 +258,14 @@ def plot_PETH(PETH_data, odor, event, timewindow):
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
     
+    SAMPLERATE = round(len(fiberpho_df)/fiberpho_df['Time(s)'].values[-1])
+    
     #create figure
     fig7 = plt.figure(figsize=(6,10))
     
     #create time vector
-    peri_time = np.arange(-PRE_TIME, POST_TIME+0.1, 0.1)
+    peri_time = np.arange(-PRE_TIME, POST_TIME+1/SAMPLERATE, 1/SAMPLERATE)
+    print(len(peri_time))
     
     #calculate mean dFF and std error
     mean_dFF_snips = np.mean(PETH_data, axis=0)
@@ -270,6 +274,7 @@ def plot_PETH(PETH_data, odor, event, timewindow):
     #plot individual traces and mean
     ax5 = fig7.add_subplot(212)
     for snip in PETH_data:
+        print(len(snip))
         p1, = ax5.plot(peri_time, snip, linewidth=.5,
                        color=[.7, .7, .7], label='Individual trials')
     p2, = ax5.plot(peri_time, mean_dFF_snips, linewidth=2,
@@ -303,20 +308,17 @@ def plot_PETH(PETH_data, odor, event, timewindow):
     
     return(fig7)
 
+def mean_dFF_odors():
+    """
+    calculates mean and max dFF during stims and odors
+    """
+    
+    
 
 #%%
 ########
 #SCRIPT#
 ########
-
-# for exp_path in Path(analysis_path).iterdir():
-#     if exp_path.is_dir():
-#         exp = str(exp_path).split('\\')[-1]
-#         for session_path in Path(exp_path).iterdir():
-#             if session_path.is_dir():
-#                 session = str(session_path).split('\\')[-1]
-#                 #get data path related to the task in protocol excel file
-#                 data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
 
 exp_path = analysis_path / 'Plethysmo'
 exp = str(exp_path).split('\\')[-1]
@@ -335,7 +337,6 @@ for mouse_path in Path(repo_path).iterdir():
     mouse = str(mouse_path).split('\\')[-1]
     print(mouse)
     if mouse in set(sniffs_df['Subject']):
-        
         #get data
         rawdata_path = data_path_exp / f'{mouse}_1.csv'
         fiberpho_path = data_path_exp / f'{mouse}_1_dFFfilt.csv'
@@ -344,17 +345,16 @@ for mouse_path in Path(repo_path).iterdir():
         if len(fiberpho_df.columns) == 5:
             fiberpho_df.drop(columns='Unnamed: 4', inplace = True)
             fiberpho_df.interpolate(methode = 'nearest', inplace = True)
-        
         #plot figure
         if not (mouse_path / f'{mouse}_WBPfiberpho_raw.pdf').is_file():
             fig4 = plethyfiber_plot_raw(fiberpho_df, plethys_df)
             fig4.savefig(mouse_path / f'{mouse}_WBPfiberpho_raw.png') 
             fig4.savefig(mouse_path / f'{mouse}_WBPfiberpho_raw.pdf')
+            plt.close('fig4') 
         if not (mouse_path / f'{mouse}_WBPfiberpho_sniffs.pdf').is_file():
             fig5 = plethyfiber_plot_sniffs(fiberpho_df, plethys_df, sniffs_df)
             fig5.savefig(mouse_path / f'{mouse}_WBPfiberpho_sniffs.png') 
             fig5.savefig(mouse_path / f'{mouse}_WBPfiberpho_sniffs.pdf')
-        
         for odor in set(sniffs_df['Odor']):
             print(odor)
             for (event, timewindow) in zip(list_EVENT, list_TIMEWINDOW):
@@ -364,6 +364,8 @@ for mouse_path in Path(repo_path).iterdir():
                     fig7 = plot_PETH(PETH_data, odor, event, timewindow)
                     fig7.savefig(mouse_path / f'{mouse}{odor}_PETH{event[0]}.png')
                     fig7.savefig(mouse_path / f'{mouse}{odor}_PETH{event[0]}.pdf')
+                    plt.close('fig7') 
+                    
                 
 
 # #remove artifacts

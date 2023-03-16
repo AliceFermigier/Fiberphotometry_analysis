@@ -17,7 +17,7 @@ if 'D:\\Profil\\Documents\\GitHub\\Fiberphotometry_analysis' not in sys.path:
 from Fiberpho_loader import analysis_path, data_path
 
 #session = 'HC'
-mouse = 'A1f'
+mouse = 'A5f'
 
 exp_path = analysis_path / 'Plethysmo'
 #session_path = exp_path / f'{session}'
@@ -52,6 +52,9 @@ if __name__ == '__main__':
     app.run_server(debug=True)
 
 
+# #to fuse data for A3f
+# rawdata1 = pd.read_csv(data_path_exp / f'{mouse}_1.csv')
+# fiberpho1 = pd.read_csv(data_path_exp / f'{mouse}_1_dFFfilt.csv')
 
-
-
+# rawdata2 = pd.read_csv(data_path_exp / f'{mouse}_2.csv')
+# fiberpho2 = pd.read_csv(data_path_exp / f'{mouse}_2_dFFfilt.csv')
