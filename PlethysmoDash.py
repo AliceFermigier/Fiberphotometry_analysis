@@ -53,28 +53,28 @@ if __name__ == '__main__':
     app.run_server(debug=False, use_reloader=False)
 
 
-#%%to fuse data for A3f
+# #%%to fuse data for A3f
 
-rawdata1 = pd.read_csv(data_path_exp / f'{mouse}_1old.csv', skiprows=1)
-fiberpho1 = pd.read_csv(data_path_exp / f'{mouse}_1old_dFFfilt.csv')
+# rawdata1 = pd.read_csv(data_path_exp / f'{mouse}_1old.csv', skiprows=1)
+# fiberpho1 = pd.read_csv(data_path_exp / f'{mouse}_1old_dFFfilt.csv')
 
-rawdata2 = pd.read_csv(data_path_exp / f'{mouse}_2old.csv', skiprows=1)
-fiberpho2 = pd.read_csv(data_path_exp / f'{mouse}_2old_dFFfilt.csv')
+# rawdata2 = pd.read_csv(data_path_exp / f'{mouse}_2old.csv', skiprows=1)
+# fiberpho2 = pd.read_csv(data_path_exp / f'{mouse}_2old_dFFfilt.csv')
 
-rawdata = pd.concat([rawdata1, rawdata2], ignore_index=True)
-fiberpho = pd.concat([fiberpho1, fiberpho2], ignore_index=True)
+# rawdata = pd.concat([rawdata1, rawdata2], ignore_index=True)
+# fiberpho = pd.concat([fiberpho1, fiberpho2], ignore_index=True)
 
-import numpy as np
-timevector_raw2 = np.linspace(468.789893+0.000083,468.789893+407.408737+0.000083,len(rawdata2))
-timevector_dFF2 = np.linspace(468.574508+0.074534,468.574508+407.374624,len(fiberpho2))
+# import numpy as np
+# timevector_raw2 = np.linspace(468.789893+0.000083,468.789893+407.408737+0.000083,len(rawdata2))
+# timevector_dFF2 = np.linspace(468.574508+0.074534,468.574508+407.374624,len(fiberpho2))
 
-fiberpho['Time(s)'] = timevector_dFF2
-rawdata2['Time(s)'] = timevector_raw2
+# fiberpho['Time(s)'] = timevector_dFF2
+# rawdata2['Time(s)'] = timevector_raw2
 
-#fiberpho.to_csv(data_path_exp / f'{mouse}_concat_dFFfilt.csv')
-#rawdata.to_csv(data_path_exp / f'{mouse}_1.csv')
+# #fiberpho.to_csv(data_path_exp / f'{mouse}_concat_dFFfilt.csv')
+# #rawdata.to_csv(data_path_exp / f'{mouse}_1.csv')
 
-rawdata2.to_csv(data_path_exp / f'{mouse}_2time.csv')
+# rawdata2.to_csv(data_path_exp / f'{mouse}_2time.csv')
 
 
 
