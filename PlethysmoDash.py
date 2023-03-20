@@ -10,14 +10,15 @@ Created on Tue Jun 14 11:24:30 2022
 from dash import Dash, dcc, html
 import plotly.express as px
 import pandas as pd
-from pathlib import Path
 import sys
 if 'D:\\Profil\\Documents\\GitHub\\Fiberphotometry_analysis' not in sys.path:
     sys.path.append('D:\\Profil\\Documents\\GitHub\\Fiberphotometry_analysis')
 from Fiberpho_loader import analysis_path, data_path
 
+#%%
+
 #session = 'HC'
-mouse = 'A5f'
+mouse = 'B5f'
 
 exp_path = analysis_path / 'Plethysmo'
 #session_path = exp_path / f'{session}'
@@ -49,12 +50,33 @@ app.layout = html.Div([
 ])
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False, use_reloader=False)
 
 
-# #to fuse data for A3f
-# rawdata1 = pd.read_csv(data_path_exp / f'{mouse}_1.csv')
-# fiberpho1 = pd.read_csv(data_path_exp / f'{mouse}_1_dFFfilt.csv')
+#%%to fuse data for A3f
 
-# rawdata2 = pd.read_csv(data_path_exp / f'{mouse}_2.csv')
-# fiberpho2 = pd.read_csv(data_path_exp / f'{mouse}_2_dFFfilt.csv')
+rawdata1 = pd.read_csv(data_path_exp / f'{mouse}_1old.csv', skiprows=1)
+fiberpho1 = pd.read_csv(data_path_exp / f'{mouse}_1old_dFFfilt.csv')
+
+rawdata2 = pd.read_csv(data_path_exp / f'{mouse}_2old.csv', skiprows=1)
+fiberpho2 = pd.read_csv(data_path_exp / f'{mouse}_2old_dFFfilt.csv')
+
+rawdata = pd.concat([rawdata1, rawdata2], ignore_index=True)
+fiberpho = pd.concat([fiberpho1, fiberpho2], ignore_index=True)
+
+import numpy as np
+timevector_raw2 = np.linspace(468.789893+0.000083,468.789893+407.408737+0.000083,len(rawdata2))
+timevector_dFF2 = np.linspace(468.574508+0.074534,468.574508+407.374624,len(fiberpho2))
+
+fiberpho['Time(s)'] = timevector_dFF2
+rawdata2['Time(s)'] = timevector_raw2
+
+#fiberpho.to_csv(data_path_exp / f'{mouse}_concat_dFFfilt.csv')
+#rawdata.to_csv(data_path_exp / f'{mouse}_1.csv')
+
+rawdata2.to_csv(data_path_exp / f'{mouse}_2time.csv')
+
+
+
+
+
