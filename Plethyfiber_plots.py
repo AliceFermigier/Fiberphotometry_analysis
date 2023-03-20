@@ -413,7 +413,6 @@ for mouse_path in Path(repo_path).iterdir():
             fig4 = plethyfiber_plot_raw(fiberpho_df, plethys_df)
             fig4.savefig(mouse_path / f'{mouse}_WBPfiberpho_raw.png') 
             fig4.savefig(mouse_path / f'{mouse}_WBPfiberpho_raw.pdf')
-            plt.close('fig4') 
         if not (mouse_path / f'{mouse}_WBPfiberpho_sniffs.pdf').is_file():
             fig5 = plethyfiber_plot_sniffs(fiberpho_df, plethys_df, sniffs_df)
             fig5.savefig(mouse_path / f'{mouse}_WBPfiberpho_sniffs.png') 
@@ -427,8 +426,8 @@ for mouse_path in Path(repo_path).iterdir():
                     fig7 = plot_PETH(PETH_data, odor, event, timewindow)
                     fig7.savefig(mouse_path / f'{mouse}{odor}_PETH{event[0]}.png')
                     fig7.savefig(mouse_path / f'{mouse}{odor}_PETH{event[0]}.pdf')
-                    plt.close('fig7') 
         
+        plt.close('all')
         mean_dFFsniffs_df = meanmax_dFF_sniffs(fiberpho_df, sniffs_df)
         mean_dFFsniff_list.append(mean_dFFsniffs_df)
        
