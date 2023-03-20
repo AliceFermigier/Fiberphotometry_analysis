@@ -333,7 +333,7 @@ def meanmax_dFF_sniffs(fiberpho_df, sniffs_df):
                         list_odors.append(odor)
                         list_counts.append(count)
                         list_mouse.append(mouse)
-                        list_group.append(sniffs_mouse.loc[0,'Group'])
+                        list_group.append(sniffs_mouse['Group'].values[0])
                         
     list_data = [list_mouse, list_group, list_odors, list_counts, list_mean_sniffs, list_max_sniffs]
     list_columns = ['Subject','Group','Odor','Count', 'Mean dFF sniff', 'Max dFF sniff']
@@ -356,7 +356,7 @@ def meanmax_dFF_stims(fiberpho_df, sniffs_df):
     list_group = []
     for odor in set(sniffs_mouse['Odor']):
         for count in sniffs_mouse.loc[sniffs_mouse['Odor']==odor,'Count']:
-            [x_start, x_stop]=literal_eval(sniffs_mouse.loc[(sniffs_mouse['Count']==count)|(sniffs_mouse['Odor']==odor),['Stim']].values[0])
+            [x_start, x_stop]=literal_eval(sniffs_mouse.loc[(sniffs_mouse['Count']==count)|(sniffs_mouse['Odor']==odor),['Stim']].values[0][0])
             list_mean_stim.append(fiberpho_df.loc[(fiberpho_df['Time(s)']<x_stop)&(fiberpho_df['Time(s)']>x_start),
                                                    'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass'].mean())
             list_max_stim.append(fiberpho_df.loc[(fiberpho_df['Time(s)']<x_stop)&(fiberpho_df['Time(s)']>x_start), 
@@ -364,7 +364,13 @@ def meanmax_dFF_stims(fiberpho_df, sniffs_df):
             list_odors.append(odor)
             list_counts.append(count)
             list_mouse.append(mouse)
-            list_group.append(sniffs_mouse.loc[0,'Group'])
+            list_group.append(sniffs_mouse['Group'].values[0])
+            
+    list_data = [list_mouse, list_group, list_odors, list_counts, list_mean_stim, list_max_stim]
+    list_columns = ['Subject','Group','Odor','Count', 'Mean dFF stim', 'Max dFF stim']
+    meandFFstim_df = pd.DataFrame(data=[list_data], columns=list_columns)
+                        
+    return(meandFFstim_df)
 
 
 #%%
@@ -390,11 +396,14 @@ for mouse_path in Path(repo_path).iterdir():
     # '/' on mac, '\\' on windows
     mouse = str(mouse_path).split('\\')[-1]
     print(mouse)
-    if mouse in set(sniffs_df['Subject']):
+    if mouse in set(sniffs_df['Subject']) and mouse != 'A3f':
         #get data
         rawdata_path = data_path_exp / f'{mouse}_1.csv'
         fiberpho_path = data_path_exp / f'{mouse}_1_dFFfilt.csv'
-        plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
+        if mouse == 'A3f':
+            plethys_df = pd.read_csv(rawdata_path, usecols=['Time(s)','AIn-4'])
+        else :
+            plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
         fiberpho_df = pd.read_csv(fiberpho_path)
         if len(fiberpho_df.columns) == 5:
             fiberpho_df.drop(columns='Unnamed: 4', inplace = True)
@@ -422,13 +431,14 @@ for mouse_path in Path(repo_path).iterdir():
         
         mean_dFFsniffs_df = meanmax_dFF_sniffs(fiberpho_df, sniffs_df)
         mean_dFFsniff_list.append(mean_dFFsniffs_df)
-        meandFFsniff_allmice = pd.concat(mean_dFFsniff_list)
-        meandFFsniff_allmice.to_excel(repo_path / f'{exp}_meandFFsniffs.xlsx')
        
         mean_dFFstim_df = meanmax_dFF_stims(fiberpho_df, sniffs_df)
         mean_dFFstim_list.append(mean_dFFstim_df)
-        meandFFstim_allmice = pd.concat(mean_dFFstim_list)
-        meandFFstim_allmice.to_excel(repo_path / f'{exp}_meandFFstims.xlsx')
+        
+meandFFsniff_allmice = pd.concat(mean_dFFsniff_list)
+meandFFsniff_allmice.to_excel(repo_path / f'{exp}_meandFFsniffs.xlsx')
+meandFFstim_allmice = pd.concat(mean_dFFstim_list)
+meandFFstim_allmice.to_excel(repo_path / f'{exp}_meandFFstims.xlsx')
                     
                 
 
