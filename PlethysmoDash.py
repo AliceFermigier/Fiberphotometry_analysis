@@ -77,24 +77,28 @@ if __name__ == '__main__':
 # fiberpho['Time(s)'] = timevector_dFF
 # rawdata['Time(s)'] = timevector_raw
 
-# plt.plot('Time(s)', 
-#          'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass', 
-#          data = fiberpho1)
+# fiberpho = pd.read_csv(data_path_exp / f'{mouse}_1_dFFfilt.csv')
 
 # plt.plot('Time(s)', 
-#          'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass', 
-#          data = fiberpho2)
+#           'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass', 
+#           data = fiberpho1)
 
 # plt.plot('Time(s)', 
-#          'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass', 
-#          data = fiberpho)
+#           'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass', 
+#           data = fiberpho2)
 
 # plt.plot('Time(s)', 
-#          'AIn-4', 
-#          data = rawdata)
+#           'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass', 
+#           data = fiberpho)
 
-# fiberpho.to_csv(data_path_exp / f'{mouse}_1_dFFfilt.csv')
+# plt.plot('Time(s)', 
+#           'AIn-4', 
+#           data = rawdata)
+
+# fiberpho.to_csv(data_path_exp / f'{mouse}_1_dFFfilt.csv', index=False)
 # #rawdata.to_csv(data_path_exp / f'{mouse}_1.csv')
+
+# fiberpho.drop(columns='Unnamed: 0.1', inplace = True)
 
 
 

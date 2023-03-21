@@ -40,6 +40,23 @@ os.chdir(experiment_path)
 #DEFINED FUNCTIONS#
 ###################
 
+def deinterleave(rawdata_df):
+    """
+    deinterleave signal
+    """
+    derivative405 = rawdata_df['DI/O-1'].diff()
+    derivative470 = rawdata_df['DI/O-2'].diff()
+    
+    old_samplerate = len(rawdata_df)/rawdata_df.loc[len(rawdata_df)-1,'Time(s)']
+    new_samplerate = len(np.where(derivativeAIn1==1))/rawdata_df.loc[len(rawdata_df)-1,'Time(s)']
+    
+    
+    
+    for i in range (0,len(rawdata_df),new_samplerate):
+        
+        
+    return(deinterleaved_df)
+
 def filter_dFF(fiberbehav_df, ORDER, CUT_FREQ):
     """
     Apply additional filter to dFF data
@@ -81,3 +98,25 @@ def dFF(filt_data):
 ########
 #SCRIPT#
 ########
+import matplotlib.pyplot as plt
+
+data_df = pd.read_csv('K:\\Alice\\Fiber\\202301_CA2b5\\Data\\20230112_AliceF_CA2b5Essais2\\A1f_0.csv', skiprows=1)
+
+data_df['AIn-1 x DI/O-1'].replace(0.0,inplace=True)
+data_df['AIn-1 x DI/O-2'].replace(0.0,inplace=True)
+
+plt.plot('Time(s)','AIn-1 x DI/O-2',data = data_df[300:1800])
+
+data_df = data_df.loc[[i for i in range(0,len(data_df),1207)]]
+
+derivative405 = data_df['DI/O-1'].diff()
+old_samplerate = len(data_df)/data_df['Time(s)'].max()
+new_samplerate = len(np.where(derivative405==1)[0])/data_df['Time(s)'].max()
+
+#remove deinterleaving artifacts
+for i in data_df['AIn-1 x DI/O-1']:
+    
+
+
+
+

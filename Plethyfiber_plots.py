@@ -42,7 +42,7 @@ from Plethyfiber_params import Shift, SamplingRate, LOW_CUTOFF_FREQ, HIGH_CUTOFF
 from Plethyfiber_params import PostStimDur, minpeakdist, thresh, ArTfact, CROP
 
 #Imported from fiberpho file
-from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df, SAMPLERATE, proto_df
+from Fiberpho_loader import experiment_path, analysis_path, data_path, subjects_df, proto_df
 from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN, ORDER, THRESH_S, EVENT_TIME_THRESHOLD, CUT_FREQ
 
 from Func_fiberplots import session_code, truncate, time_vector, timestamp_camera, timestamp_camera_fromraw, filter_dFF
@@ -394,7 +394,7 @@ for mouse_path in Path(repo_path).iterdir():
     # '/' on mac, '\\' on windows
     mouse = str(mouse_path).split('\\')[-1]
     print(mouse)
-    if mouse in set(sniffs_df['Subject']) and mouse != 'A3f':
+    if mouse in set(sniffs_df['Subject']):
         #get data
         rawdata_path = data_path_exp / f'{mouse}_1.csv'
         fiberpho_path = data_path_exp / f'{mouse}_1_dFFfilt.csv'
