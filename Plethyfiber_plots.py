@@ -335,9 +335,8 @@ def meanmax_dFF_sniffs(fiberpho_df, sniffs_df):
                         list_mouse.append(mouse)
                         list_group.append(sniffs_mouse['Group'].values[0])
                         
-    list_data = [list_mouse, list_group, list_odors, list_counts, list_mean_sniffs, list_max_sniffs]
-    list_columns = ['Subject','Group','Odor','Count', 'Mean dFF sniff', 'Max dFF sniff']
-    meandFFsniffs_df = pd.DataFrame(data=[list_data], columns=list_columns)
+    meandFFsniffs_df = pd.DataFrame(data = {'Subject':list_mouse, 'Group':list_group, 'Odor':list_odors, 
+                                            'Mean dFF sniff':list_mean_sniffs, 'Max dFF sniff':list_max_sniffs})
                         
     return(meandFFsniffs_df)
                         
@@ -366,9 +365,8 @@ def meanmax_dFF_stims(fiberpho_df, sniffs_df):
             list_mouse.append(mouse)
             list_group.append(sniffs_mouse['Group'].values[0])
             
-    list_data = [list_mouse, list_group, list_odors, list_counts, list_mean_stim, list_max_stim]
-    list_columns = ['Subject','Group','Odor','Count', 'Mean dFF stim', 'Max dFF stim']
-    meandFFstim_df = pd.DataFrame(data=[list_data], columns=list_columns)
+    meandFFstim_df = pd.DataFrame(data = {'Subject':list_mouse, 'Group':list_group, 'Odor':list_odors, 
+                                          'Mean dFF stim':list_mean_stim, 'Max dFF stim':list_max_stim})
                         
     return(meandFFstim_df)
 

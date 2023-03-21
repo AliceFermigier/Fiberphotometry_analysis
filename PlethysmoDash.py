@@ -18,7 +18,7 @@ from Fiberpho_loader import analysis_path, data_path
 #%%
 
 #session = 'HC'
-mouse = 'B5f'
+mouse = 'C3m'
 
 exp_path = analysis_path / 'Plethysmo'
 #session_path = exp_path / f'{session}'
@@ -54,6 +54,9 @@ if __name__ == '__main__':
 
 
 # #%%to fuse data for A3f
+# mouse = 'A3f'
+# import numpy as np
+# import matplotlib.pyplot as plt
 
 # rawdata1 = pd.read_csv(data_path_exp / f'{mouse}_1old.csv', skiprows=1)
 # fiberpho1 = pd.read_csv(data_path_exp / f'{mouse}_1old_dFFfilt.csv')
@@ -61,21 +64,37 @@ if __name__ == '__main__':
 # rawdata2 = pd.read_csv(data_path_exp / f'{mouse}_2old.csv', skiprows=1)
 # fiberpho2 = pd.read_csv(data_path_exp / f'{mouse}_2old_dFFfilt.csv')
 
+# fiberpho2.drop(columns='Unnamed: 4', inplace = True)
+# fiberpho2.interpolate(methode = 'nearest', inplace = True)
+
 # rawdata = pd.concat([rawdata1, rawdata2], ignore_index=True)
 # fiberpho = pd.concat([fiberpho1, fiberpho2], ignore_index=True)
 
-# import numpy as np
-# timevector_raw2 = np.linspace(468.789893+0.000083,468.789893+407.408737+0.000083,len(rawdata2))
-# timevector_dFF2 = np.linspace(468.574508+0.074534,468.574508+407.374624,len(fiberpho2))
+# #%%
+# timevector_raw = np.linspace(0.000083,468.789893+407.408737+0.000083,len(rawdata1)+len(rawdata2))
+# timevector_dFF = np.linspace(0.074534,468.574508+407.374624+0.074534,len(fiberpho1)+len(fiberpho2))
 
-# fiberpho['Time(s)'] = timevector_dFF2
-# rawdata2['Time(s)'] = timevector_raw2
+# fiberpho['Time(s)'] = timevector_dFF
+# rawdata['Time(s)'] = timevector_raw
 
-# #fiberpho.to_csv(data_path_exp / f'{mouse}_concat_dFFfilt.csv')
+# plt.plot('Time(s)', 
+#          'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass', 
+#          data = fiberpho1)
+
+# plt.plot('Time(s)', 
+#          'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass', 
+#          data = fiberpho2)
+
+# plt.plot('Time(s)', 
+#          'Analog In. | Ch.1 470 nm (Deinterleaved)_dF/F0-Analog In. | Ch.1 405 nm (Deinterleaved)_dF/F0_LowPass', 
+#          data = fiberpho)
+
+# plt.plot('Time(s)', 
+#          'AIn-4', 
+#          data = rawdata)
+
+# fiberpho.to_csv(data_path_exp / f'{mouse}_1_dFFfilt.csv')
 # #rawdata.to_csv(data_path_exp / f'{mouse}_1.csv')
-
-# rawdata2.to_csv(data_path_exp / f'{mouse}_2time.csv')
-
 
 
 
