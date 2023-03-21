@@ -47,13 +47,23 @@ def deinterleave(rawdata_df):
     derivative405 = rawdata_df['DI/O-1'].diff()
     derivative470 = rawdata_df['DI/O-2'].diff()
     
-    old_samplerate = len(rawdata_df)/rawdata_df.loc[len(rawdata_df)-1,'Time(s)']
-    new_samplerate = len(np.where(derivativeAIn1==1))/rawdata_df.loc[len(rawdata_df)-1,'Time(s)']
-    
-    
-    
-    for i in range (0,len(rawdata_df),new_samplerate):
+    list_405 = []
+    list_470 = []
+    for i in np.where(derivative405==1)[0]:
+        list_405.append(rawdata_df.loc[i+250,'AIn-1'])
+    for i in np.where(derivative470==1)[0]:
+        list_470.append(rawdata_df.loc[i+250,'AIn-1'])
         
+    while len(list_470) > len(list_405):
+        list_470.pop()
+        
+    while len(list_405) > len(list_470):
+        list_405.pop()
+
+    timevector = np.linspace(0,rawdata_df['Time(s)'].max(),len(list_405))
+    
+    deinterleaved_df = pd.DataFrame(data = {'Time(s)' : timevector, '405 Deinterleaved' : list_405, '470 Deinterleaved' : list_470})
+    deinterleaved_df.replace(0,value=None,inplace=True)
         
     return(deinterleaved_df)
 
@@ -75,7 +85,6 @@ def rem_artifacts(rawdata_df):
     """
     rawdata_df = pandas dataframe from csv file
     """
-    
     
     return(data)
 
@@ -102,19 +111,8 @@ import matplotlib.pyplot as plt
 
 data_df = pd.read_csv('K:\\Alice\\Fiber\\202301_CA2b5\\Data\\20230112_AliceF_CA2b5Essais2\\A1f_0.csv', skiprows=1)
 
-data_df['AIn-1 x DI/O-1'].replace(0.0,inplace=True)
-data_df['AIn-1 x DI/O-2'].replace(0.0,inplace=True)
-
-plt.plot('Time(s)','AIn-1 x DI/O-2',data = data_df[300:1800])
-
-data_df = data_df.loc[[i for i in range(0,len(data_df),1207)]]
-
-derivative405 = data_df['DI/O-1'].diff()
-old_samplerate = len(data_df)/data_df['Time(s)'].max()
-new_samplerate = len(np.where(derivative405==1)[0])/data_df['Time(s)'].max()
-
-#remove deinterleaving artifacts
-for i in data_df['AIn-1 x DI/O-1']:
+deinterleaved_df = deinterleave(data_df)
+plt.plot('Time(s)','405 Deinterleaved',data=deinterleaved_df)
     
 
 
