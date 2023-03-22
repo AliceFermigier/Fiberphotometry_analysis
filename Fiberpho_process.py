@@ -32,7 +32,7 @@ sys.path.append('C:\\Users\\Alice\\Documents\\GitHub\\Fiberphotometry_analysis')
 #LOADER#
 ########
 
-from Fiberpho_loader import experiment_path, analysis_path, subjects_df, SAMPLERATE
+from Fiberpho_loader import experiment_path, analysis_path, subjects_df, SAMPLERATE, artifacts_df
 from Fiberpho_loader import list_EVENT, list_TIMEWINDOW, PRE_EVENT_TIME, TIME_BEGIN
 
 os.chdir(experiment_path)
@@ -105,33 +105,39 @@ def rem_artifacts(data_df,artifacts_df,filecode,sr):
     for col in data_df.columns[1:] :
         #remove 5 first seconds of data
         data_df.loc[0:round(5*sr),col]=np.nan
-        if filecode in artifacts_df['File']:
-            list_artifacts = artifacts_df.loc[artifacts_df['File']==filecode,'Artifacts'].values
+        if filecode in artifacts_df['Filecode'].values:
+            list_artifacts = artifacts_df.loc[artifacts_df['Filecode']==filecode,'Artifacts'].values
             for [x_start, x_stop] in literal_eval(list_artifacts[0]):
                 data_df.loc[round(x_start*sr):round(x_stop*sr),col]=np.nan
     
     return(data_df)
 
-def dFF(data_df,artifacts_df,filecode,sr,method='mean'):
+def dFF(data_df,artifacts_df,filecode,sr,method='mean fit'):
     """
     columns = list of columns with signals to process, 405 and 470 in that order
-    """
+    """   
+    if method == 'mean fit':
+        interpolate_dFFdata(data_df, method='linear')
+        
     dFFdata = np.full([3,len(data_df)], np.nan)
     for (i,col) in enumerate(data_df.columns[1:]):
         #compute dFF specifically for separate tranches if artifacts are present
-        if filecode in artifacts_df['File']:
-            list_artifacts = artifacts_df.loc[artifacts_df['File']==filecode,'Artifacts'].values
+        if filecode in artifacts_df['Filecode'].values:
+            print('Removing artifacts in dFF')
+            list_artifacts = artifacts_df.loc[artifacts_df['Filecode']==filecode,'Artifacts'].values
             for [x_start, x_stop] in literal_eval(list_artifacts[0]):
-                meanF = np.nanmean(data_df.loc[x_start:x_stop,col])
-                dFFdata[i][x_start:x_stop] = [(j-meanF)/meanF for j in data_df.loc[x_start:x_stop,col] if j!=np.nan]
+                meanF = np.nanmean(data_df.loc[round(x_start*sr):round(x_stop*sr),col])
+                print(meanF)
+                dFFdata[i][round(x_start*sr):round(x_stop*sr)] = [(j-meanF)/meanF for j in data_df.loc[round(x_start*sr):round(x_stop*sr),col] if j!=np.nan]
         else:
             meanF = np.nanmean(data_df[col])
             dFFdata[i] = [(j-meanF)/meanF for j in data_df[col] if j!=np.nan]
     
     if method == 'mean':
         dFFdata[2]=dFFdata[1]-dFFdata[0]
-    if method == 'mean fit':
-        dFFdata[2]=dFFdata[1]-dFFdata[0]
+    elif method == 'mean fit':
+        p = np.polyfit(dFFdata[0], dFFdata[1], 1)
+        dFFdata[2] = (p[0]*dFFdata[0])+p[1]
     
     dFFdata_df = pd.DataFrame(data = {'Time(s)':data_df['Time(s)'],'405 dFF':dFFdata[0],
                                       '470 dFF':dFFdata[1],'Denoised dFF':dFFdata[2]})
@@ -157,24 +163,40 @@ def interpolate_dFFdata(data_df, method='linear'):
 #SCRIPT#
 ########
     
-# data_path = Path('K:\\Alice\\Fiber\\202301_CA2b5\\Data\\20230222_AliceF_CA2b5OdDispostshock')
-# for mouse in subjects_df['Subject']:
-#     print(mouse)
-#     rawdata_df = pd.read_csv(data_path/f'{mouse}_1.csv',skiprows=1,usecols=['Time(s)','AIn-1','DI/O-1','DI/O-2'])
-#     deinterleaved_df = deinterleave(rawdata_df)
-    
-#     fig5 = plt.figure(figsize=(10,6))
-#     ax7 = fig5.add_subplot(211)
+data_path = Path('K:\\Alice\\Fiber\\202301_CA2b5\\Data\\20230222_AliceF_CA2b5OdDispostshock')
+exp = 'OdDispostshock'
+session = 'Test'
+for mouse in ['A1f']: #subjects_df['Subject']:
+    print(mouse)
+    rawdata_df = pd.read_csv(data_path/f'{mouse}_1.csv',skiprows=1,usecols=['Time(s)','AIn-1','DI/O-1','DI/O-2'])
+    print('Deinterleaving')
+    deinterleaved_df = deinterleave(rawdata_df)
+    filecode = f'{exp}_{session}_{mouse}'
+    sr = samplerate(deinterleaved_df)
+    print('Removing artifacts')
+    cleandata_df = rem_artifacts(deinterleaved_df,artifacts_df,filecode,sr)
+    print('dFF')
+    dFFdata_df = dFF(cleandata_df,artifacts_df,filecode,sr,method='mean fit')
+    print('interpolate')
+    interpdFFdata_df = interpolate_dFFdata(dFFdata_df, method='linear')
 
-#     p1, = ax7.plot('Time(s)', '470 Deinterleaved', 
-#                    linewidth=1, color='deepskyblue', label='GCaMP', data = deinterleaved_df[50:]) 
-#     p2, = ax7.plot('Time(s)', '405 Deinterleaved', 
-#                    linewidth=1, color='blueviolet', label='ISOS', data = deinterleaved_df[50:])
-    
-#     ax7.set_ylabel('V')
-#     ax7.set_xlabel('Time(s)')
-#     ax7.legend(handles=[p1,p2], loc='upper right')
-#     ax7.margins(0.01,0.3)
-#     ax7.set_title(f'GCaMP and Isosbestic raw traces - {mouse}')
+
+fig5 = plt.figure(figsize=(10,6))
+ax7 = fig5.add_subplot(211)
+
+p1, = ax7.plot('Time(s)', '470 dFF', 
+               linewidth=1, color='deepskyblue', label='GCaMP', data = interpdFFdata_df) 
+p2, = ax7.plot('Time(s)', '405 dFF', 
+               linewidth=1, color='blueviolet', label='ISOS', data = interpdFFdata_df)
+
+ax7.set_ylabel('V')
+ax7.set_xlabel('Time(s)')
+ax7.legend(handles=[p1,p2], loc='upper right')
+ax7.margins(0.01,0.3)
+ax7.set_title(f'GCaMP and Isosbestic raw traces - {exp} {session} {mouse}')
+
+fig2 = plt.figure(figsize=(20,5))
+ax1 = fig2.add_subplot(111)
+p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = interpdFFdata_df)
 
 
