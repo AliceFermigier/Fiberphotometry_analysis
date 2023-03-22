@@ -20,6 +20,8 @@ import math
 import os
 import sys
 from scipy import signal
+from ast import literal_eval
+from pathlib import Path
 
 #Custom
 #put path to directory where python files are stored
@@ -50,9 +52,15 @@ def deinterleave(rawdata_df):
     list_405 = []
     list_470 = []
     for i in np.where(derivative405==1)[0]:
-        list_405.append(rawdata_df.loc[i+250,'AIn-1'])
+        if i+250 > len(rawdata_df):
+            list_405.append(rawdata_df.loc[len(rawdata_df)-1,'AIn-1'])
+        else:
+            list_405.append(rawdata_df.loc[i+250,'AIn-1'])
     for i in np.where(derivative470==1)[0]:
-        list_470.append(rawdata_df.loc[i+250,'AIn-1'])
+        if i+250 > len(rawdata_df):
+            list_405.append(rawdata_df.loc[len(rawdata_df)-1,'AIn-1'])
+        else:
+            list_470.append(rawdata_df.loc[i+250,'AIn-1'])
         
     while len(list_470) > len(list_405):
         list_470.pop()
@@ -67,54 +75,106 @@ def deinterleave(rawdata_df):
         
     return(deinterleaved_df)
 
-def filter_dFF(fiberbehav_df, ORDER, CUT_FREQ):
+def filter_dFF(data_df, ORDER, CUT_FREQ, columns):
     """
     Apply additional filter to dFF data
     """
-    fiberpho = fiberbehav_df['Denoised dFF']
-    samplingrate = 1000/(fiberbehav_df.loc[1000,'Time(s)']-fiberbehav_df.loc[0,'Time(s)'])
-    sos = signal.butter(ORDER, CUT_FREQ, btype='low', analog=False, output='sos', fs=samplingrate)
-    filtered_data = signal.sosfilt(sos, fiberpho)
-    
-    filtered_df = fiberbehav_df
-    filtered_df['Denoised dFF'] = filtered_data
-    
+    filtered_df = data_df
+    for col in columns:
+        fiberpho = data_df[col]
+        samplingrate = 1000/(data_df.loc[1000,'Time(s)']-data_df.loc[0,'Time(s)'])
+        sos = signal.butter(ORDER, CUT_FREQ, btype='low', analog=False, output='sos', fs=samplingrate)
+        filtered_data = signal.sosfilt(sos, fiberpho)
+        
+        filtered_df[col] = filtered_data
+
     return(filtered_df)
 
-def rem_artifacts(rawdata_df):
+def samplerate(data_df):
+    
+    sr = len(data_df)/(data_df['Time(s)'].max()-data_df['Time(s)'].min())
+    
+    return(sr)
+
+def rem_artifacts(data_df,artifacts_df,filecode,sr):
     """
     rawdata_df = pandas dataframe from csv file
+    artifacts_df = df from excel file with artifacts to remove
+    columns = list of columns with signals to process
     """
+    for col in data_df.columns[1:] :
+        #remove 5 first seconds of data
+        data_df.loc[0:round(5*sr),col]=np.nan
+        if filecode in artifacts_df['File']:
+            list_artifacts = artifacts_df.loc[artifacts_df['File']==filecode,'Artifacts'].values
+            for [x_start, x_stop] in literal_eval(list_artifacts[0]):
+                data_df.loc[round(x_start*sr):round(x_stop*sr),col]=np.nan
     
-    return(data)
+    return(data_df)
 
-def rem_photobleach(data):
+def dFF(data_df,artifacts_df,filecode,sr,method='mean'):
     """
-    data = np array
+    columns = list of columns with signals to process, 405 and 470 in that order
     """
+    dFFdata = np.full([3,len(data_df)], np.nan)
+    for (i,col) in enumerate(data_df.columns[1:]):
+        #compute dFF specifically for separate tranches if artifacts are present
+        if filecode in artifacts_df['File']:
+            list_artifacts = artifacts_df.loc[artifacts_df['File']==filecode,'Artifacts'].values
+            for [x_start, x_stop] in literal_eval(list_artifacts[0]):
+                meanF = np.nanmean(data_df.loc[x_start:x_stop,col])
+                dFFdata[i][x_start:x_stop] = [(j-meanF)/meanF for j in data_df.loc[x_start:x_stop,col] if j!=np.nan]
+        else:
+            meanF = np.nanmean(data_df[col])
+            dFFdata[i] = [(j-meanF)/meanF for j in data_df[col] if j!=np.nan]
     
-    return(filt_data)
-
-def dFF(filt_data):
-    """
-    filt_data = np array
-    """
+    if method == 'mean':
+        dFFdata[2]=dFFdata[1]-dFFdata[0]
+    if method == 'mean fit':
+        dFFdata[2]=dFFdata[1]-dFFdata[0]
     
-    return(filt_dFF)
+    dFFdata_df = pd.DataFrame(data = {'Time(s)':data_df['Time(s)'],'405 dFF':dFFdata[0],
+                                      '470 dFF':dFFdata[1],'Denoised dFF':dFFdata[2]})
+    
+    return(dFFdata_df)
 
-
+def interpolate_dFFdata(data_df, method='linear'):
+    """
+    data_df = dFFdata_df with nan values after removing artifacts
+    """
+    for (i,col) in enumerate(data_df.columns[1:]):
+        meandFF = np.nanmean(data_df[col])
+        if method == 'linear':
+            data_df.loc[0,col]=meandFF
+            data_df.interpolate(method='linear',inplace=True) #interpolate data linearly
+        elif method == 'mean pad':
+            data_df.fillna(meandFF,inplace=True)
+        
+    return(data_df)
+    
 #%%
 ########
 #SCRIPT#
 ########
-import matplotlib.pyplot as plt
-
-data_df = pd.read_csv('K:\\Alice\\Fiber\\202301_CA2b5\\Data\\20230112_AliceF_CA2b5Essais2\\A1f_0.csv', skiprows=1)
-
-deinterleaved_df = deinterleave(data_df)
-plt.plot('Time(s)','405 Deinterleaved',data=deinterleaved_df)
     
+# data_path = Path('K:\\Alice\\Fiber\\202301_CA2b5\\Data\\20230222_AliceF_CA2b5OdDispostshock')
+# for mouse in subjects_df['Subject']:
+#     print(mouse)
+#     rawdata_df = pd.read_csv(data_path/f'{mouse}_1.csv',skiprows=1,usecols=['Time(s)','AIn-1','DI/O-1','DI/O-2'])
+#     deinterleaved_df = deinterleave(rawdata_df)
+    
+#     fig5 = plt.figure(figsize=(10,6))
+#     ax7 = fig5.add_subplot(211)
 
-
+#     p1, = ax7.plot('Time(s)', '470 Deinterleaved', 
+#                    linewidth=1, color='deepskyblue', label='GCaMP', data = deinterleaved_df[50:]) 
+#     p2, = ax7.plot('Time(s)', '405 Deinterleaved', 
+#                    linewidth=1, color='blueviolet', label='ISOS', data = deinterleaved_df[50:])
+    
+#     ax7.set_ylabel('V')
+#     ax7.set_xlabel('Time(s)')
+#     ax7.legend(handles=[p1,p2], loc='upper right')
+#     ax7.margins(0.01,0.3)
+#     ax7.set_title(f'GCaMP and Isosbestic raw traces - {mouse}')
 
 

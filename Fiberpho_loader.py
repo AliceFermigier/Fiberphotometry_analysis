@@ -35,6 +35,9 @@ subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Inclu
 #import tasks in protocol
 proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 
+#import tasks in protocol
+artifacts_df = pd.read_excel(experiment_path / 'artifacts.xlsx')
+
 #all analysis files in Batch/Experiment/Analysis/Subject_Trial
 #each trial of each subject has a specific directory called CD1_0, CD1_2, etc...
 #for example, for ORM : CD1_0 = training of subject CD1 ; CD1_2 = test of subject CD1

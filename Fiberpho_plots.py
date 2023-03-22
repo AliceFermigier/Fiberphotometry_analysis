@@ -201,9 +201,6 @@ def plot_rawdata(rawdata_df):
     Plots raw isosbestic and GCaMP traces
     """
     
-    time_stop = rawdata_df.loc[len(rawdata_df)-1,'Time(s)']
-    time_stop = np.ceil(time_stop)
-    
     fig5 = plt.figure(figsize=(10,6))
     ax7 = fig5.add_subplot(211)
 
@@ -213,7 +210,7 @@ def plot_rawdata(rawdata_df):
                    linewidth=1, color='blueviolet', label='ISOS', data = rawdata_df)
     
     ax7.set_ylabel('V')
-    ax7.set_xlabel('Seconds')
+    ax7.set_xlabel('Time(s)')
     ax7.legend(handles=[p1,p2], loc='upper right')
     ax7.margins(0.01,0.3)
     ax7.set_title(f'GCaMP and Isosbestic raw traces - {exp} {session} {mouse}')
