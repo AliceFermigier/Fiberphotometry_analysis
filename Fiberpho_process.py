@@ -108,36 +108,94 @@ def rem_artifacts(data_df,artifacts_df,filecode,sr):
         if filecode in artifacts_df['Filecode'].values:
             list_artifacts = artifacts_df.loc[artifacts_df['Filecode']==filecode,'Artifacts'].values
             for [x_start, x_stop] in literal_eval(list_artifacts[0]):
-                data_df.loc[round(x_start*sr):round(x_stop*sr),col]=np.nan
+                data_df.loc[(data_df['Time(s)']>x_start)&(data_df['Time(s)']<x_stop),col]=np.nan
     
     return(data_df)
 
-def dFF(data_df,artifacts_df,filecode,sr,method='mean fit'):
+def detrend(data_df,artifacts_df,filecode,sr):
+    """
+    
+    """   
+    detrended_data = np.full([2,len(data_df)], np.nan)
+    for (i,col) in enumerate(data_df.columns[1:]):
+        #compute dFF specifically for separate tranches if artifacts are present
+        if filecode in artifacts_df['Filecode'].values:
+            print('Removing artifacts in detrending')
+            list_artifacts = artifacts_df.loc[artifacts_df['Filecode']==filecode,'Artifacts'].values
+            begin=round(5*sr)
+            for k in range(len(literal_eval(list_artifacts[0]))):
+                [x_start, x_stop] = literal_eval(list_artifacts[0])[k]
+                end = data_df.loc[data_df['Time(s)']>x_start].index[0]
+                detrended_data[i][begin+1:end] = signal.detrend(data_df.loc[begin+1:end-1,col])
+                begin= data_df.loc[data_df['Time(s)']<x_stop].index[-1]
+            end=len(data_df)
+            detrended_data[i][begin+1:end] = signal.detrend(data_df.loc[begin+1:end-1,col])
+        else:
+            detrended_data[i] = signal.detrend(data_df.loc[begin+1:end-1,col])
+    
+    detrended_df = pd.DataFrame(data = {'Time(s)':data_df['Time(s)'],'405 Deinterleaved':detrended_data[0],
+                                      '470 Deinterleaved':detrended_data[1]})
+    
+    return(detrended_df)
+
+def controlFit(control, signal):
+    
+	p = np.polyfit(control, signal, 1)
+	arr = (p[0]*control)+p[1]
+	return arr
+
+def dFF(data_df,artifacts_df,filecode,sr,method='mean'):
     """
     columns = list of columns with signals to process, 405 and 470 in that order
     """   
-    if method == 'mean fit':
-        interpolate_dFFdata(data_df, method='linear')
+    if method == 'mean':
+        dFFdata = np.full([3,len(data_df)], np.nan)
+        for (i,col) in enumerate(data_df.columns[1:]):
+            #compute dFF specifically for separate tranches if artifacts are present
+            if filecode in artifacts_df['Filecode'].values:
+                print('Removing artifacts in dFF')
+                list_artifacts = artifacts_df.loc[artifacts_df['Filecode']==filecode,'Artifacts'].values
+                begin=round(5*sr)
+                for k in range(len(literal_eval(list_artifacts[0]))):
+                    [x_start, x_stop] = literal_eval(list_artifacts[0])[k]
+                    end = data_df.loc[data_df['Time(s)']>x_start].index[0]
+                    meanF = np.nanmean(data_df.loc[begin+1:end,col])
+                    dFFdata[i][begin+1:end] = [((j-meanF)/meanF)*100 for j in data_df.loc[begin+1:end-1,col]]
+                    begin= data_df.loc[data_df['Time(s)']<x_stop].index[-1]
+                end=len(data_df)
+                meanF = np.nanmean(data_df.loc[begin+1:end,col])
+                dFFdata[i][begin+1:end] = [((j-meanF)/meanF)*100 for j in data_df.loc[begin+1:end-1,col]]
+            else:
+                meanF = np.nanmean(data_df[col])
+                dFFdata[i] = [((j-meanF)/meanF)*100 for j in data_df[col] if j!=np.nan]
         
-    dFFdata = np.full([3,len(data_df)], np.nan)
-    for (i,col) in enumerate(data_df.columns[1:]):
+        dFFdata[2]=dFFdata[1]-dFFdata[0]
+    
+    elif method == 'fit':
+        dFFdata = np.full([3,len(data_df)], np.nan)
         #compute dFF specifically for separate tranches if artifacts are present
         if filecode in artifacts_df['Filecode'].values:
             print('Removing artifacts in dFF')
             list_artifacts = artifacts_df.loc[artifacts_df['Filecode']==filecode,'Artifacts'].values
-            for [x_start, x_stop] in literal_eval(list_artifacts[0]):
-                meanF = np.nanmean(data_df.loc[round(x_start*sr):round(x_stop*sr),col])
-                print(meanF)
-                dFFdata[i][round(x_start*sr):round(x_stop*sr)] = [(j-meanF)/meanF for j in data_df.loc[round(x_start*sr):round(x_stop*sr),col] if j!=np.nan]
+            begin=round(5*sr)
+            for k in range(len(literal_eval(list_artifacts[0]))):
+                [x_start, x_stop] = literal_eval(list_artifacts[0])[k]
+                end = data_df.loc[data_df['Time(s)']>x_start].index[0]
+                print(data_df.loc[begin+1:end-1,'405 Deinterleaved'])
+                dFFdata[0][begin+1:end] = controlFit(data_df.loc[begin+1:end-1,'405 Deinterleaved'], data_df.loc[begin+1:end-1,'470 Deinterleaved'])
+                dFFdata[1][begin+1:end] = data_df.loc[begin+1:end-1,'470 Deinterleaved']
+                begin= data_df.loc[data_df['Time(s)']<x_stop].index[-1]
+            end=len(data_df)
+            dFFdata[0][begin+1:end] = controlFit(data_df.loc[begin+1:end-1,'405 Deinterleaved'], data_df.loc[begin+1:end-1,'470 Deinterleaved'])
+            dFFdata[1][begin+1:end] = data_df.loc[begin+1:end-1,'470 Deinterleaved']
         else:
-            meanF = np.nanmean(data_df[col])
-            dFFdata[i] = [(j-meanF)/meanF for j in data_df[col] if j!=np.nan]
-    
-    if method == 'mean':
-        dFFdata[2]=dFFdata[1]-dFFdata[0]
-    elif method == 'mean fit':
-        p = np.polyfit(dFFdata[0], dFFdata[1], 1)
-        dFFdata[2] = (p[0]*dFFdata[0])+p[1]
+            [begin,end] = [round(5*sr),len(data_df)]
+            dFFdata[0][begin+1:end] = controlFit(data_df.loc[begin+1:end-1,'405 Deinterleaved'], data_df.loc[begin+1:end-1,'470 Deinterleaved'])
+            dFFdata[1][begin+1:end] = data_df.loc[begin+1:end-1,'470 Deinterleaved']
+        
+        res = np.subtract(dFFdata[1], dFFdata[0])
+        normData = np.divide(res, dFFdata[0])
+        dFFdata[2] = normData*100
     
     dFFdata_df = pd.DataFrame(data = {'Time(s)':data_df['Time(s)'],'405 dFF':dFFdata[0],
                                       '470 dFF':dFFdata[1],'Denoised dFF':dFFdata[2]})
@@ -162,6 +220,8 @@ def interpolate_dFFdata(data_df, method='linear'):
 ########
 #SCRIPT#
 ########
+
+import matplotlib.pyplot as plt
     
 data_path = Path('K:\\Alice\\Fiber\\202301_CA2b5\\Data\\20230222_AliceF_CA2b5OdDispostshock')
 exp = 'OdDispostshock'
@@ -171,14 +231,44 @@ for mouse in ['A1f']: #subjects_df['Subject']:
     rawdata_df = pd.read_csv(data_path/f'{mouse}_1.csv',skiprows=1,usecols=['Time(s)','AIn-1','DI/O-1','DI/O-2'])
     print('Deinterleaving')
     deinterleaved_df = deinterleave(rawdata_df)
+    
     filecode = f'{exp}_{session}_{mouse}'
     sr = samplerate(deinterleaved_df)
+    
+    print('Detrending')
+    detrended_df = detrend(deinterleaved_df,artifacts_df,filecode,sr)
     print('Removing artifacts')
-    cleandata_df = rem_artifacts(deinterleaved_df,artifacts_df,filecode,sr)
+    #cleandata_df = rem_artifacts(deinterleaved_df,artifacts_df,filecode,sr)
     print('dFF')
-    dFFdata_df = dFF(cleandata_df,artifacts_df,filecode,sr,method='mean fit')
+    dFFdata_df = dFF(deinterleaved_df,artifacts_df,filecode,sr,method='mean')
     print('interpolate')
     interpdFFdata_df = interpolate_dFFdata(dFFdata_df, method='linear')
+    
+fig3 = plt.figure(figsize=(10,6))
+ax4 = fig3.add_subplot(211)
+p1, = ax4.plot('Time(s)', '470 Deinterleaved', 
+               linewidth=1, color='deepskyblue', label='GCaMP', data = deinterleaved_df) 
+p2, = ax4.plot('Time(s)', '405 Deinterleaved', 
+               linewidth=1, color='blueviolet', label='ISOS', data = deinterleaved_df)
+
+ax4.set_ylabel('V')
+ax4.set_xlabel('Time(s)')
+ax4.legend(handles=[p1,p2], loc='upper right')
+ax4.margins(0.01,0.3)
+ax4.set_title(f'GCaMP and Isosbestic deinterleaved - {exp} {session} {mouse}')
+
+fig1 = plt.figure(figsize=(10,6))
+ax2 = fig1.add_subplot(211)
+p1, = ax2.plot('Time(s)', '470 Deinterleaved', 
+               linewidth=1, color='deepskyblue', label='GCaMP', data = detrended_df) 
+p2, = ax2.plot('Time(s)', '405 Deinterleaved', 
+               linewidth=1, color='blueviolet', label='ISOS', data = detrended_df)
+
+ax2.set_ylabel('V')
+ax2.set_xlabel('Time(s)')
+ax2.legend(handles=[p1,p2], loc='upper right')
+ax2.margins(0.01,0.3)
+ax2.set_title(f'GCaMP and Isosbestic deinterleaved - {exp} {session} {mouse}')
 
 
 fig5 = plt.figure(figsize=(10,6))
@@ -193,7 +283,7 @@ ax7.set_ylabel('V')
 ax7.set_xlabel('Time(s)')
 ax7.legend(handles=[p1,p2], loc='upper right')
 ax7.margins(0.01,0.3)
-ax7.set_title(f'GCaMP and Isosbestic raw traces - {exp} {session} {mouse}')
+ax7.set_title(f'GCaMP and Isosbestic dFF traces - {exp} {session} {mouse}')
 
 fig2 = plt.figure(figsize=(20,5))
 ax1 = fig2.add_subplot(111)
