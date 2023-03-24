@@ -20,6 +20,8 @@ import math
 import os
 import sys
 from scipy import signal
+from scipy.sparse import csc_matrix, eye, diags
+from scipy.sparse.linalg import spsolve
 from ast import literal_eval
 from pathlib import Path
 
@@ -41,6 +43,94 @@ os.chdir(experiment_path)
 ###################
 #DEFINED FUNCTIONS#
 ###################
+
+###Smoothing methods
+
+#airPLS
+
+def WhittakerSmooth(x,w,lambda_,differences=1):
+    '''
+    Penalized least squares algorithm for background fitting
+    airPLS.py Copyright 2014 Renato Lombardo - renato.lombardo@unipa.it
+    
+    input
+        x: input data (i.e. chromatogram of spectrum)
+        w: binary masks (value of the mask is zero if a point belongs to peaks and one otherwise)
+        lambda_: parameter that can be adjusted by user. The larger lambda is,  the smoother the resulting background
+        differences: integer indicating the order of the difference of penalties
+    
+    output
+        the fitted background vector
+    '''
+    X=np.matrix(x)
+    m=X.size
+    E=eye(m,format='csc')
+    for i in range(differences):
+        E=E[1:]-E[:-1] # numpy.diff() does not work with sparse matrix. This is a workaround.
+    W=diags(w,0,shape=(m,m))
+    A=csc_matrix(W+(lambda_*E.T*E))
+    B=csc_matrix(W*X.T)
+    background=spsolve(A,B)
+    return np.array(background)
+
+def airPLS(x, lambda_=100, porder=1, itermax=15):
+    '''
+    Adaptive iteratively reweighted penalized least squares for baseline fitting
+    airPLS.py Copyright 2014 Renato Lombardo - renato.lombardo@unipa.it
+    
+    input
+        x: input data (i.e. chromatogram of spectrum)
+        lambda_: parameter that can be adjusted by user. The larger lambda is,  the smoother the resulting background, z
+        porder: adaptive iteratively reweighted penalized least squares for baseline fitting
+    
+    output
+        the fitted background vector
+    '''
+    m=x.shape[0]
+    w=np.ones(m)
+    for i in range(1,itermax+1):
+        z=WhittakerSmooth(x,w,lambda_, porder)
+        d=x-z
+        dssn=np.abs(d[d<0].sum())
+        if(dssn<0.001*(abs(x)).sum() or i==itermax):
+            if(i==itermax): print('WARING max iteration reached!')
+            break
+        w[d>=0]=0 # d>0 means that this point is part of a peak, so its weight is set to 0 in order to ignore it
+        w[d<0]=np.exp(i*np.abs(d[d<0])/dssn)
+        w[0]=np.exp(i*(d[d<0]).max()/dssn) 
+        w[-1]=w[0]
+    return z
+
+def smoothing_airPLS(data_df):
+    for col in data_df.columns[1:]:
+        data_df[col] = airPLS(data_df[col], lambda_=2, porder=1, itermax=15)
+        
+    return(data_df)
+
+#butterworth filter
+
+def filter_dFF(data_df, ORDER, CUT_FREQ):
+    """
+    Apply additional filter to dFF data
+    """
+    filtered_df = data_df
+    for col in data_df.columns[1:]:
+        fiberpho = data_df[col]
+        samplingrate = 1000/(data_df.loc[1000,'Time(s)']-data_df.loc[0,'Time(s)'])
+        sos = signal.butter(ORDER, CUT_FREQ, btype='low', analog=False, output='sos', fs=samplingrate)
+        filtered_data = signal.sosfilt(sos, fiberpho)
+        
+        filtered_df[col] = filtered_data
+
+    return(filtered_df)
+
+#simple moving average (SMA) smoothing
+
+def smoothing_SMA(data_df):
+    for col in data_df.columns[1:]:
+        data_df[col] = data_df[col].rolling(7, min_periods=1).mean()
+        
+    return(data_df)
 
 def deinterleave(rawdata_df):
     """
@@ -75,20 +165,6 @@ def deinterleave(rawdata_df):
         
     return(deinterleaved_df)
 
-def filter_dFF(data_df, ORDER, CUT_FREQ, columns):
-    """
-    Apply additional filter to dFF data
-    """
-    filtered_df = data_df
-    for col in columns:
-        fiberpho = data_df[col]
-        samplingrate = 1000/(data_df.loc[1000,'Time(s)']-data_df.loc[0,'Time(s)'])
-        sos = signal.butter(ORDER, CUT_FREQ, btype='low', analog=False, output='sos', fs=samplingrate)
-        filtered_data = signal.sosfilt(sos, fiberpho)
-        
-        filtered_df[col] = filtered_data
-
-    return(filtered_df)
 
 def samplerate(data_df):
     
@@ -126,12 +202,12 @@ def detrend(data_df,artifacts_df,filecode,sr):
             for k in range(len(literal_eval(list_artifacts[0]))):
                 [x_start, x_stop] = literal_eval(list_artifacts[0])[k]
                 end = data_df.loc[data_df['Time(s)']>x_start].index[0]
-                detrended_data[i][begin+1:end] = signal.detrend(data_df.loc[begin+1:end-1,col])
+                detrended_data[i][begin+1:end] = airPLS(data_df.loc[begin+1:end-1,col], lambda_=100, porder=1, itermax=15)
                 begin= data_df.loc[data_df['Time(s)']<x_stop].index[-1]
             end=len(data_df)
-            detrended_data[i][begin+1:end] = signal.detrend(data_df.loc[begin+1:end-1,col])
+            detrended_data[i][begin+1:end] = airPLS(data_df.loc[begin+1:end-1,col], lambda_=100, porder=1, itermax=15)
         else:
-            detrended_data[i] = signal.detrend(data_df.loc[begin+1:end-1,col])
+            detrended_data[i] = airPLS(data_df.loc[begin+1:end-1,col], lambda_=100, porder=1, itermax=15)
     
     detrended_df = pd.DataFrame(data = {'Time(s)':data_df['Time(s)'],'405 Deinterleaved':detrended_data[0],
                                       '470 Deinterleaved':detrended_data[1]})
@@ -146,7 +222,7 @@ def controlFit(control, signal):
 
 def dFF(data_df,artifacts_df,filecode,sr,method='mean'):
     """
-    columns = list of columns with signals to process, 405 and 470 in that order
+    
     """   
     if method == 'mean':
         dFFdata = np.full([3,len(data_df)], np.nan)
@@ -212,7 +288,7 @@ def interpolate_dFFdata(data_df, method='linear'):
             data_df.loc[0,col]=meandFF
             data_df.interpolate(method='linear',inplace=True) #interpolate data linearly
         elif method == 'mean pad':
-            data_df.fillna(meandFF,inplace=True)
+            data_df.fillna(meandFF,inplace=True) #pad missing data with mean dFF
         
     return(data_df)
     
@@ -234,15 +310,13 @@ for mouse in ['A1f']: #subjects_df['Subject']:
     
     filecode = f'{exp}_{session}_{mouse}'
     sr = samplerate(deinterleaved_df)
-    
-    print('Detrending')
-    detrended_df = detrend(deinterleaved_df,artifacts_df,filecode,sr)
-    print('Removing artifacts')
-    #cleandata_df = rem_artifacts(deinterleaved_df,artifacts_df,filecode,sr)
+
     print('dFF')
-    dFFdata_df = dFF(deinterleaved_df,artifacts_df,filecode,sr,method='mean')
+    dFFdata_df = dFF(deinterleaved_df,artifacts_df,filecode,sr,method='fit')
     print('interpolate')
     interpdFFdata_df = interpolate_dFFdata(dFFdata_df, method='linear')
+    print('smoothing')
+    smootheddFFdata_df =smoothing_SMA(interpdFFdata_df)
     
 fig3 = plt.figure(figsize=(10,6))
 ax4 = fig3.add_subplot(211)
@@ -257,27 +331,14 @@ ax4.legend(handles=[p1,p2], loc='upper right')
 ax4.margins(0.01,0.3)
 ax4.set_title(f'GCaMP and Isosbestic deinterleaved - {exp} {session} {mouse}')
 
-fig1 = plt.figure(figsize=(10,6))
-ax2 = fig1.add_subplot(211)
-p1, = ax2.plot('Time(s)', '470 Deinterleaved', 
-               linewidth=1, color='deepskyblue', label='GCaMP', data = detrended_df) 
-p2, = ax2.plot('Time(s)', '405 Deinterleaved', 
-               linewidth=1, color='blueviolet', label='ISOS', data = detrended_df)
-
-ax2.set_ylabel('V')
-ax2.set_xlabel('Time(s)')
-ax2.legend(handles=[p1,p2], loc='upper right')
-ax2.margins(0.01,0.3)
-ax2.set_title(f'GCaMP and Isosbestic deinterleaved - {exp} {session} {mouse}')
-
 
 fig5 = plt.figure(figsize=(10,6))
 ax7 = fig5.add_subplot(211)
 
 p1, = ax7.plot('Time(s)', '470 dFF', 
-               linewidth=1, color='deepskyblue', label='GCaMP', data = interpdFFdata_df) 
+               linewidth=1, color='deepskyblue', label='GCaMP', data = smootheddFFdata_df) 
 p2, = ax7.plot('Time(s)', '405 dFF', 
-               linewidth=1, color='blueviolet', label='ISOS', data = interpdFFdata_df)
+               linewidth=1, color='blueviolet', label='ISOS', data = smootheddFFdata_df)
 
 ax7.set_ylabel('V')
 ax7.set_xlabel('Time(s)')
@@ -287,6 +348,6 @@ ax7.set_title(f'GCaMP and Isosbestic dFF traces - {exp} {session} {mouse}')
 
 fig2 = plt.figure(figsize=(20,5))
 ax1 = fig2.add_subplot(111)
-p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = interpdFFdata_df)
+p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = smootheddFFdata_df)
 
 

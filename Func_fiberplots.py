@@ -16,14 +16,7 @@ Useful functions for fiberpho analysis
 import pandas as pd
 import numpy as np
 import math
-import sys
 from scipy import signal
-
-
-#Custom
-#put path to directory where python files are stored
-# sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
-# sys.path.append('C:\\Users\\afermigier\\Documents\\GitHub\\Fiberphotometry_analysis')
 
 #%%
 ###################
@@ -67,21 +60,21 @@ def time_vector(fiberpho, SAMPLERATE) :
     #duration = len(fiberpho) #for Roman data
     return pd.Series(np.linspace(0.0, duration, num = int(duration*SAMPLERATE)+1))
 
-def timestamp_camera(camera) :
-    """
-    Function to extract the timestamps where the camera starts and stops
-    --> Parameters
-        camera : pd dataframe, camera I/O with sample rate = 12kSps
-    --> Returns
-        (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
-    """
-    ind_list = np.where(camera['Digital I/O | Ch.3 DI/O-3'] == 1)
-    ind_list = ind_list[0].tolist()
-    (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
-    return (truncate(camera.at[ind_start, 'Time(s)'], 1),
-            truncate(camera.at[ind_stop, 'Time(s)'], 1))
+# def timestamp_camera(camera) :
+#     """
+#     Function to extract the timestamps where the camera starts and stops
+#     --> Parameters
+#         camera : pd dataframe, camera I/O with sample rate = 12kSps
+#     --> Returns
+#         (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
+#     """
+#     ind_list = np.where(camera['Digital I/O | Ch.3 DI/O-3'] == 1)
+#     ind_list = ind_list[0].tolist()
+#     (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
+#     return (truncate(camera.at[ind_start, 'Time(s)'], 1),
+#             truncate(camera.at[ind_stop, 'Time(s)'], 1))
 
-def timestamp_camera_fromraw(rawdata_df) :
+def timestamp_camera(rawdata_df) :
     """
     Function to extract the timestamps where the camera starts and stops
     --> Parameters
@@ -95,23 +88,24 @@ def timestamp_camera_fromraw(rawdata_df) :
     return (truncate(rawdata_df.at[ind_start, 'Time(s)'], 1),
             truncate(rawdata_df.at[ind_stop, 'Time(s)'], 1))
 
-def filter_dFF(fiberbehav_df, ORDER, CUT_FREQ):
-    """
-    Apply additional filter to dFF data
-    """
-    fiberpho = fiberbehav_df['Denoised dFF']
-    samplingrate = 1000/(fiberbehav_df.loc[1000,'Time(s)']-fiberbehav_df.loc[0,'Time(s)'])
-    sos = signal.butter(ORDER, CUT_FREQ, btype='low', analog=False, output='sos', fs=samplingrate)
-    filtered_data = signal.sosfilt(sos, fiberpho)
+# def filter_dFF(fiberbehav_df, ORDER, CUT_FREQ):
+#     """
+#     Apply additional filter to dFF data
+#     """
+#     fiberpho = fiberbehav_df['Denoised dFF']
+#     samplingrate = 1000/(fiberbehav_df.loc[1000,'Time(s)']-fiberbehav_df.loc[0,'Time(s)'])
+#     sos = signal.butter(ORDER, CUT_FREQ, btype='low', analog=False, output='sos', fs=samplingrate)
+#     filtered_data = signal.sosfilt(sos, fiberpho)
     
-    filtered_df = fiberbehav_df
-    filtered_df['Denoised dFF'] = filtered_data
+#     filtered_df = fiberbehav_df
+#     filtered_df['Denoised dFF'] = filtered_data
     
-    return(filtered_df)
+#     return(filtered_df)
 
-def meandFF_behav(list_BOI, fiberbehav_df):
+def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group):
     """
     Calculates mean dFF during each behaviour
+    Output : dataframe with 'Subject','Group','Mean dFF','Baseline', 'Post_baseline', and mean dFF for each behaviour
     """
     list_behav_analyzed = []
     list_meandFF = []
@@ -128,7 +122,7 @@ def meandFF_behav(list_BOI, fiberbehav_df):
     else:
         ind_start_trial = fiberbehavsnip_df.index[fiberbehavsnip_df['Entry in arena'] == 1].tolist()[0]
     
-    #create list of behaviours and list of correspondind mean dFFs
+    #create list of behaviours and list of corresponding mean dFFs
     for behav in list_BOI:
         if fiberbehavsnip_df[behav].sum() > 2:
             list_behav_analyzed.append(behav)
@@ -177,7 +171,7 @@ def meandFF_behav(list_BOI, fiberbehav_df):
     # #save figure
     # fig7.savefig(mouse_path / f'{mouse}_meandFFs.pdf')
     
-    #meandFFs_df.to_excel(mouse_path / f'{mouse}_meandFFglob.xlsx')
+    meandFFs_df.to_excel(mouse_path / f'{mouse}_meandFFglob.xlsx')
     
     return(meandFFs_df)
 

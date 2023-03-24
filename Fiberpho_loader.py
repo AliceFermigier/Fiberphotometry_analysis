@@ -78,9 +78,6 @@ BEHAV_START = 'Gate opens'
 #time baseline if behaviour hasn't been scored
 TIME_BASELINE = 120.0 #in seconds
 
-#CAUTION : with the code as it is, can process up to 4 different behaviours
-#if more, add elif to align_behav function
-
 #%%
 ########
 #SCRIPT#
