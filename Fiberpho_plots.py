@@ -250,6 +250,8 @@ def plot_fiberpho_behav(behavprocess_df):
     Plots denoised deltaF/F aligned with behaviour (includes baseline)
     """
     
+    list_BOI = behavprocess_df.columns[2:].tolist()
+    
     behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 40]
     
     fig2 = plt.figure(figsize=(20,5))
@@ -281,7 +283,7 @@ def plot_fiberpho_behav(behavprocess_df):
         elif session =='Conditioning':
             #plots fiberpho trace and behaviourb 
             p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = behavprocesssnip_df)
-            x_entry = fiberbehav_df.at[int(np.where(fiberbehav_df['Shock'] == 1)[0][0]), 'Time(s)']
+            x_entry = behavprocesssnip_df.at[int(np.where(behavprocesssnip_df['Shock'] == 1)[0][0]), 'Time(s)']
             ax1.axvline(x_entry, color='yellow', ls = '-', lw=2, label = 'Shock' )
             
     elif exp=='NewContext':
@@ -436,11 +438,11 @@ def plot_fiberpho_behav(behavprocess_df):
         
         #makes vertical line for entry opening of gate
         if 'Gate opens' in list_BOI:
-            x_entry = fiberbehav_df.at[int(np.where(fiberbehav_df['Gate opens'] == 1)[0][0]), 'Time(s)']
+            x_entry = behavprocesssnip_df.at[int(np.where(behavprocesssnip_df['Gate opens'] == 1)[0][0]), 'Time(s)']
             ax1.axvline(x_entry, color='lightsteelblue', ls = '--', label = 'Gate opens' )
                 
         #makes vertical line for entry in open field
-        x_entry = fiberbehav_df.at[int(np.where(fiberbehav_df['Entry in arena'] == 1)[0][0]), 'Time(s)']
+        x_entry = behavprocesssnip_df.at[int(np.where(behavprocesssnip_df['Entry in arena'] == 1)[0][0]), 'Time(s)']
         ax1.axvline(x_entry, color='slategrey', ls = '--', label = 'Entry in arena' )
     
     ax1.set_ylabel(r'$\Delta$F/F')

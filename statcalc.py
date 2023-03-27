@@ -76,3 +76,38 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group):
     meandFFs_df = pd.DataFrame(data=[list_dFFs], columns=list_columns)
     
     return(meandFFs_df)
+
+def diff_dFF(behavprocess_df, list_BOI, mouse, group):
+    """
+    Calculates dFF difference between beginning and end of bouts
+    Also calculates mean dFF during each bout
+    """
+    list_behav_analyzed = []
+    for behav in list_BOI:
+        if behav not in ['Entry in arena','Gate opens','Shock']:
+            list_behav_analyzed.append(behav)
+    list_deltadFF = []
+    list_meandFF = []
+    listind_behav = []
+    listind_bouts = []
+    
+    for behav in list_behav_analyzed:
+        list_starts = np.where(behavprocess_df[behav]==1)[0].tolist()
+        list_stops = np.where(behavprocess_df[behav]==-1)[0].tolist()
+        bout_n = 1
+        for (start, stop) in zip(list_starts, list_stops):
+            mean_start = behavprocess_df.loc[start-5:start+5, 'Denoised dFF'].mean()
+            mean_stop = behavprocess_df.loc[stop-5:stop+5, 'Denoised dFF'].mean()
+            delta = mean_stop-mean_start
+            mean = behavprocess_df.loc[start:stop, 'Denoised dFF'].mean()
+            list_deltadFF.append(delta)
+            list_meandFF.append(mean)
+            listind_behav.append(behav)
+            listind_bouts.append(bout_n)
+            bout_n+=1
+    
+    diffdFF_df = pd.DataFrame(data = {'Subject':[mouse]*len(listind_behav), 'Group':[group]*len(listind_behav),
+                                      'Behaviour':listind_behav, 'Bout':listind_bouts, 'Mean dFF':list_meandFF,
+                                      'Delta dFF':list_deltadFF})
+    
+    return(diffdFF_df)
