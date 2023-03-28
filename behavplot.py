@@ -406,7 +406,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
         list_ind_event.pop(-1)
     
     #take the beginning of the behaviour as the beginning of the slope : min(dFF) on 3 secs before entry
-    if BOI in ['Gate opens','Entry in arena']:
+    if event == 'onset':
         for i,ind_onset in enumerate(list_ind_event):
             list_ind_event[i] = behavprocess_df.loc[ind_onset-3*sr:ind_onset, 'Denoised dFF'].idxmin()
         
@@ -557,9 +557,5 @@ def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow, ex
     ax5.legend(handles=[p2,p5,p8], loc='upper left', fontsize = 'small')
     ax5.margins(0, 0.1)
     ax5.set_title(f'{BOI} - {exp} {session} {included_groups[0]} {included_groups[1]}')
-    
-    #save figure
-    fig4.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETHred.pdf')
-    fig4.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETHred.png')
     
     return fig4

@@ -77,7 +77,7 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group):
     
     return(meandFFs_df)
 
-def diff_dFF(behavprocess_df, list_BOI, mouse, group):
+def diffmeanmax_dFF(behavprocess_df, list_BOI, mouse, group):
     """
     Calculates dFF difference between beginning and end of bouts
     Also calculates mean dFF during each bout
@@ -88,6 +88,7 @@ def diff_dFF(behavprocess_df, list_BOI, mouse, group):
             list_behav_analyzed.append(behav)
     list_deltadFF = []
     list_meandFF = []
+    list_maxdFF = []
     listind_behav = []
     listind_bouts = []
     
@@ -100,14 +101,16 @@ def diff_dFF(behavprocess_df, list_BOI, mouse, group):
             mean_stop = behavprocess_df.loc[stop-5:stop+5, 'Denoised dFF'].mean()
             delta = mean_stop-mean_start
             mean = behavprocess_df.loc[start:stop, 'Denoised dFF'].mean()
+            maximum = behavprocess_df.loc[start:stop, 'Denoised dFF'].max()
             list_deltadFF.append(delta)
             list_meandFF.append(mean)
+            list_maxdFF.append(maximum)
             listind_behav.append(behav)
             listind_bouts.append(bout_n)
             bout_n+=1
     
     diffdFF_df = pd.DataFrame(data = {'Subject':[mouse]*len(listind_behav), 'Group':[group]*len(listind_behav),
                                       'Behaviour':listind_behav, 'Bout':listind_bouts, 'Mean dFF':list_meandFF,
-                                      'Delta dFF':list_deltadFF})
+                                      'Max dFF' : list_maxdFF, 'Delta dFF':list_deltadFF})
     
     return(diffdFF_df)
