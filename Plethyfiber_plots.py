@@ -16,7 +16,6 @@ Process and plot plethysmograph and fiberphotometry data
 import numpy as np
 import statistics as stat
 from pathlib import Path
-import glob
 from scipy import signal
 import os
 import sys
@@ -138,9 +137,9 @@ def plethyfiber_plot_raw(fiberpho_df, plethys_df):
     #ax7.set_ylim(-1,2)
     ax7.set_xlabel('Time(s)')
     
-    return(fig4)
+    return fig4
 
-def PETH(fiberpho_df, odor, sniffs_df, event, timewindow):
+def PETH_sniff(fiberpho_df, odor, sniffs_df, event, timewindow):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI
     --> Parameters
@@ -251,9 +250,10 @@ def plethyfiber_plot_sniffs(fiberpho_df, plethys_df, sniffs_df):
     
     return(fig5)
 
-def plot_PETH(PETH_data, odor, event, timewindow):
+def plot_PETH(PETH_data, odor, event, timewindow, BOI):
     """
     Plots PETH average and heatmap
+    BOI = 'Sniff' or 'Stim'
     """
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
@@ -283,7 +283,7 @@ def plot_PETH(PETH_data, odor, event, timewindow):
     #plot standard error bars
     p3 = ax5.fill_between(peri_time, mean_dFF_snips+std_dFF_snips,
                       mean_dFF_snips-std_dFF_snips, facecolor='green', alpha=0.2)
-    p4 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=f'Sniff {event}')
+    p4 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=f'{BOI} {event}')
     
     #ax5.axis('tight')
     ax5.set_xlabel('Time (s)')
@@ -420,7 +420,7 @@ for mouse_path in Path(repo_path).iterdir():
             for (event, timewindow) in zip(list_EVENT, list_TIMEWINDOW):
                 print(event)
                 if not (mouse_path / f'{mouse}{odor}_PETH{event[0]}.pdf').is_file():
-                    PETH_data = PETH(fiberpho_df, odor, sniffs_df, event, timewindow)
+                    PETH_data = PETH_sniff(fiberpho_df, odor, sniffs_df, event, timewindow)
                     fig7 = plot_PETH(PETH_data, odor, event, timewindow)
                     fig7.savefig(mouse_path / f'{mouse}{odor}_PETH{event[0]}.png')
                     fig7.savefig(mouse_path / f'{mouse}{odor}_PETH{event[0]}.pdf')

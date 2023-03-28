@@ -452,7 +452,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse):
     p4 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label='Exploration '+event)
     
     #ax5.axis('tight')
-    ax5.set_xlabel('Seconds')
+    ax5.set_xlabel('Time(s)')
     ax5.set_ylabel('z-scored $\Delta$F/F')
     ax5.legend(handles=[p1, p2, p4], loc='upper left', fontsize = 'small')
     ax5.margins(0,0.01)

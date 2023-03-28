@@ -2,7 +2,10 @@
 """
 Created on Fri Mar 24 13:39:29 2023
 
-To run fiberphotometry analysis with behaviour
+To run fiberphotometry analysis with behaviour or plethysmography data
+1 - PREPROCESSING
+2 - ANALYSIS WITH BEHAVIOUR BORIS FILE
+3 - ANALYSIS WITH PLETHYSMOGRAPHY
 
 @author: alice fermigier
 """
@@ -29,6 +32,7 @@ if 'D:\Profil\Documents\GitHub\Fiberphotometry_analysis' not in sys.path:
 import preprocess as pp
 import genplot as gp
 import behavplot as bp
+import plethyplot as plp
 import visualize as vis
 import statcalc as sc
 
@@ -273,9 +277,9 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             diffmeanmaxdFF_list.append(sc.diffmeanmax_dFF(dfiberbehav_df, list_BOI, mouse, group))
             #3 - PETH data
             if PETH_array is None:
-                PETH_array = bp.PETH(fiberbehav_df, BOI, event, timewindow)
+                PETH_array = np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0)
             else:
-                PETH_array = np.concatenate((PETH_array,bp.PETH(fiberbehav_df, BOI, event, timewindow)))
+                PETH_array = np.concatenate(np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0))
     
     #plot PETH
     PETHarray_list=[]
@@ -285,7 +289,6 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         for (i,group_mouse) in enumerate(group_list): 
             if group not in group_mouse:
                 list_todelete.append(i)
-        np.delete(PETH_array_group,(list_todelete),axis=0)
         PETHarray_list.append(np.delete(PETH_array_group,(list_todelete),axis=0))
     fig_PETHpooled = bp.plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow)
     
@@ -377,4 +380,133 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 #%% 3 - ANALYSIS - PLETHYSMOGRAPH
 #################################
 
+# 3.1 - Visualize and score manually sniffs and stims in excel file
 
+#------------------#
+session = 'Test'
+mouse = 'A1f'
+#------------------#
+# in excel 'Filecode', put '{exp}_{session}_{mouse}'
+
+plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
+vis.visualize(plethys_df,'plethysmo',exp,session,mouse)
+
+#%% 3.2 - Align with sniffs, create corresponding excel, plot fiberpho data with sniffs and stims
+
+sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx')
+session_path = exp_path / 'Test'
+session = str(session_path).split('\\')[-1]
+
+print('##########################################')
+print(f'EXPERIMENT : {exp} - SESSION : {session}')
+print('##########################################')
+code = gp.session_code(session,exp)
+repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+raw_path = repo_path / 'Raw'
+if not os.path.exists(repo_path):
+        os.mkdir(repo_path)
+for mouse in subjects_df['Subject']:
+    print("--------------")
+    print(f'MOUSE : {mouse}')
+    print("--------------")
+    if mouse in set(sniffs_df['Subject']):
+        fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv')
+        rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
+        #bug avec A3f
+        if mouse == 'A3f':
+            plethys_df = pd.read_csv(rawdata_path, usecols=['Time(s)','AIn-4'])
+        else :
+            plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
+        #plot figures
+        if not (raw_path / f'{mouse}_WBPfiberpho_raw.pdf').is_file():
+            fig_raw = plp.plethyfiber_plot_raw(fiberpho_df, plethys_df)
+            fig_raw.savefig(raw_path / f'{mouse}_WBPfiberpho_raw.png') 
+        if not (repo_path / f'{mouse}_WBPfiberpho_sniffs.pdf').is_file():
+            fig_sniffs = plp.plethyfiber_plot_sniffs(fiberpho_df, plethys_df, sniffs_df)
+            fig_sniffs.savefig(repo_path / f'{mouse}_WBPfiberpho_sniffs.png') 
+            fig_sniffs.savefig(repo_path / f'{mouse}_WBPfiberpho_sniffs.pdf')
+                
+                
+#%% 3.3 - Plot PETH for each mouse, sniffs and stim   
+
+sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx')
+session_path = exp_path / 'Test'
+session = str(session_path).split('\\')[-1]           
+                
+print('##########################################')
+print(f'EXPERIMENT : {exp} - SESSION : {session}')
+print('##########################################')
+code = gp.session_code(session,exp)
+repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+PETH_path = repo_path / 'PETH'
+if not os.path.exists(repo_path):
+        os.mkdir(repo_path)
+for mouse in subjects_df['Subject']:
+    print("--------------")
+    print(f'MOUSE : {mouse}')
+    print("--------------")
+    if mouse in set(sniffs_df['Subject']):
+        fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv')
+        sr = pp.samplerate(fiberpho_df)
+        for odor in set(sniffs_df['Odor']):
+            print(odor)
+            for (event, timewindow) in zip(list_EVENT, list_TIMEWINDOW):
+                print(event)
+                if not (PETH_path / f'{mouse}{odor}_PETH{event[0]}.pdf').is_file():
+                    #plot PETH for sniff
+                    PETHsniff_data = plp.PETH_sniff(fiberpho_df, odor, sniffs_df, event, timewindow, mouse, sr, PRE_EVENT_TIME)
+                    fig_PETHsniff = plp.plot_PETH(PETHsniff_data, odor, event, timewindow)
+                    fig_PETHsniff.savefig(PETH_path / f'{mouse}{odor}_PETHsniff{event[0]}.png')
+                    fig_PETHsniff.savefig(PETH_path / f'{mouse}{odor}_PETHsniff{event[0]}.pdf')
+                    #plot PETH for stim
+                    PETHstim_data = plp.PETH_stim(fiberpho_df, odor, sniffs_df, event, timewindow, mouse, sr, PRE_EVENT_TIME)
+                    fig_PETHstim = plp.plot_PETH(PETHstim_data, odor, event, timewindow)
+                    fig_PETHstim.savefig(PETH_path / f'{mouse}{odor}_PETHstim{event[0]}.png')
+                    fig_PETHstim.savefig(PETH_path / f'{mouse}{odor}_PETHstim{event[0]}.pdf')
+        plt.close('all')
+    
+#%% 3.4 - Plot PETH for all mice (each odor and all counts)
+
+sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx')
+session_path = exp_path / 'Test'
+session = str(session_path).split('\\')[-1]           
+                
+print('##########################################')
+print(f'EXPERIMENT : {exp} - SESSION : {session}')
+print('##########################################')
+code = gp.session_code(session,exp)
+repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+for mouse in subjects_df['Subject']:
+    print("--------------")
+    print(f'MOUSE : {mouse}')
+    print("--------------")
+    if mouse in set(sniffs_df['Subject']):
+        fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv')
+        sr = pp.samplerate(fiberpho_df)
+        for odor in set(sniffs_df['Odor']):
+            print(odor)
+            for (event, timewindow) in zip(list_EVENT, list_TIMEWINDOW):
+                print(event)
+                
+#%% 3.5 - Plot PETH for all mice (each odor and each count)
+
+sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx')
+session_path = exp_path / 'Test'
+session = str(session_path).split('\\')[-1]           
+                
+print('##########################################')
+print(f'EXPERIMENT : {exp} - SESSION : {session}')
+print('##########################################')
+code = gp.session_code(session,exp)
+repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+for mouse in subjects_df['Subject']:
+    print("--------------")
+    print(f'MOUSE : {mouse}')
+    print("--------------")
+    if mouse in set(sniffs_df['Subject']):
+        fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv')
+        sr = pp.samplerate(fiberpho_df)
+        for odor in set(sniffs_df['Odor']):
+            print(odor)
+            for (event, timewindow) in zip(list_EVENT, list_TIMEWINDOW):
+                print(event)
