@@ -200,7 +200,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             timestart_camera = gp.timestamp_camera(rawdata_cam_df)[0]
             print(f'start camera : {timestart_camera}')
             fiberbehav_df = bp.align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
-            dfiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
+            fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
+            dfiberbehav_df = bp.derive(fiberbehav_df)
             dfiberbehav_df.to_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
             
             #plot fiberpho data with behaviour
@@ -437,11 +438,16 @@ for mouse in subjects_df['Subject']:
     if mouse in set(sniffs_df['Subject']):
         fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv')
         rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
+        sr = pp.samplerate(fiberpho_df)
         #bug avec A3f
         if mouse == 'A3f':
             plethys_df = pd.read_csv(rawdata_path, usecols=['Time(s)','AIn-4'])
         else :
             plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
+        fibersniff_df = plp.align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse)
+        fibersniff_df = plp.process_fibersniff(fibersniff_df, EVENT_TIME_THRESHOLD, THRESH_S, sr)
+        dfibersniff_df = plp.derive(fiberbehav_df)
+        dfibersniff_df.to_csv(repo_path / f'{mouse}_{code}_fibersniff.csv')
         #plot figures
         if not (raw_path / f'{mouse}_WBPfiberpho_raw.pdf').is_file():
             fig_raw = plp.plethyfiber_plot_raw(fiberpho_df, plethys_df)

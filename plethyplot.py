@@ -135,9 +135,9 @@ def plethyfiber_plot_raw(fiberpho_df, plethys_df, mouse):
     
     return fig4
 
-def plethyfiber_plot_sniffs(fiberpho_df, plethys_df, sniffs_df,mouse):
+def plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse):
     """
-    Take fiberpho data, plethysmo data and stims
+    Take fiberpho data, aligned with plethysmo data and stims
     Plots data
     """
     fig5 = plt.figure(figsize=(20,7))
@@ -159,6 +159,36 @@ def plethyfiber_plot_sniffs(fiberpho_df, plethys_df, sniffs_df,mouse):
     #ax9.set_ylim(-1,2)
     ax9.margins(0,0.1)
     ax9.set_xlabel('Time(s)')
+    
+    #makes areas corresponding to behaviours
+    i = 0
+    j = 0
+    m = 0
+    for count in set(sniffs_df.loc[sniffs_df['Odor']=='Clean','Count']):
+        for (x,y) in zip(dfibersniff_df['Time(s)'].tolist(), dfibersniff_df['Sniff Clean {count}'].tolist()):
+            if y == 1:
+                x_start = x
+            if y == -1 and x_start!=0:
+                ax9.axvspan(x_start, x, facecolor='grey', alpha=.5, label = '_'*i + 'Sniff Clean')
+                x_start=0
+                i+=1
+    for count in set(sniffs_df.loc[sniffs_df['Odor']=='HC','Count']):
+        for (x,y) in zip(dfibersniff_df['Time(s)'].tolist(), dfibersniff_df['Sniff Clean {count}'].tolist()):
+            if y == 1:
+                x_start = x
+            if y == -1 and x_start!=0:
+                ax9.axvspan(x_start, x, facecolor='gold', alpha=.5, label = '_'*j + 'Sniff HC')
+                x_start=0
+                j+=1
+    for count in set(sniffs_df.loc[sniffs_df['Odor']=='HC','Count']):
+        for (x,y) in zip(dfibersniff_df['Time(s)'].tolist(), dfibersniff_df['Sniff Clean {count}'].tolist()):
+            if y == 1:
+                x_start = x
+            if y == -1 and x_start!=0:
+                ax9.axvspan(x_start, x, facecolor='gold', alpha=.5, label = '_'*j + 'Sniff HC')
+                x_start=0
+                j+=1
+
 
     #makes areas corresponding to behaviours
     i=0
