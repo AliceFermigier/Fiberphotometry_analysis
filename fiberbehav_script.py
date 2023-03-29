@@ -235,8 +235,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
                         fig_PETH = bp.plot_PETH(PETH_data, BOI, event, timewindow)
                         fig_PETH.savefig(PETH_path /  f'{mouse}_{code}_{BOI}{event[0]}_PETH.csv')
                         
-                        
-#%% 2.3 - Calculate mean, max and diff within behaviours (for state behaviours)
+#%% 2.3 - Plot PETH for all mice
+#for the data to be comparable, the beginning of the PETH will be plotted at the beginning of an ascending curve  
 
 #------------------------------#
 #for PETH, groups that will be plotted:
@@ -244,6 +244,50 @@ included_groups = ['CD','HFD']
 event = 'onset' #or 'withdrawal'
 timewindow = [4,5]
 #------------------------------#
+
+dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
+list_BOI = dfiberbehav_df.columns[2:].tolist()           
+
+for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
+    session = str(session_path).split('\\')[-1]
+    print('##########################################')
+    print(f'EXPERIMENT : {exp} - SESSION : {session}')
+    print('##########################################')
+    code = gp.session_code(session,exp)
+    repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+    PETH_path = repo_path / 'PETH'
+    if not os.path.exists(PETH_path):
+            os.mkdir(PETH_path)
+    for BOI in list_BOI:
+        group_list = []
+        PETH_array = None
+        for mouse in subjects_df['Subject']:
+            if os.path.exists(repo_path /  f'{mouse}_{code}_fiberbehav.csv'):          
+                print("--------------")
+                print(f'MOUSE : {mouse}')
+                print("--------------")
+                dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
+            
+                #3 - PETH data
+                if PETH_array is None:
+                    PETH_array = np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0)
+                else:
+                    PETH_array = np.concatenate(np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0))
+                        
+        #plot PETH
+        PETHarray_list=[]
+        for group in included_groups:
+            PETH_array_group = PETH_array
+            list_todelete = []
+            for (i,group_mouse) in enumerate(group_list): 
+                if group not in group_mouse:
+                    list_todelete.append(i)
+            PETHarray_list.append(np.delete(PETH_array_group,(list_todelete),axis=0))
+        fig_PETHpooled = bp.plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow) 
+        fig_PETHpooled.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}{event[0]}_PETH.pdf')
+        fig_PETHpooled.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}{event[0]}_PETH.png')
+    
+#%% 2.4 - Calculate mean, max and diff within behaviours (for state behaviours)
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = str(session_path).split('\\')[-1]
@@ -275,26 +319,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             #2 - mean, max and delta dFF
             mean_dFFs_list.append(sc.meandFF_behav(list_BOI, dfiberbehav_df, exp, session, mouse, group))
             diffmeanmaxdFF_list.append(sc.diffmeanmax_dFF(dfiberbehav_df, list_BOI, mouse, group))
-            #3 - PETH data
-            if PETH_array is None:
-                PETH_array = np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0)
-            else:
-                PETH_array = np.concatenate(np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0))
-    
-    #plot PETH
-    PETHarray_list=[]
-    for group in included_groups:
-        PETH_array_group = PETH_array
-        list_todelete = []
-        for (i,group_mouse) in enumerate(group_list): 
-            if group not in group_mouse:
-                list_todelete.append(i)
-        PETHarray_list.append(np.delete(PETH_array_group,(list_todelete),axis=0))
-    fig_PETHpooled = bp.plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow)
-    
-    fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{BOI}{event[0]}_PETH.pdf')
-    fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{BOI}{event[0]}_PETH.png')
-    
+
     #export to excel
     meandFFs_allmice = pd.concat(mean_dFFs_list)
     meandFFs_allmice.to_excel(groupanalysis_path / f'{exp}_{session}_globmeandFFs.xlsx')
@@ -302,7 +327,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     diffdFFs_allmice = pd.concat(diffmeanmaxdFF_list)
     diffdFFs_allmice.to_excel(groupanalysis_path / f'{exp}_{session}_diffmaxmeandFFs.xlsx')
     
-#%% 2.4 - Calculate mean and diff before and after behaviours (for point behaviours) for whole group
+#%% 2.5 - Calculate mean and diff before and after behaviours (for point behaviours) for whole group
 #         Plot PETH for each group
 #for the data to be comparable, the beginning of the PETH will begin at the beginning of an ascending curve
 
@@ -391,7 +416,7 @@ mouse = 'A1f'
 plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
 vis.visualize(plethys_df,'plethysmo',exp,session,mouse)
 
-#%% 3.2 - Align with sniffs, create corresponding excel, plot fiberpho data with sniffs and stims
+#%% 3.2 - Align with sniffs, create corresponding csv, plot fiberpho data with sniffs and stims
 
 sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx')
 session_path = exp_path / 'Test'
@@ -487,6 +512,27 @@ for mouse in subjects_df['Subject']:
             print(odor)
             for (event, timewindow) in zip(list_EVENT, list_TIMEWINDOW):
                 print(event)
+                
+                
+    for mouse in subjects_df['Subject']:
+        if os.path.exists(repo_path /  f'{mouse}_{code}_fiberbehav.csv'):
+            print("--------------")
+            print(f'MOUSE : {mouse}')
+            print("--------------")
+            subject_list.append(mouse)
+            group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+            dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
+            #1 - subjects
+            subject_list.append(mouse)
+            group_list.append(group)
+            #2 - mean, max and delta dFF
+            mean_dFFs_list.append(sc.meandFF_behav(list_BOI, dfiberbehav_df, exp, session, mouse, group))
+            diffmeanmaxdFF_list.append(sc.diffmeanmax_dFF(dfiberbehav_df, list_BOI, mouse, group))
+            #3 - PETH data
+            if PETH_array is None:
+                PETH_array = np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0)
+            else:
+                PETH_array = np.concatenate(np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0))
                 
 #%% 3.5 - Plot PETH for all mice (each odor and each count)
 

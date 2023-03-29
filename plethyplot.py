@@ -14,11 +14,6 @@ Functions for plotting with plethysmography data
 
 #Libraries
 import numpy as np
-import statistics as stat
-from pathlib import Path
-from scipy import signal
-import os
-import sys
 import matplotlib.pyplot as plt
 import pandas as pd
 from ast import literal_eval
@@ -30,6 +25,77 @@ from ast import literal_eval
 #DEFINED FUNCTIONS#
 ###################
 
+def align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse):
+    """
+    Aligns fiberpho data with plethysmo and sniffs
+    """
+    sniffmouse_df = sniffs_df.loc[(sniffs_df['Subject']==mouse)]
+    fibersniff_df = pd.DataFrame({'Time(s)':fiberpho_df['Time(s)'], 'Denoised dFF':fiberpho_df['Denoised dFF']})
+    plethy_list = []
+    for time in fiberpho_df['Time(s)']:
+        plethy_list.append(plethys_df.loc[plethys_df['Time(s)']==time,['AIn-4']])
+    fibersniff_df.insert(len(fibersniff_df.columns),'Plethysmograph',plethy_list,allow_duplicates = False)
+    for odor in set(sniffs_df['Odor']):
+        for (count,stim) in enumerate(sniffmouse_df.loc[sniffmouse_df['Odor']==odor,'Stim'].values):
+            fibersniff_df.insert(len(fibersniff_df.columns),f'Stim {odor} {count}',0,allow_duplicates = False)
+            [x_start,x_stop] = literal_eval(stim[0])
+            fibersniff_df.loc[round(x_start*sr):round(x_stop*sr), f'Stim {odor} {count}'] = 1
+        for (count,list_sniffs) in enumerate(sniffmouse_df.loc[sniffmouse_df['Odor']==odor,'Start_Stop'].values):
+            fibersniff_df.insert(len(fibersniff_df.columns),f'Sniff {odor} {count}',0,allow_duplicates = False)
+            for [x_start, x_stop] in literal_eval(list_sniffs[0]):
+                if [x_start, x_stop] != [0,0]:
+                    fibersniff_df.loc[round(x_start*sr):round(x_stop*sr), f'Sniff {odor} {count}'] = 1
+    
+    return fibersniff_df
+
+def process_fibersniff(fibersniff_df, EVENT_TIME_THRESHOLD, THRESH_S, sr):
+    """
+    Fuse sniffs that are too close and remove sniffs that are too short
+    """
+    sr = round(sr)
+    
+    #1 fuse sniffs that are too close
+    for col in fibersniff_df.columns[3:]:
+        if col.split()[0] == 'Sniff':
+            i_1 = 0
+            count = 0
+            for (ind,i) in zip(fibersniff_df.index, fibersniff_df[col]):
+                if i==i_1 and i==0:
+                    count += 1
+                elif i!=i_1 and i==0:
+                    count = 1
+                elif i!=i_1 and i==1:
+                    if count <= THRESH_S*sr:
+                        fibersniff_df.loc[ind-count:ind-1, col] = [1]*count
+                i_1 = i
+            
+    #2 remove explorations that are too short
+    for col in fibersniff_df.columns[2:]:
+        if col.split()[0] == 'Sniff':
+            i_1 = 0
+            count = 0
+            for (ind,i) in zip(fibersniff_df.index, fibersniff_df[col]):
+                if i==i_1 and i==1:
+                    count += 1
+                elif i!=i_1 and i==1:
+                    count = 1
+                elif i!=i_1 and i==0:
+                    if count <= EVENT_TIME_THRESHOLD*sr:
+                        fibersniff_df.loc[ind-count:ind-1, col] = [0]*count
+                i_1 = i
+    
+    return fibersniff_df
+
+def derive(fibersniff_df):
+    """
+    calculate the derivative of behav of interest and put in new df
+    that way, it will show 1 when behaviour starts and -1 when it stops
+    """
+    for col in fibersniff_df.columns[3:]:
+        fibersniff_df[col] = fibersniff_df[col].diff()
+
+    return fibersniff_df
+    
 def plethyfiber_plot_raw(fiberpho_df, plethys_df, mouse):
     """
     Take fiberpho data, plethysmo data and stims
@@ -177,7 +243,7 @@ def PETH_sniff(fiberpho_df, odor, sniffs_df, event, timewindow, mouse, sr, PRE_E
         #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
         PETH_array[i] = (fiberpho_df.loc[(ind_event-PRE_TIME)*sr:(ind_event+POST_TIME)*sr, 'Denoised dFF']-F0)/std0
     
-    return(PETH_array)
+    return PETH_array
 
 def PETH_stim(fiberpho_df, odor, sniffs_df, event, timewindow, mouse, sr, PRE_EVENT_TIME):
     """
@@ -221,7 +287,7 @@ def PETH_stim(fiberpho_df, odor, sniffs_df, event, timewindow, mouse, sr, PRE_EV
         #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
         PETH_array[i] = (fiberpho_df.loc[(ind_event-PRE_TIME)*sr:(ind_event+POST_TIME)*sr, 'Denoised dFF']-F0)/std0
     
-    return(PETH_array)
+    return PETH_array
 
 def plot_PETH(PETH_data, odor, event, timewindow, BOI, sr, mouse):
     """
@@ -259,7 +325,7 @@ def plot_PETH(PETH_data, odor, event, timewindow, BOI, sr, mouse):
     p4 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=f'{BOI} {event}')
     
     #ax5.axis('tight')
-    ax5.set_xlabel('Time (s)')
+    ax5.set_xlabel('Time(s)')
     ax5.set_ylabel('z-scored $\Delta$F/F')
     ax5.legend(handles=[p1, p2, p4], loc='upper left', fontsize = 'small')
     ax5.margins(0,0.01)
@@ -279,4 +345,62 @@ def plot_PETH(PETH_data, odor, event, timewindow, BOI, sr, mouse):
     cbar_ax = fig7.add_axes([0.85, 0.54, 0.02, 0.34])
     fig7.colorbar(cs, cax=cbar_ax)
     
-    return(fig7)
+    return fig7
+
+def plot_PETH_pooled(included_groups, colorscheme, PETHarray_list, BOI, event, timewindow, exp, session):
+    """
+    Plots PETH averaged over 2 groups
+
+    included_groups : list of included groups (['CD','HFD'])
+    PETHarray_list : list of PETH arrays
+    BOI : behaviour of interest
+    event : onset or withdrawal
+    timewindow : time before and after behaviour
+    """
+    
+    PRE_TIME = timewindow[0]
+    POST_TIME = timewindow[1]
+    
+    #create figure
+    fig4 = plt.figure(figsize=(6,4))
+    ax5 = fig4.add_subplot(111)
+    
+    #create time vector
+    peri_time = np.arange(-PRE_TIME, POST_TIME+0.1, 0.1)       
+    
+    listmean_dFF_snips = []
+    listsem_dFF_snips = []
+    #calculate mean dFF and std error
+    for (i,PETH_data) in enumerate(PETHarray_list):
+        listmean_dFF_snips.append(np.mean(PETH_data, axis=0))
+        listsem_dFF_snips.append(np.std(PETH_data, axis=0))
+        
+    #plot individual traces and mean CD
+    # for snip in PETHarray_list[0]:
+    #     p1, = ax5.plot(peri_time, snip, linewidth=.5,
+    #                    color='cornflowerblue', alpha=.3)
+    p2, = ax5.plot(peri_time, listmean_dFF_snips[0], linewidth=2,
+                   color=colorscheme[0], label=included_groups[0])   
+    #plot standard error bars
+    p3 = ax5.fill_between(peri_time, listmean_dFF_snips[0]+(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))),
+                      listmean_dFF_snips[0]-(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))), facecolor=colorscheme[0], alpha=0.2)
+    
+    #plot individual traces and mean HFD
+    # for snip in PETHarray_list[1]:
+    #     p4, = ax5.plot(peri_time, snip, linewidth=.5,
+    #                    color='coral', alpha=.3)
+    p5, = ax5.plot(peri_time, listmean_dFF_snips[1], linewidth=2,
+                   color=colorscheme[1], label=included_groups[1])   
+    #plot standard error bars
+    p6 = ax5.fill_between(peri_time, listmean_dFF_snips[1]+(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))),
+                      listmean_dFF_snips[1]-(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))), colorscheme[1], alpha=0.2)
+    
+    p8 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=BOI)
+    
+    ax5.set_xlabel('Time(s)')
+    ax5.set_ylabel('z-scored $\Delta$F/F')
+    ax5.legend(handles=[p2,p5,p8], loc='upper left', fontsize = 'small')
+    ax5.margins(0, 0.1)
+    ax5.set_title(f'{BOI} - {exp} {session} {included_groups[0]} {included_groups[1]}')
+    
+    return fig4

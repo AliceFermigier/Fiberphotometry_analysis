@@ -75,43 +75,20 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
     for behav in behav_comp:
         behav_crop.append(behav[:min_length])
         
-    if len(list_behav) == 1 :
-        fiberbehav_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
-                                             '405nm deltaF/F' : dff_405nm_list, '470nm deltaF/F' : dff_470nm_list, 
-                                             list_behav[0] : behav_crop[0]})
+    fiberbehav_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
+                                         '405nm deltaF/F' : dff_405nm_list, '470nm deltaF/F' : dff_470nm_list})
         
-    elif len(list_behav) == 2 :
-        fiberbehav_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
-                                             '405nm deltaF/F' : dff_405nm_list, '470nm deltaF/F' : dff_470nm_list,
-                                             list_behav[0] : behav_crop[0], list_behav[1] : behav_crop[1]})
-        
-    elif len(list_behav) == 3 :
-        fiberbehav_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
-                                             '405nm deltaF/F' : dff_405nm_list, '470nm deltaF/F' : dff_470nm_list,
-                                             list_behav[0] : behav_crop[0], list_behav[1] : behav_crop[1],
-                                             list_behav[2] : behav_crop[2]})
-    
-    elif len(list_behav) == 4 :
-        fiberbehav_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
-                                             '405nm deltaF/F' : dff_405nm_list, '470nm deltaF/F' : dff_470nm_list,
-                                             list_behav[0] : behav_crop[0], list_behav[1] : behav_crop[1],
-                                             list_behav[2] : behav_crop[2], list_behav[3] : behav_crop[3] })
-    
-    elif len(list_behav) == 5 :
-        fiberbehav_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
-                                             '405nm deltaF/F' : dff_405nm_list, '470nm deltaF/F' : dff_470nm_list,
-                                             list_behav[0] : behav_crop[0], list_behav[1] : behav_crop[1],
-                                             list_behav[2] : behav_crop[2], list_behav[3] : behav_crop[3],
-                                             list_behav[4] : behav_crop[4]})
-    else :
-        print('Error : too many behaviours in Boris binary file. Score up to 5 or add line to function')
+    for (behav,data) in zip(list_behav,behav_crop):
+        fiberbehav_df.insert(len(fiberbehav_df.columns),behav,data,allow_duplicates=False)
         
     if exp=='NewContext':
         fiberbehav_df.loc[:405,'Homecage']=0
     
     return(fiberbehav_df)
 
-def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
+def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD, sr):
+    
+    sr = round(sr)
 
     #1 fuse explorations that are too close
     for BOI in list_BOI:
@@ -123,7 +100,7 @@ def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
             elif i!=i_1 and i==0:
                 count = 1
             elif i!=i_1 and i==1:
-                if count <= THRESH_S*10:
+                if count <= THRESH_S*sr:
                     fiberbehav_df.loc[ind-count:ind-1, BOI] = [1]*count
             i_1 = i
             
@@ -137,18 +114,18 @@ def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
             elif i!=i_1 and i==1:
                 count = 1
             elif i!=i_1 and i==0:
-                if count <= EVENT_TIME_THRESHOLD*10:
+                if count <= EVENT_TIME_THRESHOLD*sr:
                     fiberbehav_df.loc[ind-count:ind-1, BOI] = [0]*count
             i_1 = i
             
     return fiberbehav_df 
                     
-def derive(fiberbehav_df,list_BOI):
+def derive(fiberbehav_df):
     """
     calculate the derivative of behav of interest and put in new df
     that way, it will show 1 when behaviour starts and -1 when it stops
     """
-    for col in fiberbehav_df.columns[2:]:
+    for col in fiberbehav_df.columns[5:]:
         fiberbehav_df[col] = fiberbehav_df[col].diff()
 
     return fiberbehav_df 
