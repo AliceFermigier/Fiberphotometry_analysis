@@ -144,7 +144,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse):
     ax8 = fig5.add_subplot(211)
     
     #plot plethysmo data
-    p1, = ax8.plot('Time(s)', 'AIn-4', linewidth=.5, color='black', data=plethys_df.loc[plethys_df['Time(s)']>300])    
+    p1, = ax8.plot('Time(s)', 'Plethysmograph', linewidth=.5, color='black', data=dfibersniff_df.loc[dfibersniff_df['Time(s)']>300])    
     ax8.set_ylabel('WBP (A.U.)')
     ax8.set_title(f'Whole body plethysmography and fiberphotometry - {mouse}')
     #ax8.legend(loc='lower left')
@@ -153,7 +153,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse):
     #plot denoised fiberphotometry data
     ax9 = fig5.add_subplot(212, sharex=ax8)
     p2, = ax9.plot('Time(s)', 'Denoised dFF',
-                   linewidth=.6, color='black', label='GCaMP-ISOS', data = fiberpho_df.loc[fiberpho_df['Time(s)']>300])
+                   linewidth=.6, color='black', label='GCaMP-ISOS', data = dfibersniff_df.loc[dfibersniff_df['Time(s)']>300])
     ax9.set_ylabel(r'$\Delta$F/F')
     ax9.legend(handles=[p2], loc='upper right')
     #ax9.set_ylim(-1,2)
@@ -180,38 +180,14 @@ def plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse):
                 ax9.axvspan(x_start, x, facecolor='gold', alpha=.5, label = '_'*j + 'Sniff HC')
                 x_start=0
                 j+=1
-    for count in set(sniffs_df.loc[sniffs_df['Odor']=='HC','Count']):
+    for count in set(sniffs_df.loc[sniffs_df['Odor']=='Novel','Count']):
         for (x,y) in zip(dfibersniff_df['Time(s)'].tolist(), dfibersniff_df['Sniff Clean {count}'].tolist()):
             if y == 1:
                 x_start = x
             if y == -1 and x_start!=0:
-                ax9.axvspan(x_start, x, facecolor='gold', alpha=.5, label = '_'*j + 'Sniff HC')
+                ax9.axvspan(x_start, x, facecolor='purple', alpha=.5, label = '_'*m + 'Sniff Novel')
                 x_start=0
-                j+=1
-
-
-    #makes areas corresponding to behaviours
-    i=0
-    j=0
-    k=0
-    for list_sniffs in sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']=='Clean'),['Start_Stop']].values:
-        for [x_start, x_stop] in literal_eval(list_sniffs[0]):
-            if [x_start, x_stop] != [0,0]:
-                ax8.axvspan(x_start, x_stop, facecolor='grey', alpha=0.5, label = '_'*i + 'Sniff Clean')
-                ax9.axvspan(x_start, x_stop, facecolor='grey', alpha=0.5)
-                i+=1
-    for list_sniffs in sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']=='HC'),['Start_Stop']].values:
-        for [x_start, x_stop] in literal_eval(list_sniffs[0]):
-            if [x_start, x_stop] != [0,0]:
-                ax8.axvspan(x_start, x_stop, facecolor='gold', alpha=0.5, label = '_'*j + 'Sniff HC')
-                ax9.axvspan(x_start, x_stop, facecolor='gold', alpha=0.5)
-                j+=1
-    for list_sniffs in sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']=='Novel'),['Start_Stop']].values:
-        for [x_start, x_stop] in literal_eval(list_sniffs[0]):
-            if [x_start, x_stop] != [0,0]:
-                ax8.axvspan(x_start, x_stop, facecolor='purple', alpha=0.5, label = '_'*k + 'Sniff Novel')
-                ax9.axvspan(x_start, x_stop, facecolor='purple', alpha=0.5)
-                k+=1
+                m+=1
         
     #makes vertical lines for stims
     for stim in sniffs_df.loc[(sniffs_df['Subject']==mouse),['Stim']].values:
@@ -223,7 +199,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse):
     
     return fig5
 
-def PETH_sniff(fiberpho_df, odor, sniffs_df, event, timewindow, mouse, sr, PRE_EVENT_TIME):
+def PETH_sniff(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EVENT_TIME):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI
     --> Parameters
@@ -241,41 +217,41 @@ def PETH_sniff(fiberpho_df, odor, sniffs_df, event, timewindow, mouse, sr, PRE_E
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
     
-    #if behaviour not recognized
-    if odor not in set(sniffs_df['Odor']) :
-        print('Odor not recognized')
-    
-    list_t_event_o = []
-    list_t_event_w = []
-    for list_sniffs in sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']==odor),['Start_Stop']].values:
-        for [x_start, x_stop] in literal_eval(list_sniffs[0]): 
-            if [x_start, x_stop] != [0,0]: #if length behav < threshold
-                list_t_event_o.append(x_start)
-                list_t_event_w.append(x_stop)
+    if count == 0:
+        list_ind_event_o = []
+        list_ind_event_w = []
+        for col in dfibersniff_df.columns[3:]:
+            if col.split()[0] == 'Sniff' and col.split()[1] == odor:
+                for i in np.where(dfibersniff_df[col] == 1)[0].tolist():
+                    list_ind_event_o.append(i)
+                for j in np.where(dfibersniff_df[col] == -1)[0].tolist():
+                    list_ind_event_w.append(j)
+    else:
+        list_ind_event_o = np.where(dfibersniff_df[f'Sniff {odor} {count}'] == 1)[0].tolist()
+        list_ind_event_w = np.where(dfibersniff_df[f'Sniff {odor} {count}'] == -1)[0].tolist()
     
     #creates array of fiberpho data centered on event
     if event == 'onset':
-        list_t_event = list_t_event_o
+        list_event = list_ind_event_o
     elif event == 'withdrawal':
-        list_t_event = list_t_event_w
+        list_event = list_ind_event_w
         
         #take the beginning of the behaviour as the beginning of the slope : min(dFF) on 3 secs before entry
     if event == 'onset':
-        for i,ind_onset in enumerate(list_t_event):
-            list_t_event[i] = fiberpho_df.loc[ind_onset-3*sr:ind_onset, 'Denoised dFF'].idxmin()
+        for i,ind_onset in enumerate(list_event):
+            list_event[i] = dfibersniff_df.loc[ind_onset-3*sr:ind_onset, 'Denoised dFF'].idxmin()
         
-    print(list_t_event)
-    PETH_array = np.zeros((len(list_t_event),(POST_TIME+PRE_TIME)*sr+1))
-    for (i, ind_event) in enumerate(list_t_event) :
+    PETH_array = np.zeros((len(list_event),(POST_TIME+PRE_TIME)*sr+1))
+    for (i, ind_event) in enumerate(list_event) :
         #calculates baseline F0 on time window before event (from PRE_TIME to PRE_EVENT_TIME)
-        F0 = np.mean(fiberpho_df.loc[(ind_event-PRE_TIME)*sr:(ind_event-PRE_EVENT_TIME)*sr, 'Denoised dFF'])
-        std0 = np.std(fiberpho_df.loc[(ind_event-PRE_TIME)*sr:(ind_event-PRE_EVENT_TIME)*sr, 'Denoised dFF'])
+        F0 = np.mean(dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
+        std0 = np.std(dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
         #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
-        PETH_array[i] = (fiberpho_df.loc[(ind_event-PRE_TIME)*sr:(ind_event+POST_TIME)*sr, 'Denoised dFF']-F0)/std0
+        PETH_array[i] = (dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event+POST_TIME*sr, 'Denoised dFF']-F0)/std0
     
     return PETH_array
 
-def PETH_stim(fiberpho_df, odor, sniffs_df, event, timewindow, mouse, sr, PRE_EVENT_TIME):
+def PETH_stim(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EVENT_TIME):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI
     --> Parameters
@@ -293,29 +269,32 @@ def PETH_stim(fiberpho_df, odor, sniffs_df, event, timewindow, mouse, sr, PRE_EV
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
     
-    #if behaviour not recognized
-    if odor not in set(sniffs_df['Odor']) :
-        print('Odor not recognized')
-    
-    list_t_event_o = []
-    list_t_event_w = []
-    for [x_start, x_stop] in literal_eval(sniffs_df.loc[(sniffs_df['Subject']==mouse) & (sniffs_df['Odor']==odor),['Stim']].values[0]):
-        list_t_event_o.append(x_start)
-        list_t_event_w.append(x_stop)
+    if count == 0:
+        list_ind_event_o = []
+        list_ind_event_w = []
+        for col in dfibersniff_df.columns[3:]:
+            if col.split()[0] == 'Stim' and col.split()[1] == odor:
+                for i in np.where(dfibersniff_df[col] == 1)[0].tolist():
+                    list_ind_event_o.append(i)
+                for j in np.where(dfibersniff_df[col] == -1)[0].tolist():
+                    list_ind_event_w.append(j)
+    else:
+        list_ind_event_o = np.where(dfibersniff_df[f'Stim {odor} {count}'] == 1)[0].tolist()
+        list_ind_event_w = np.where(dfibersniff_df[f'Stim {odor} {count}'] == -1)[0].tolist()
     
     #creates array of fiberpho data centered on event
     if event == 'onset':
-        list_t_event = list_t_event_o
+        list_ind_event = list_ind_event_o
     elif event == 'withdrawal':
-        list_t_event = list_t_event_w
+        list_ind_event = list_ind_event_o
         
-    PETH_array = np.zeros((len(list_t_event),(POST_TIME+PRE_TIME)*sr+1))
-    for (i, ind_event) in enumerate(list_t_event) :
+    PETH_array = np.zeros((len(list_ind_event),(POST_TIME+PRE_TIME)*sr+1))
+    for (i, ind_event) in enumerate(list_ind_event) :
         #calculates baseline F0 on time window before event (from PRE_TIME to PRE_EVENT_TIME)
-        F0 = np.mean(fiberpho_df.loc[(ind_event-PRE_TIME)*sr:(ind_event-PRE_EVENT_TIME)*sr, 'Denoised dFF'])
-        std0 = np.std(fiberpho_df.loc[(ind_event-PRE_TIME)*sr:(ind_event-PRE_EVENT_TIME)*sr, 'Denoised dFF'])
+        F0 = np.mean(dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
+        std0 = np.std(dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
         #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
-        PETH_array[i] = (fiberpho_df.loc[(ind_event-PRE_TIME)*sr:(ind_event+POST_TIME)*sr, 'Denoised dFF']-F0)/std0
+        PETH_array[i] = (dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event+POST_TIME*sr, 'Denoised dFF']-F0)/std0
     
     return PETH_array
 

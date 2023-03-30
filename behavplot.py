@@ -364,7 +364,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
     list_ind_event_w = np.where(behavprocess_df[BOI] == -1)[0].tolist()
     
     #if event too short, don't process it
-    EVENT_TIME_THRESHOLD = EVENT_TIME_THRESHOLD*10
+    EVENT_TIME_THRESHOLD = EVENT_TIME_THRESHOLD*sr
     for (start,end) in zip(list_ind_event_o, list_ind_event_w):
         #print(start,end)
         if end-start<EVENT_TIME_THRESHOLD and end-start>1:

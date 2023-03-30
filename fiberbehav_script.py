@@ -273,7 +273,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
                 if PETH_array is None:
                     PETH_array = np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0)
                 else:
-                    PETH_array = np.concatenate(np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0))
+                    PETH_array = np.concatenate(PETH_array, np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0))
                         
         #plot PETH
         PETHarray_list=[]
@@ -477,88 +477,171 @@ for mouse in subjects_df['Subject']:
     print(f'MOUSE : {mouse}')
     print("--------------")
     if mouse in set(sniffs_df['Subject']):
-        fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv')
-        sr = pp.samplerate(fiberpho_df)
+        dfibersniff_df = pd.read_csv(repo_path / f'{mouse}_{code}_fibersniff.csv')
+        sr = pp.samplerate(dfibersniff_df)
         for odor in set(sniffs_df['Odor']):
             print(odor)
             for (event, timewindow) in zip(list_EVENT, list_TIMEWINDOW):
                 print(event)
                 if not (PETH_path / f'{mouse}{odor}_PETH{event[0]}.pdf').is_file():
                     #plot PETH for sniff
-                    PETHsniff_data = plp.PETH_sniff(fiberpho_df, odor, sniffs_df, event, timewindow, mouse, sr, PRE_EVENT_TIME)
+                    PETHsniff_data = plp.PETH_sniff(dfibersniff_df, odor, 0, event, timewindow, mouse, sr, PRE_EVENT_TIME)
                     fig_PETHsniff = plp.plot_PETH(PETHsniff_data, odor, event, timewindow)
                     fig_PETHsniff.savefig(PETH_path / f'{mouse}{odor}_PETHsniff{event[0]}.png')
                     fig_PETHsniff.savefig(PETH_path / f'{mouse}{odor}_PETHsniff{event[0]}.pdf')
                     #plot PETH for stim
-                    PETHstim_data = plp.PETH_stim(fiberpho_df, odor, sniffs_df, event, timewindow, mouse, sr, PRE_EVENT_TIME)
+                    PETHstim_data = plp.PETH_stim(dfibersniff_df, odor, 0, event, timewindow, mouse, sr, PRE_EVENT_TIME)
                     fig_PETHstim = plp.plot_PETH(PETHstim_data, odor, event, timewindow)
                     fig_PETHstim.savefig(PETH_path / f'{mouse}{odor}_PETHstim{event[0]}.png')
                     fig_PETHstim.savefig(PETH_path / f'{mouse}{odor}_PETHstim{event[0]}.pdf')
         plt.close('all')
+        
+#%% 3.4 - Calculate mean, max and diff dFF for stims and sniffs
+
+print('##########################################')
+print(f'EXPERIMENT : {exp} - SESSION : {session}')
+print('##########################################')
+code = gp.session_code(session,exp)
+repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+groupanalysis_path = repo_path / 'Group analysis'
+if not os.path.exists(groupanalysis_path):
+        os.mkdir(groupanalysis_path)
+
+#create list of mean_dFFs and diff_dFFs
+mean_dFFs_list = []
+subject_list = []
+diffmeanmaxdFF_list = []
+group_list = []
+
+for mouse in subjects_df['Subject']:
+    print("--------------")
+    print(f'MOUSE : {mouse}')
+    print("--------------")
+    if mouse in set(sniffs_df['Subject']):
+        subject_list.append(mouse)
+        group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+        dfibersniff_df = repo_path / f'{mouse}_{code}_fibersniff.csv'
+        sr = pp.samplerate(fiberpho_df)
+        list_BOI = dfibersniff_df.columns[3:]
+        
+        #1 - subjects
+        subject_list.append(mouse)
+        group_list.append(group)
+        #2 - mean, max and delta dFF
+        diffmeanmaxdFF_list.append(sc.diffmeanmax_dFF(dfibersniff_df, list_BOI, mouse, group))
+        
+#export to excel
+diffdFFs_allmice = pd.concat(diffmeanmaxdFF_list)
+diffdFFs_allmice.to_excel(groupanalysis_path / f'{exp}_{session}_diffmaxmeandFFs.xlsx')
     
-#%% 3.4 - Plot PETH for all mice (each odor and all counts)
+#%% 3.5 - Plot PETH for all mice (each odor and all counts)
 
-sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx')
-session_path = exp_path / 'Test'
-session = str(session_path).split('\\')[-1]           
+#------------------------------#
+#for PETH, groups that will be plotted:
+included_groups = ['CD','HFD']
+event = 'onset' #or 'withdrawal'
+timewindow = [4,5]
+#------------------------------#
                 
 print('##########################################')
 print(f'EXPERIMENT : {exp} - SESSION : {session}')
 print('##########################################')
 code = gp.session_code(session,exp)
 repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
-for mouse in subjects_df['Subject']:
-    print("--------------")
-    print(f'MOUSE : {mouse}')
-    print("--------------")
-    if mouse in set(sniffs_df['Subject']):
-        fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv')
-        sr = pp.samplerate(fiberpho_df)
-        for odor in set(sniffs_df['Odor']):
-            print(odor)
-            for (event, timewindow) in zip(list_EVENT, list_TIMEWINDOW):
-                print(event)
-                
-                
-    for mouse in subjects_df['Subject']:
-        if os.path.exists(repo_path /  f'{mouse}_{code}_fiberbehav.csv'):
-            print("--------------")
-            print(f'MOUSE : {mouse}')
-            print("--------------")
-            subject_list.append(mouse)
-            group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
-            dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
-            #1 - subjects
-            subject_list.append(mouse)
-            group_list.append(group)
-            #2 - mean, max and delta dFF
-            mean_dFFs_list.append(sc.meandFF_behav(list_BOI, dfiberbehav_df, exp, session, mouse, group))
-            diffmeanmaxdFF_list.append(sc.diffmeanmax_dFF(dfiberbehav_df, list_BOI, mouse, group))
-            #3 - PETH data
-            if PETH_array is None:
-                PETH_array = np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0)
-            else:
-                PETH_array = np.concatenate(np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0))
-                
-#%% 3.5 - Plot PETH for all mice (each odor and each count)
+groupanalysis_path = repo_path / 'Group analysis'
+for type_event in ['Stim','Sniff']:
+    for odor in set(sniffs_df['Odor']):
+        print(odor)
+        group_list = []
+        PETH_array = None
+        for mouse in subjects_df['Subject']:
+            if mouse in set(sniffs_df['Subject']):
+                print("--------------")
+                print(f'MOUSE : {mouse}')
+                print("--------------")
+                group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+                group_list.append(group)
+                dfibersniff_df = pd.read_csv(repo_path / f'{mouse}_{code}_fibersniff.csv')
+                sr = pp.samplerate(dfibersniff_df)
+                #PETH data
+                if type_event == 'Stim':
+                    if PETH_array is None:
+                        PETH_array = np.mean(plp.PETH_stim(dfibersniff_df, odor, 0, event, timewindow, mouse, sr, PRE_EVENT_TIME), axis=0)
+                    else:
+                        PETH_array = np.concatenate(PETH_array, np.mean(plp.PETH_stim(dfibersniff_df, odor, 0, event, timewindow, mouse, sr, PRE_EVENT_TIME), axis=0))
+                elif type_event == 'Sniff':
+                    if PETH_array is None:
+                        PETH_array = np.mean(plp.PETH_sniff(dfibersniff_df, odor, 0, event, timewindow, mouse, sr, PRE_EVENT_TIME), axis=0)
+                    else:
+                        PETH_array = np.concatenate(PETH_array,np.mean(plp.PETH_sniff(dfibersniff_df, odor, 0, event, timewindow, mouse, sr, PRE_EVENT_TIME), axis=0))
+                        
+        #plot PETH
+        BOI = f'{type_event} {odor}'
+        PETHarray_list=[]
+        for group in included_groups:
+            PETH_array_group = PETH_array
+            list_todelete = []
+            for (i,group_mouse) in enumerate(group_list): 
+                if group not in group_mouse:
+                    list_todelete.append(i)
+            PETHarray_list.append(np.delete(PETH_array_group,(list_todelete),axis=0))
+        fig_PETHpooled = bp.plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow) 
+        fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{event[0]}_PETH.pdf')
+        fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{event[0]}_PETH.png')
 
-sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx')
-session_path = exp_path / 'Test'
-session = str(session_path).split('\\')[-1]           
+                
+#%% 3.6 - Plot PETH for all mice (each odor and each count)
+
+#------------------------------#
+#for PETH, groups that will be plotted:
+included_groups = ['CD','HFD']
+event = 'onset' #or 'withdrawal'
+timewindow = [4,5]
+#------------------------------#
                 
 print('##########################################')
 print(f'EXPERIMENT : {exp} - SESSION : {session}')
 print('##########################################')
 code = gp.session_code(session,exp)
 repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
-for mouse in subjects_df['Subject']:
-    print("--------------")
-    print(f'MOUSE : {mouse}')
-    print("--------------")
-    if mouse in set(sniffs_df['Subject']):
-        fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv')
-        sr = pp.samplerate(fiberpho_df)
-        for odor in set(sniffs_df['Odor']):
-            print(odor)
-            for (event, timewindow) in zip(list_EVENT, list_TIMEWINDOW):
-                print(event)
+groupanalysis_path = repo_path / 'Group analysis'
+for type_event in ['Stim','Sniff']:
+    for odor in set(sniffs_df['Odor']):
+        for count in set(sniffs_df.loc[sniffs_df['Odor']==odor,'Count'].values):
+            print(odor,count)
+            group_list = []
+            PETH_array = None
+            for mouse in subjects_df['Subject']:
+                if mouse in set(sniffs_df['Subject']):
+                    print("--------------")
+                    print(f'MOUSE : {mouse}')
+                    print("--------------")
+                    group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+                    group_list.append(group)
+                    dfibersniff_df = pd.read_csv(repo_path / f'{mouse}_{code}_fibersniff.csv')
+                    sr = pp.samplerate(dfibersniff_df)
+                    #PETH data
+                    if type_event == 'Stim':
+                        if PETH_array is None:
+                            PETH_array = np.mean(plp.PETH_stim(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EVENT_TIME), axis=0)
+                        else:
+                            PETH_array = np.concatenate(PETH_array, np.mean(plp.PETH_stim(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EVENT_TIME), axis=0))
+                    elif type_event == 'Sniff':
+                        if PETH_array is None:
+                            PETH_array = np.mean(plp.PETH_sniff(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EVENT_TIME), axis=0)
+                        else:
+                            PETH_array = np.concatenate(PETH_array,np.mean(plp.PETH_sniff(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EVENT_TIME), axis=0))
+                        
+            #plot PETH
+            BOI = f'{type_event} {odor} {count}'
+            PETHarray_list=[]
+            for group in included_groups:
+                PETH_array_group = PETH_array
+                list_todelete = []
+                for (i,group_mouse) in enumerate(group_list): 
+                    if group not in group_mouse:
+                        list_todelete.append(i)
+                PETHarray_list.append(np.delete(PETH_array_group,(list_todelete),axis=0))
+            fig_PETHpooled = bp.plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow) 
+            fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{count}{event[0]}_PETH.pdf')
+            fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{count}{event[0]}_PETH.png')
