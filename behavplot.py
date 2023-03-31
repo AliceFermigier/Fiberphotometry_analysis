@@ -15,8 +15,6 @@ Functions for plotting with behavioural data
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from pathlib import Path
-import os
 
 #%%
 ###################
@@ -38,18 +36,21 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
     """
     #scored behaviours in Boris
     list_behav = behav10Sps.columns[1:].tolist()
-    list_ind = np.arange(len(list_behav), dtype = int).tolist()
     behav_comp = [0]*len(list_behav)
+    print(behav_comp)
     
     #index where camera starts
-    list_indstart = np.where(round(timevector,1) == timestart_camera)
-    indstart = list_indstart[0].tolist()[0]
+    indstart = np.where(round(timevector,1) == timestart_camera)[0].tolist()[0]
+    print(indstart)
 
     # create lists of behaviour data for each scored behaviour
     # aligned with start of the camera
-    for (behav, ind) in zip(list_behav, list_ind) :
+    for (ind, behav) in enumerate(list_behav):
         behav_comp[ind] = [0]*indstart
+        print(behav_comp[ind])
         behav_comp[ind].extend(behav10Sps[behav].tolist())
+        print(behav_comp[ind])
+        print(np.where(behav_comp[ind]==1))
        
     # creates list of denoised fiberpho data    
     denoised_fiberpho = fiberpho['Denoised dFF'].dropna()
@@ -76,7 +77,7 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
         behav_crop.append(behav[:min_length])
         
     fiberbehav_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
-                                         '405nm deltaF/F' : dff_405nm_list, '470nm deltaF/F' : dff_470nm_list})
+                                         '405nm dFF' : dff_405nm_list, '470nm dFF' : dff_470nm_list})
         
     for (behav,data) in zip(list_behav,behav_crop):
         fiberbehav_df.insert(len(fiberbehav_df.columns),behav,data,allow_duplicates=False)

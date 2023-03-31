@@ -74,6 +74,7 @@ def dFF(data_df,artifacts_df,filecode,sr,method='mean'):
     Calculates dFF and removes artifacts
     Output : pandas dataframe with 405 dFF, 470 dFF and Denoised dFF
     """   
+    sr = round(sr)
     if method == 'mean':
         dFFdata = np.full([3,len(data_df)], np.nan)
         for (i,col) in enumerate(data_df.columns[1:]):
@@ -86,14 +87,14 @@ def dFF(data_df,artifacts_df,filecode,sr,method='mean'):
                     [x_start, x_stop] = literal_eval(list_artifacts[0])[k]
                     end = data_df.loc[data_df['Time(s)']>x_start].index[0]
                     meanF = np.nanmean(data_df.loc[begin+1:end,col])
-                    dFFdata[i][begin+1:end] = [((j-meanF)/meanF)*100 for j in data_df.loc[begin+1:end-1,col]]
+                    dFFdata[i][begin+1:end] = [(j-meanF)/meanF*100 for j in data_df.loc[begin+1:end-1,col]]
                     begin= data_df.loc[data_df['Time(s)']<x_stop].index[-1]
                 end=len(data_df)
                 meanF = np.nanmean(data_df.loc[begin+1:end,col])
-                dFFdata[i][begin+1:end] = [((j-meanF)/meanF)*100 for j in data_df.loc[begin+1:end-1,col]]
+                dFFdata[i][begin+1:end] = [(j-meanF)/meanF*100 for j in data_df.loc[begin+1:end-1,col]]
             else:
                 meanF = np.nanmean(data_df[col])
-                dFFdata[i] = [((j-meanF)/meanF)*100 for j in data_df[col] if j!=np.nan]
+                dFFdata[i] = [(j-meanF)/meanF*100 for j in data_df[col] if j!=np.nan]
         
         dFFdata[2]=dFFdata[1]-dFFdata[0]
     
@@ -107,16 +108,20 @@ def dFF(data_df,artifacts_df,filecode,sr,method='mean'):
             for k in range(len(literal_eval(list_artifacts[0]))):
                 [x_start, x_stop] = literal_eval(list_artifacts[0])[k]
                 end = data_df.loc[data_df['Time(s)']>x_start].index[0]
-                print(data_df.loc[begin+1:end-1,'405 Deinterleaved'])
-                dFFdata[0][begin+1:end] = controlFit(data_df.loc[begin+1:end-1,'405 Deinterleaved'], data_df.loc[begin+1:end-1,'470 Deinterleaved'])
+                print(data_df.loc[begin+1:end-1,'470 Deinterleaved'])
+                dFFdata[0][begin+1:end] = controlFit(data_df.loc[begin+1:end-1,'405 Deinterleaved'], 
+                                                     data_df.loc[begin+1:end-1,'470 Deinterleaved'])
                 dFFdata[1][begin+1:end] = data_df.loc[begin+1:end-1,'470 Deinterleaved']
+                print(begin,end,dFFdata[0][begin+1:end])
                 begin= data_df.loc[data_df['Time(s)']<x_stop].index[-1]
             end=len(data_df)
-            dFFdata[0][begin+1:end] = controlFit(data_df.loc[begin+1:end-1,'405 Deinterleaved'], data_df.loc[begin+1:end-1,'470 Deinterleaved'])
+            dFFdata[0][begin+1:end] = controlFit(data_df.loc[begin+1:end-1,'405 Deinterleaved'], 
+                                                 data_df.loc[begin+1:end-1,'470 Deinterleaved'])
             dFFdata[1][begin+1:end] = data_df.loc[begin+1:end-1,'470 Deinterleaved']
         else:
             [begin,end] = [round(5*sr),len(data_df)]
-            dFFdata[0][begin+1:end] = controlFit(data_df.loc[begin+1:end-1,'405 Deinterleaved'], data_df.loc[begin+1:end-1,'470 Deinterleaved'])
+            dFFdata[0][begin+1:end] = controlFit(data_df.loc[begin+1:end-1,'405 Deinterleaved'], 
+                                                 data_df.loc[begin+1:end-1,'470 Deinterleaved'])
             dFFdata[1][begin+1:end] = data_df.loc[begin+1:end-1,'470 Deinterleaved']
         
         res = np.subtract(dFFdata[1], dFFdata[0])

@@ -22,6 +22,8 @@ plt.rcParams.update({'figure.max_open_warning' : 0})
 from pathlib import Path
 import os
 import sys
+from dash import Dash, dcc, html
+import plotly.express as px
 
 #Custom
 #put path to directory where python files are stored
@@ -33,7 +35,6 @@ import preprocess as pp
 import genplot as gp
 import behavplot as bp
 import plethyplot as plp
-import visualize as vis
 import statcalc as sc
 
 #%%
@@ -81,12 +82,13 @@ SAMPLERATE = 10 #in Hz
 exp =  'Essai1'
 
 exp_path = analysis_path / exp
-pp_path = exp_path / 'Preprocessing' # put all raw plots and deinterleaved_df in separate folder
-if not os.path.exists(pp_path):
-    os.mkdir(pp_path)
 
 #get data path related to the task in protocol excel file
 data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
+
+pp_path = data_path_exp / 'Preprocessing' # put all raw plots and deinterleaved_df in separate folder
+if not os.path.exists(pp_path):
+    os.mkdir(pp_path)
 #------------------#
 
 #%% 1.1 - Deinterleave data and save in separate file.
@@ -107,24 +109,38 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         
 # 1.2 - Look at rawdata and check for artifacts
 
-        fig_raw = gp.plot_rawdata(rawdata_df,exp,session,mouse)
+        fig_raw = gp.plot_rawdata(deinterleaved_df,exp,session,mouse)
         fig_raw.savefig(pp_path/f'{mouse}_{code}_rawdata.pdf')
         
 #%% 1.3 - Open artifacted data in Dash using plotly and enter artifact timestamps in excel file
 
 #------------------#
-session = 'Test'
-mouse = 'A1f'
+session = 'Habituation'
+mouse = 'A5f'
 #------------------#
 # in excel 'Filecode', put '{exp}_{session}_{mouse}'
 
 deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
-vis.visualize(deinterleaved_df,'fiberpho',exp,session,mouse)
+
+app = Dash(__name__)
+fig = px.line(deinterleaved_df[100:], x='Time(s)', y='470 Deinterleaved')
+#fig = px.line(deinterleaved_df, x='Time(s)', y='405 Deinterleaved')
+app.layout = html.Div([
+    html.H4(f'{exp} {session} {mouse}'),
+    dcc.Graph(
+        id=f'{exp}',
+        figure=fig
+    )
+])
+if __name__ == '__main__':
+    app.run_server(debug=False, use_reloader=False)
+
 
 #%% 1.4 - Artifact correction and dFF calculation
 
 #import artifacts boundaries
 artifacts_df = pd.read_excel(experiment_path / 'artifacts.xlsx')
+method = 'mean'
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = str(session_path).split('\\')[-1]
@@ -136,12 +152,12 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         print("--------------")
         print(f'MOUSE : {mouse}')
         print("--------------")
-        deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
+        deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv',index_col=0)
         filecode = f'{exp}_{session}_{mouse}'
         sr = pp.samplerate(deinterleaved_df)
         
         # calculate dFF with artifacts removal, then interpolate missing data
-        dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,sr,method='fit')
+        dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,sr,method='mean')
         interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
         
         # smooth data with butterworth filter or simple moving average (SMA)
@@ -151,7 +167,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         
         #plotted GCaMP and isosbestic curves after dFF or fitting
         fig_dFF = gp.plot_fiberpho(smoothdFF_df,exp,session,mouse)
-        fig_dFF.savefig(pp_path/f'{mouse}_{code}_fitteddFF.pdf')
+        fig_dFF.savefig(pp_path/f'{mouse}_{code}_{method}dFF.pdf')
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
@@ -167,7 +183,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
     if not os.path.exists(repo_path):
             os.mkdir(repo_path)
-    for mouse in subjects_df['Subject']:
+    for mouse in ['B1f']: #subjects_df['Subject']:
         print("--------------")
         print(f'MOUSE : {mouse}')
         print("--------------")
@@ -185,10 +201,11 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             done = False
         print(f'done? {done}')
         
-        if ready == True and done == False:
+        if ready == True and done == True:
             rawdata_cam_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','DI/O-3'])
             behav10Sps = pd.read_csv(behav_path)
-            fiberpho = pd.read_csv(fiberpho_path)
+            fiberpho = pd.read_csv(fiberpho_path,index_col=0)
+            sr=pp.samplerate(fiberpho)
             print(exp, session, mouse)
             
             #list of behaviours to analyze
@@ -199,8 +216,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             timevector = gp.time_vector(fiberpho, SAMPLERATE)
             timestart_camera = gp.timestamp_camera(rawdata_cam_df)[0]
             print(f'start camera : {timestart_camera}')
-            fiberbehav_df = bp.align_behav(behav10Sps, fiberpho, timevector, timestart_camera)
-            fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
+            fiberbehav_df = bp.align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp)
+            fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD, sr)
             dfiberbehav_df = bp.derive(fiberbehav_df)
             dfiberbehav_df.to_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
             
@@ -412,10 +429,21 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 session = 'Test'
 mouse = 'A1f'
 #------------------#
-# in excel 'Filecode', put '{exp}_{session}_{mouse}'
 
 plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
-vis.visualize(plethys_df,'plethysmo',exp,session,mouse)
+
+app = Dash(__name__)
+data_df = plethys_df.loc[[i for i in range(0,len(plethys_df),600)]] #downsample plethysmo data
+fig = px.line(data_df, x='Time(s)', y='AIn-4')
+app.layout = html.Div([
+    html.H4(f'{exp} {session} {mouse}'),
+    dcc.Graph(
+        id=f'{exp}',
+        figure=fig
+    )
+])
+if __name__ == '__main__':
+    app.run_server(debug=False, use_reloader=False)
 
 #%% 3.2 - Align with sniffs, create corresponding csv, plot fiberpho data with sniffs and stims
 

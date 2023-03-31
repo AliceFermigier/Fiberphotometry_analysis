@@ -47,9 +47,9 @@ def plot_rawdata(rawdata_df,exp,session,mouse):
     ax7 = fig.add_subplot(211)
 
     p1, = ax7.plot('Time(s)', '470 Deinterleaved', 
-                   linewidth=1, color='deepskyblue', label='GCaMP', data = rawdata_df) 
+                   linewidth=1, color='deepskyblue', label='GCaMP', data = rawdata_df[100:]) 
     p2, = ax7.plot('Time(s)', '405 Deinterleaved', 
-                   linewidth=1, color='blueviolet', label='ISOS', data = rawdata_df)
+                   linewidth=1, color='blueviolet', label='ISOS', data = rawdata_df[100:])
     
     ax7.set_ylabel('V')
     ax7.set_xlabel('Time(s)')
@@ -77,7 +77,6 @@ def time_vector(fiberpho, SAMPLERATE) :
     #--> if better timevector of the exact same lenght as fiberpho data
     
     duration =  math.ceil(fiberpho.at[len(fiberpho)-2,'Time(s)'])
-    #duration = len(fiberpho) #for Roman data
     return pd.Series(np.linspace(0.0, duration, num = int(duration*SAMPLERATE)+1))
 
 def timestamp_camera(rawdata_df) :
@@ -88,8 +87,7 @@ def timestamp_camera(rawdata_df) :
     --> Returns
         (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
     """
-    ind_list = np.where(rawdata_df['DI/O-3'] == 1)
-    ind_list = ind_list[0].tolist()
+    ind_list = np.where(rawdata_df['DI/O-3'] == 1)[0].tolist()
     (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
     return (truncate(rawdata_df.at[ind_start, 'Time(s)'], 1),
             truncate(rawdata_df.at[ind_stop, 'Time(s)'], 1))
