@@ -79,7 +79,7 @@ SAMPLERATE = 10 #in Hz
 #####################
 
 #------------------#
-exp =  'Essai1'
+exp =  'Essai2'
 
 exp_path = analysis_path / exp
 
@@ -110,7 +110,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 # 1.2 - Look at rawdata and check for artifacts
 
         fig_raw = gp.plot_rawdata(deinterleaved_df,exp,session,mouse)
-        fig_raw.savefig(pp_path/f'{mouse}_{code}_rawdata.pdf')
+        fig_raw.savefig(pp_path/f'{mouse}_{code}_rawdata.png')
         
 #%% 1.3 - Open artifacted data in Dash using plotly and enter artifact timestamps in excel file
 
@@ -148,7 +148,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
     code = gp.session_code(session,exp)
-    for mouse in ['B1f']: #subjects_df['Subject']:
+    for mouse in subjects_df['Subject']:
         print("--------------")
         print(f'MOUSE : {mouse}')
         print("--------------")
@@ -166,8 +166,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         smoothdFF_df.to_csv(pp_path/f'{mouse}_{code}_dFFfilt.csv')
         
         #plotted GCaMP and isosbestic curves after dFF or fitting
-        fig_dFF = gp.plot_fiberpho(smoothdFF_df,exp,session,mouse)
-        fig_dFF.savefig(pp_path/f'{mouse}_{code}_{method}dFF.pdf')
+        fig_dFF = gp.plot_fiberpho(smoothdFF_df,exp,session,mouse,method)
+        fig_dFF.savefig(pp_path/f'{mouse}_{code}_{method}dFF.png')
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
@@ -247,7 +247,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
             list_BOI = dfiberbehav_df.columns[2:].tolist()
             for BOI in list_BOI:
-                if BOI in ['Entry in arena','Gate opens']:
+                if BOI not in ['Entry in arena','Gate opens']:
                     for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
                         PETH_data = bp.PETH(dfiberbehav_df, BOI, event, timewindow)
                         fig_PETH = bp.plot_PETH(PETH_data, BOI, event, timewindow)
@@ -351,13 +351,13 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 
 #------------------------------#
 BOI = 'Entry in arena'
-timewindow = [6,10]
+timewindow = [6,30]
 TIME_MEANMAX = 15 #in seconds
 TIME_BEFORE = 3 #in seconds
 #------------------------------#
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-    session = str(session_path).split('/')[-1]
+    session = str(session_path).split('\\')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
@@ -410,15 +410,15 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         PETHarray_list.append(np.delete(PETH_array_group,(list_todelete),axis=0))
     fig_PETHpooled = bp.plot_PETH_pooled(included_groups, PETHarray_list, BOI, 'onset', timewindow, exp, session)
     
-    fig_PETHpooled.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETH.pdf')
-    fig_PETHpooled.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETH.png')
+    fig_PETHpooled.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}{timewindow[1]}_PETH.pdf')
+    fig_PETHpooled.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}{timewindow[1]}_PETH.png')
     
     #export data to excel
-    if not os.path.exists(repo_path / f'{exp}_{session}_maxmeandFFentry.xlsx'):
+    if not os.path.exists(repo_path / f'{exp}_{session}_{TIME_MEANMAX}s_maxmeandFFentry.xlsx'):
         meanmaxdFFs_df = pd.DataFrame(data={'Subject' : subject_list, 'Group' : group_list, 
                                             'Mean dFF before entry' : meandFF_before_list, 'Mean dFF entry' : meandFF_list, 
                                             'Max dFF before entry' : maxdFF_before_list, 'Max dFF entry' : maxdFF_list})
-        meanmaxdFFs_df.to_excel(repo_path / f'{exp}_{session}_maxmeandFFentry.xlsx')
+        meanmaxdFFs_df.to_excel(repo_path / f'{exp}_{session}_{TIME_MEANMAX}s_maxmeandFFentry.xlsx')
         
 #%% 3 - ANALYSIS - PLETHYSMOGRAPH
 #################################

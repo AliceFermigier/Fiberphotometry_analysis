@@ -40,15 +40,12 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
     
     #index where camera starts
     indstart = np.where(round(timevector,1) == timestart_camera)[0].tolist()[0]
-    print(indstart)
 
     # create lists of behaviour data for each scored behaviour
     # aligned with start of the camera
     for (ind, behav) in enumerate(list_behav):
         behav_comp[ind] = [0]*indstart
-        print(len(behav_comp[ind]))
         behav_comp[ind].extend(behav10Sps[behav].tolist())
-        print(len(behav10Sps[behav]),len(behav_comp[ind]))
        
     # creates list of denoised fiberpho data    
     denoised_fiberpho = fiberpho['Denoised dFF'].dropna()
@@ -66,7 +63,6 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
     # crops lists so that all lengths match
     min_length = min([len(timelist), len(denoised_fiberpho_list), len(behav_comp[0]),
                       len(dff_405nm_list), len(dff_470nm_list)])
-    print(min_length)
     timelist = timelist[:min_length]
     denoised_fiberpho_list = denoised_fiberpho_list[:min_length]
     dff_405nm_list = dff_405nm_list[:min_length]
@@ -75,7 +71,6 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
     for behav in behav_comp:
         behav_crop.append(behav[:min_length])
         
-    print(len(behav_crop[0])) 
     fiberbehav_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
                                          '405nm dFF' : dff_405nm_list, '470nm dFF' : dff_470nm_list})
         
@@ -512,17 +507,17 @@ def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow, ex
     # for snip in PETHarray_list[0]:
     #     p1, = ax5.plot(peri_time, snip, linewidth=.5,
     #                    color='cornflowerblue', alpha=.3)
-    p2, = ax5.plot(peri_time, listmean_dFF_snips[0], linewidth=2,
-                   color='grey', label=included_groups[0])   
+    p2, = ax5.plot(peri_time, listmean_dFF_snips[0], linewidth=1,
+                   color='slategrey', label=included_groups[0])   
     #plot standard error bars
     p3 = ax5.fill_between(peri_time, listmean_dFF_snips[0]+(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))),
-                      listmean_dFF_snips[0]-(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))), facecolor='grey', alpha=0.2)
+                      listmean_dFF_snips[0]-(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))), facecolor='slategrey', alpha=0.2)
     
     #plot individual traces and mean HFD
     # for snip in PETHarray_list[1]:
     #     p4, = ax5.plot(peri_time, snip, linewidth=.5,
     #                    color='coral', alpha=.3)
-    p5, = ax5.plot(peri_time, listmean_dFF_snips[1], linewidth=2,
+    p5, = ax5.plot(peri_time, listmean_dFF_snips[1], linewidth=1,
                    color='purple', label=included_groups[1])   
     #plot standard error bars
     p6 = ax5.fill_between(peri_time, listmean_dFF_snips[1]+(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))),

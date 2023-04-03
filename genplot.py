@@ -92,7 +92,7 @@ def timestamp_camera(rawdata_df) :
     return (truncate(rawdata_df.at[ind_start, 'Time(s)'], 1),
             truncate(rawdata_df.at[ind_stop, 'Time(s)'], 1))
 
-def plot_fiberpho(fiberbehav_df,exp,session,mouse):
+def plot_fiberpho(fiberbehav_df,exp,session,mouse,method):
     """
     Plots isosbestic and Ca dependent deltaF/F or fitted
     """
@@ -109,6 +109,6 @@ def plot_fiberpho(fiberbehav_df,exp,session,mouse):
     ax0.set_xlabel('Time(s)')
     ax0.legend(handles=[p1,p2], loc='upper right')
     ax0.margins(0.01,0.2)
-    ax0.set_title(f'GCaMP and Isosbestic dFF - {exp} {session} {mouse}')
+    ax0.set_title(f'GCaMP and Isosbestic dFF - {exp} {session} {mouse} - {method}')
     
     return fig1
