@@ -94,7 +94,7 @@ if not os.path.exists(pp_path):
 #%% 1.1 - Deinterleave data and save in separate file.
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-    session = str(session_path).split('/')[-1]
+    session = str(session_path).split('\\')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
@@ -143,7 +143,7 @@ artifacts_df = pd.read_excel(experiment_path / 'artifacts.xlsx')
 method = 'mean'
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-    session = str(session_path).split('/')[-1]
+    session = str(session_path).split('\\')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
@@ -175,7 +175,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 # 2.1 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-    session = str(session_path).split('/')[-1]
+    session = str(session_path).split('\\')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
