@@ -37,7 +37,6 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
     #scored behaviours in Boris
     list_behav = behav10Sps.columns[1:].tolist()
     behav_comp = [0]*len(list_behav)
-    print(behav_comp)
     
     #index where camera starts
     indstart = np.where(round(timevector,1) == timestart_camera)[0].tolist()[0]
@@ -47,10 +46,9 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
     # aligned with start of the camera
     for (ind, behav) in enumerate(list_behav):
         behav_comp[ind] = [0]*indstart
-        print(behav_comp[ind])
+        print(len(behav_comp[ind]))
         behav_comp[ind].extend(behav10Sps[behav].tolist())
-        print(behav_comp[ind])
-        print(np.where(behav_comp[ind]==1))
+        print(len(behav10Sps[behav]),len(behav_comp[ind]))
        
     # creates list of denoised fiberpho data    
     denoised_fiberpho = fiberpho['Denoised dFF'].dropna()
@@ -68,6 +66,7 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
     # crops lists so that all lengths match
     min_length = min([len(timelist), len(denoised_fiberpho_list), len(behav_comp[0]),
                       len(dff_405nm_list), len(dff_470nm_list)])
+    print(min_length)
     timelist = timelist[:min_length]
     denoised_fiberpho_list = denoised_fiberpho_list[:min_length]
     dff_405nm_list = dff_405nm_list[:min_length]
@@ -76,6 +75,7 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
     for behav in behav_comp:
         behav_crop.append(behav[:min_length])
         
+    print(len(behav_crop[0])) 
     fiberbehav_df = pd.DataFrame(data = {'Time(s)':timelist, 'Denoised dFF' : denoised_fiberpho_list,
                                          '405nm dFF' : dff_405nm_list, '470nm dFF' : dff_470nm_list})
         
@@ -101,7 +101,7 @@ def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD, sr):
             elif i!=i_1 and i==0:
                 count = 1
             elif i!=i_1 and i==1:
-                if count <= THRESH_S*sr:
+                if count <= THRESH_S*sr and count!=1:
                     fiberbehav_df.loc[ind-count:ind-1, BOI] = [1]*count
             i_1 = i
             
@@ -115,7 +115,7 @@ def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD, sr):
             elif i!=i_1 and i==1:
                 count = 1
             elif i!=i_1 and i==0:
-                if count <= EVENT_TIME_THRESHOLD*sr:
+                if count <= EVENT_TIME_THRESHOLD*sr and count!=1:
                     fiberbehav_df.loc[ind-count:ind-1, BOI] = [0]*count
             i_1 = i
             
@@ -322,11 +322,11 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
         
         #makes vertical line for entry opening of gate
         if 'Gate opens' in list_BOI:
-            x_entry = behavprocesssnip_df.at[int(np.where(behavprocesssnip_df['Gate opens'] == 1)[0][0]), 'Time(s)']
+            x_entry = behavprocess_df.at[int(np.where(behavprocess_df['Gate opens'] == 1)[0][0]), 'Time(s)']
             ax1.axvline(x_entry, color='lightsteelblue', ls = '--', label = 'Gate opens' )
                 
         #makes vertical line for entry in open field
-        x_entry = behavprocesssnip_df.at[int(np.where(behavprocesssnip_df['Entry in arena'] == 1)[0][0]), 'Time(s)']
+        x_entry = behavprocess_df.at[int(np.where(behavprocess_df['Entry in arena'] == 1)[0][0]), 'Time(s)']
         ax1.axvline(x_entry, color='slategrey', ls = '--', label = 'Entry in arena' )
     
     ax1.set_ylabel(r'$\Delta$F/F')
@@ -513,20 +513,20 @@ def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow, ex
     #     p1, = ax5.plot(peri_time, snip, linewidth=.5,
     #                    color='cornflowerblue', alpha=.3)
     p2, = ax5.plot(peri_time, listmean_dFF_snips[0], linewidth=2,
-                   color='cornflowerblue', label=included_groups[0])   
+                   color='grey', label=included_groups[0])   
     #plot standard error bars
     p3 = ax5.fill_between(peri_time, listmean_dFF_snips[0]+(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))),
-                      listmean_dFF_snips[0]-(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))), facecolor='cornflowerblue', alpha=0.2)
+                      listmean_dFF_snips[0]-(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))), facecolor='grey', alpha=0.2)
     
     #plot individual traces and mean HFD
     # for snip in PETHarray_list[1]:
     #     p4, = ax5.plot(peri_time, snip, linewidth=.5,
     #                    color='coral', alpha=.3)
     p5, = ax5.plot(peri_time, listmean_dFF_snips[1], linewidth=2,
-                   color='orangered', label=included_groups[1])   
+                   color='purple', label=included_groups[1])   
     #plot standard error bars
     p6 = ax5.fill_between(peri_time, listmean_dFF_snips[1]+(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))),
-                      listmean_dFF_snips[1]-(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))), facecolor='orangered', alpha=0.2)
+                      listmean_dFF_snips[1]-(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))), facecolor='purple', alpha=0.2)
     
     p8 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=BOI)
     

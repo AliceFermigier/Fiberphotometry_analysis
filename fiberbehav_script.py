@@ -29,7 +29,8 @@ import plotly.express as px
 #put path to directory where python files are stored
 if 'D:\Profil\Documents\GitHub\Fiberphotometry_analysis' not in sys.path:
     sys.path.append('D:\Profil\Documents\GitHub\Fiberphotometry_analysis')
-    #sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
+if '/Users/alice/Documents/GitHub/Fiberphotometry_analysis' not in sys.path:
+    sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
 
 import preprocess as pp
 import genplot as gp
@@ -42,10 +43,9 @@ import statcalc as sc
 #LOADER#
 ########
 
-experiment_path = Path('K:\\Alice\\Fiber\\202301_CA2b5')
+experiment_path = Path('K:\\Alice\\Fiber\\202301_CA2b5') #/Users/alice/Desktop/Fiberb5
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
-preprocess_path = experiment_path / 'Preprocessing'
 os.chdir(experiment_path)
 os.getcwd()
 
@@ -94,7 +94,7 @@ if not os.path.exists(pp_path):
 #%% 1.1 - Deinterleave data and save in separate file.
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-    session = str(session_path).split('\\')[-1]
+    session = str(session_path).split('/')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
@@ -143,12 +143,12 @@ artifacts_df = pd.read_excel(experiment_path / 'artifacts.xlsx')
 method = 'mean'
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-    session = str(session_path).split('\\')[-1]
+    session = str(session_path).split('/')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
     code = gp.session_code(session,exp)
-    for mouse in subjects_df['Subject']:
+    for mouse in ['B1f']: #subjects_df['Subject']:
         print("--------------")
         print(f'MOUSE : {mouse}')
         print("--------------")
@@ -157,7 +157,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         sr = pp.samplerate(deinterleaved_df)
         
         # calculate dFF with artifacts removal, then interpolate missing data
-        dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,sr,method='mean')
+        dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,sr,method)
         interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
         
         # smooth data with butterworth filter or simple moving average (SMA)
@@ -175,7 +175,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 # 2.1 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-    session = str(session_path).split('\\')[-1]
+    session = str(session_path).split('/')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
@@ -183,7 +183,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
     if not os.path.exists(repo_path):
             os.mkdir(repo_path)
-    for mouse in ['B1f']: #subjects_df['Subject']:
+    for mouse in subjects_df['Subject']:
         print("--------------")
         print(f'MOUSE : {mouse}')
         print("--------------")
@@ -201,7 +201,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             done = False
         print(f'done? {done}')
         
-        if ready == True and done == True:
+        if ready == True and done == False:
             rawdata_cam_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','DI/O-3'])
             behav10Sps = pd.read_csv(behav_path)
             fiberpho = pd.read_csv(fiberpho_path,index_col=0)
@@ -357,7 +357,7 @@ TIME_BEFORE = 3 #in seconds
 #------------------------------#
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-    session = str(session_path).split('\\')[-1]
+    session = str(session_path).split('/')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
@@ -377,7 +377,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         print(f'MOUSE : {mouse}')
         print("--------------")
         if os.path.exists(repo_path /  f'{mouse}_{code}_fiberbehav.csv'):
-            fiberbehav_df = pd.read_excel(repo_path /  f'{mouse}_{code}_fiberbehav.csv')
+            fiberbehav_df = pd.read_csv(repo_path /  f'{mouse}_{code}_fiberbehav.csv')
             group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
             sr = pp.samplerate(fiberbehav_df)
             
@@ -393,9 +393,9 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             maxdFF_before_list.append(fiberbehav_df.loc[ind_event-TIME_MEANMAX*sr:ind_event, 'Denoised dFF'].max()) #max before entry
             #3 - PETH data
             if PETH_array is None:
-                PETH_array = bp.PETH(fiberbehav_df, BOI, 'onset', timewindow)
+                PETH_array = bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)
             else:
-                PETH_array = np.concatenate((PETH_array,bp.PETH(fiberbehav_df, BOI, 'onset', timewindow)))
+                PETH_array = np.concatenate((PETH_array,bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)))
                 
     #plot PETH
     included_groups = ['CD','HFD']
@@ -408,7 +408,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
                 list_todelete.append(i)
         np.delete(PETH_array_group,(list_todelete),axis=0)
         PETHarray_list.append(np.delete(PETH_array_group,(list_todelete),axis=0))
-    fig_PETHpooled = bp.plot_PETH_pooled(included_groups, PETHarray_list, BOI, 'onset', timewindow)
+    fig_PETHpooled = bp.plot_PETH_pooled(included_groups, PETHarray_list, BOI, 'onset', timewindow, exp, session)
     
     fig_PETHpooled.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETH.pdf')
     fig_PETHpooled.savefig(repo_path / f'{included_groups[0]}{included_groups[1]}{BOI}_PETH.png')
