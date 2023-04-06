@@ -121,7 +121,7 @@ def derive(fiberbehav_df):
     calculate the derivative of behav of interest and put in new df
     that way, it will show 1 when behaviour starts and -1 when it stops
     """
-    for col in fiberbehav_df.columns[5:]:
+    for col in fiberbehav_df.columns[4:]:
         fiberbehav_df[col] = fiberbehav_df[col].diff()
 
     return fiberbehav_df 
@@ -162,7 +162,7 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
         elif session =='Conditioning':
             #plots fiberpho trace and behaviourb 
             p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = behavprocesssnip_df)
-            x_entry = fiberbehav_df.at[int(np.where(behavprocesssnip_df['Shock'] == 1)[0][0]), 'Time(s)']
+            x_entry = behavprocesssnip_df.at[int(np.where(behavprocesssnip_df['Shock'] == 1)[0][0]), 'Time(s)']
             ax1.axvline(x_entry, color='yellow', ls = '-', lw=2, label = 'Shock' )
             
     elif exp=='NewContext':

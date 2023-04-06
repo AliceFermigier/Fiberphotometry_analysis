@@ -79,10 +79,15 @@ SAMPLERATE = 10 #in Hz
 #####################
 
 #------------------#
-exp =  'Essai2'
+exp =  'Plethysmo'
 
 exp_path = analysis_path / exp
-
+if not os.path.exists(exp_path):
+    os.mkdir(exp_path)
+for session_list in proto_df.loc[proto_df['Task']==exp,'Sessions'].values[0].split():
+    if not os.path.exists(exp_path / session_list):
+        os.mkdir(exp_path / session_list)
+            
 #get data path related to the task in protocol excel file
 data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
 
@@ -93,7 +98,7 @@ if not os.path.exists(pp_path):
 
 #%% 1.1 - Deinterleave data and save in separate file.
 
-for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
+for session_path in [exp_path / 'Test']:#[Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = str(session_path).split('\\')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
@@ -103,9 +108,10 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         print("--------------")
         print(f'MOUSE : {mouse}')
         print("--------------")
-        rawdata_df = pd.read_csv(data_path_exp/f'{mouse}_{code}.csv',skiprows=1,usecols=['Time(s)','AIn-1','DI/O-1','DI/O-2'])
-        deinterleaved_df = pp.deinterleave(rawdata_df)
-        deinterleaved_df.to_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
+        if not os.path.exists(pp_path/f'{mouse}_{code}_deinterleaved.csv'):
+            rawdata_df = pd.read_csv(data_path_exp/f'{mouse}_{code}.csv',skiprows=1,usecols=['Time(s)','AIn-1','DI/O-1','DI/O-2'])
+            deinterleaved_df = pp.deinterleave(rawdata_df)
+            deinterleaved_df.to_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
         
 # 1.2 - Look at rawdata and check for artifacts
 
@@ -115,15 +121,15 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 #%% 1.3 - Open artifacted data in Dash using plotly and enter artifact timestamps in excel file
 
 #------------------#
-session = 'Habituation'
-mouse = 'A5f'
+session = 'Test'
+mouse = 'B3f'
 #------------------#
 # in excel 'Filecode', put '{exp}_{session}_{mouse}'
-
+code = gp.session_code(session,exp)
 deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
 
 app = Dash(__name__)
-fig = px.line(deinterleaved_df[100:], x='Time(s)', y='470 Deinterleaved')
+fig = px.line(deinterleaved_df[100:], x='Time(s)', y='405 Deinterleaved')
 #fig = px.line(deinterleaved_df, x='Time(s)', y='405 Deinterleaved')
 app.layout = html.Div([
     html.H4(f'{exp} {session} {mouse}'),
@@ -244,14 +250,14 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             print("--------------")
             print(f'MOUSE : {mouse}')
             print("--------------")
-            dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
-            list_BOI = dfiberbehav_df.columns[2:].tolist()
+            dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv',index_col=0)
+            list_BOI = dfiberbehav_df.columns[4:].tolist()
             for BOI in list_BOI:
                 if BOI not in ['Entry in arena','Gate opens']:
                     for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
-                        PETH_data = bp.PETH(dfiberbehav_df, BOI, event, timewindow)
-                        fig_PETH = bp.plot_PETH(PETH_data, BOI, event, timewindow)
-                        fig_PETH.savefig(PETH_path /  f'{mouse}_{code}_{BOI}{event[0]}_PETH.csv')
+                        PETH_data = bp.PETH(dfiberbehav_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)
+                        fig_PETH = bp.plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse)
+                        fig_PETH.savefig(PETH_path /  f'{mouse}_{code}_{BOI}{event[0]}_PETH.png')
                         
 #%% 2.3 - Plot PETH for all mice
 #for the data to be comparable, the beginning of the PETH will be plotted at the beginning of an ascending curve  
@@ -351,12 +357,12 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 
 #------------------------------#
 BOI = 'Entry in arena'
-timewindow = [6,30]
+timewindow = [6,10]
 TIME_MEANMAX = 15 #in seconds
 TIME_BEFORE = 3 #in seconds
 #------------------------------#
 
-for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
+for session_path in [exp_path / 'S3']: #[Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = str(session_path).split('\\')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
