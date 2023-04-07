@@ -43,7 +43,7 @@ import statcalc as sc
 #LOADER#
 ########
 
-experiment_path = Path('K:\\Alice\\Fiber\\202301_CA2b5') #/Users/alice/Desktop/Fiberb5
+experiment_path = Path('/Users/alice/Desktop/Fiberb5') #K:\\Alice\\Fiber\\202301_CA2b5
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -455,7 +455,7 @@ if __name__ == '__main__':
 
 sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx')
 session_path = exp_path / 'Test'
-session = str(session_path).split('\\')[-1]
+session = str(session_path).split('/')[-1]
 
 print('##########################################')
 print(f'EXPERIMENT : {exp} - SESSION : {session}')
@@ -464,7 +464,9 @@ code = gp.session_code(session,exp)
 repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
 raw_path = repo_path / 'Raw'
 if not os.path.exists(repo_path):
-        os.mkdir(repo_path)
+    os.mkdir(repo_path)
+if not os.path.exists(raw_path):
+    os.mkdir(raw_path)
 for mouse in subjects_df['Subject']:
     print("--------------")
     print(f'MOUSE : {mouse}')
@@ -480,14 +482,14 @@ for mouse in subjects_df['Subject']:
             plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
         fibersniff_df = plp.align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse)
         fibersniff_df = plp.process_fibersniff(fibersniff_df, EVENT_TIME_THRESHOLD, THRESH_S, sr)
-        dfibersniff_df = plp.derive(fiberbehav_df)
+        dfibersniff_df = plp.derive(fibersniff_df)
         dfibersniff_df.to_csv(repo_path / f'{mouse}_{code}_fibersniff.csv')
         #plot figures
         if not (raw_path / f'{mouse}_WBPfiberpho_raw.pdf').is_file():
-            fig_raw = plp.plethyfiber_plot_raw(fiberpho_df, plethys_df)
+            fig_raw = plp.plethyfiber_plot_raw(fiberpho_df, plethys_df,mouse)
             fig_raw.savefig(raw_path / f'{mouse}_WBPfiberpho_raw.png') 
         if not (repo_path / f'{mouse}_WBPfiberpho_sniffs.pdf').is_file():
-            fig_sniffs = plp.plethyfiber_plot_sniffs(fiberpho_df, plethys_df, sniffs_df)
+            fig_sniffs = plp.plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse)
             fig_sniffs.savefig(repo_path / f'{mouse}_WBPfiberpho_sniffs.png') 
             fig_sniffs.savefig(repo_path / f'{mouse}_WBPfiberpho_sniffs.pdf')
                 

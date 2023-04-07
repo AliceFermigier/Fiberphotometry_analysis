@@ -31,18 +31,19 @@ def align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse):
     """
     sniffmouse_df = sniffs_df.loc[(sniffs_df['Subject']==mouse)]
     fibersniff_df = pd.DataFrame({'Time(s)':fiberpho_df['Time(s)'], 'Denoised dFF':fiberpho_df['Denoised dFF']})
-    plethy_list = []
-    for time in fiberpho_df['Time(s)']:
-        plethy_list.append(plethys_df.loc[plethys_df['Time(s)']==time,['AIn-4']])
-    fibersniff_df.insert(len(fibersniff_df.columns),'Plethysmograph',plethy_list,allow_duplicates = False)
+    #downsample plethys_df:
+    plethys_df = plethys_df.loc[[round(i) for i in np.linspace(0,len(plethys_df)-1,len(fiberpho_df))]]
+    fibersniff_df.insert(len(fibersniff_df.columns),'Plethysmograph',plethys_df['AIn-4'].values,allow_duplicates = False)
     for odor in set(sniffs_df['Odor']):
         for (count,stim) in enumerate(sniffmouse_df.loc[sniffmouse_df['Odor']==odor,'Stim'].values):
+            print(f'Stim {odor} {count}')
             fibersniff_df.insert(len(fibersniff_df.columns),f'Stim {odor} {count}',0,allow_duplicates = False)
-            [x_start,x_stop] = literal_eval(stim[0])
+            [x_start,x_stop] = literal_eval(stim)
             fibersniff_df.loc[round(x_start*sr):round(x_stop*sr), f'Stim {odor} {count}'] = 1
         for (count,list_sniffs) in enumerate(sniffmouse_df.loc[sniffmouse_df['Odor']==odor,'Start_Stop'].values):
+            print(f'Sniff {odor} {count}')
             fibersniff_df.insert(len(fibersniff_df.columns),f'Sniff {odor} {count}',0,allow_duplicates = False)
-            for [x_start, x_stop] in literal_eval(list_sniffs[0]):
+            for [x_start, x_stop] in literal_eval(list_sniffs):
                 if [x_start, x_stop] != [0,0]:
                     fibersniff_df.loc[round(x_start*sr):round(x_stop*sr), f'Sniff {odor} {count}'] = 1
     
@@ -165,7 +166,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse):
     j = 0
     m = 0
     for count in set(sniffs_df.loc[sniffs_df['Odor']=='Clean','Count']):
-        for (x,y) in zip(dfibersniff_df['Time(s)'].tolist(), dfibersniff_df['Sniff Clean {count}'].tolist()):
+        for (x,y) in zip(dfibersniff_df['Time(s)'].tolist(), dfibersniff_df[f'Sniff Clean {count-1}'].tolist()):
             if y == 1:
                 x_start = x
             if y == -1 and x_start!=0:
@@ -173,7 +174,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse):
                 x_start=0
                 i+=1
     for count in set(sniffs_df.loc[sniffs_df['Odor']=='HC','Count']):
-        for (x,y) in zip(dfibersniff_df['Time(s)'].tolist(), dfibersniff_df['Sniff Clean {count}'].tolist()):
+        for (x,y) in zip(dfibersniff_df['Time(s)'].tolist(), dfibersniff_df[f'Sniff HC {count-1}'].tolist()):
             if y == 1:
                 x_start = x
             if y == -1 and x_start!=0:
@@ -181,7 +182,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse):
                 x_start=0
                 j+=1
     for count in set(sniffs_df.loc[sniffs_df['Odor']=='Novel','Count']):
-        for (x,y) in zip(dfibersniff_df['Time(s)'].tolist(), dfibersniff_df['Sniff Clean {count}'].tolist()):
+        for (x,y) in zip(dfibersniff_df['Time(s)'].tolist(), dfibersniff_df[f'Sniff Novel {count-1}'].tolist()):
             if y == 1:
                 x_start = x
             if y == -1 and x_start!=0:
