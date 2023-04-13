@@ -77,7 +77,7 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group):
     
     return(meandFFs_df)
 
-def diffmeanmax_dFF(behavprocess_df, list_BOI, mouse, group):
+def diffmeanmax_dFF_perbout(behavprocess_df, list_BOI, mouse, group):
     """
     Calculates dFF difference between beginning and end of bouts
     Also calculates mean dFF during each bout
@@ -112,5 +112,47 @@ def diffmeanmax_dFF(behavprocess_df, list_BOI, mouse, group):
     diffdFF_df = pd.DataFrame(data = {'Subject':[mouse]*len(listind_behav), 'Group':[group]*len(listind_behav),
                                       'Behaviour':listind_behav, 'Bout':listind_bouts, 'Mean dFF':list_meandFF,
                                       'Max dFF' : list_maxdFF, 'Delta dFF':list_deltadFF})
+    
+    return(diffdFF_df)
+
+def diffmeanmax_dFF(behavprocess_df, list_BOI, mouse, group):
+    """
+    Calculates dFF difference between beginning and end of bouts
+    Also calculates mean dFF during each bout
+    """
+    list_behav_analyzed = []
+    for behav in list_BOI:
+        if behav not in ['Entry in arena','Gate opens','Shock']:
+            list_behav_analyzed.append(behav)
+    list_deltadFF = []
+    list_meandFF = []
+    list_maxdFF = []
+    listind_behav = []
+    
+    for behav in list_behav_analyzed:
+        list_starts = np.where(behavprocess_df[behav]==1)[0].tolist()
+        list_stops = np.where(behavprocess_df[behav]==-1)[0].tolist()
+        listind_behav.append(behav)
+        list_deltadFF_behav = []
+        list_meandFF_behav = []
+        list_maxdFF_behav = []
+        for (start, stop) in zip(list_starts, list_stops):
+            mean_start = behavprocess_df.loc[start-5:start+5, 'Denoised dFF'].mean()
+            mean_stop = behavprocess_df.loc[stop-5:stop+5, 'Denoised dFF'].mean()
+            delta = mean_stop-mean_start
+            mean = behavprocess_df.loc[start:stop, 'Denoised dFF'].mean()
+            maximum = behavprocess_df.loc[start:stop, 'Denoised dFF'].max()
+            list_deltadFF_behav.append(delta)
+            list_meandFF_behav.append(mean)
+            list_maxdFF_behav.append(maximum)
+            
+        list_deltadFF.append(np.mean(list_deltadFF_behav))
+        list_meandFF.append(np.mean(list_meandFF_behav))
+        list_maxdFF.append(np.mean(list_maxdFF_behav))
+            
+    
+    diffdFF_df = pd.DataFrame(data = {'Subject':[mouse]*len(listind_behav), 'Group':[group]*len(listind_behav),
+                                      'Behaviour':listind_behav, 'Mean dFF':list_meandFF,
+                                      'Max dFF':list_maxdFF, 'Delta dFF':list_deltadFF})
     
     return(diffdFF_df)

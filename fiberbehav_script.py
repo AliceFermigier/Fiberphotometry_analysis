@@ -43,7 +43,7 @@ import statcalc as sc
 #LOADER#
 ########
 
-experiment_path = Path('/Users/alice/Desktop/Fiberb5') #K:\\Alice\\Fiber\\202301_CA2b5
+experiment_path = Path('K:\\Alice\\Fiber\\202301_CA2b5') #/Users/alice/Desktop/Fiberb5
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -62,9 +62,9 @@ PRE_EVENT_TIME = 1
 #time to crop at the beginning of the trial for , in seconds
 TIME_BEGIN = 60
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 1
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 0
+EVENT_TIME_THRESHOLD = 1
 #filter characteristics
 ORDER = 3
 CUT_FREQ = 2 #in Hz
@@ -457,7 +457,7 @@ if __name__ == '__main__':
 
 sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx')
 session_path = exp_path / 'Test'
-session = str(session_path).split('/')[-1]
+session = str(session_path).split('\\')[-1]
 
 print('##########################################')
 print(f'EXPERIMENT : {exp} - SESSION : {session}')
@@ -474,7 +474,7 @@ for mouse in subjects_df['Subject']:
     print(f'MOUSE : {mouse}')
     print("--------------")
     if mouse in set(sniffs_df['Subject']):
-        fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv')
+        fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv',index_col=0)
         rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
         sr = pp.samplerate(fiberpho_df)
         #bug avec A3f
@@ -500,7 +500,7 @@ for mouse in subjects_df['Subject']:
 
 sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx')
 session_path = exp_path / 'Test'
-session = str(session_path).split('/')[-1]           
+session = str(session_path).split('\\')[-1]           
                 
 print('##########################################')
 print(f'EXPERIMENT : {exp} - SESSION : {session}')
