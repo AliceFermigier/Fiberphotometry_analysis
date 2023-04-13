@@ -507,6 +507,7 @@ def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow, ex
     # for snip in PETHarray_list[0]:
     #     p1, = ax5.plot(peri_time, snip, linewidth=.5,
     #                    color='cornflowerblue', alpha=.3)
+    #print(peri_time,listmean_dFF_snips)
     p2, = ax5.plot(peri_time, listmean_dFF_snips[0], linewidth=1,
                    color='slategrey', label=included_groups[0])   
     #plot standard error bars
