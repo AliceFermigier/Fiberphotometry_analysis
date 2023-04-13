@@ -62,7 +62,7 @@ PRE_EVENT_TIME = 1
 #time to crop at the beginning of the trial for , in seconds
 TIME_BEGIN = 60
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 1
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 1
 #filter characteristics
@@ -115,21 +115,21 @@ for session_path in [exp_path / 'Test']:#[Path(f.path) for f in os.scandir(exp_p
         
 # 1.2 - Look at rawdata and check for artifacts
 
-        fig_raw = gp.plot_rawdata(deinterleaved_df,exp,session,mouse)
-        fig_raw.savefig(pp_path/f'{mouse}_{code}_rawdata.png')
+            fig_raw = gp.plot_rawdata(deinterleaved_df,exp,session,mouse)
+            fig_raw.savefig(pp_path/f'{mouse}_{code}_rawdata.png')
         
 #%% 1.3 - Open artifacted data in Dash using plotly and enter artifact timestamps in excel file
 
 #------------------#
 session = 'Test'
-mouse = 'B3f'
+mouse = 'C3m'
 #------------------#
 # in excel 'Filecode', put '{exp}_{session}_{mouse}'
 code = gp.session_code(session,exp)
 deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
 
 app = Dash(__name__)
-fig = px.line(deinterleaved_df[100:], x='Time(s)', y='405 Deinterleaved')
+fig = px.line(deinterleaved_df[100:], x='Time(s)', y='470 Deinterleaved')
 #fig = px.line(deinterleaved_df, x='Time(s)', y='405 Deinterleaved')
 app.layout = html.Div([
     html.H4(f'{exp} {session} {mouse}'),
@@ -224,6 +224,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             print(f'start camera : {timestart_camera}')
             fiberbehav_df = bp.align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp)
             fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD, sr)
+            fiberbehav_df.to_csv(repo_path / f'{mouse}_{code}_fiberbehavnotderived.csv')
             dfiberbehav_df = bp.derive(fiberbehav_df)
             dfiberbehav_df.to_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
             
@@ -336,13 +337,14 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             print("--------------")
             subject_list.append(mouse)
             group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
-            dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
+            dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv',index_col=0)
+            fiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehavnotderived.csv',index_col=0)
             #1 - subjects
             subject_list.append(mouse)
             group_list.append(group)
             #2 - mean, max and delta dFF
             mean_dFFs_list.append(sc.meandFF_behav(list_BOI, dfiberbehav_df, exp, session, mouse, group))
-            diffmeanmaxdFF_list.append(sc.diffmeanmax_dFF(dfiberbehav_df, list_BOI, mouse, group))
+            diffmeanmaxdFF_list.append(sc.diffmeanmax_dFF(fiberbehav_df, list_BOI, mouse, group))
 
     #export to excel
     meandFFs_allmice = pd.concat(mean_dFFs_list)
@@ -383,7 +385,7 @@ for session_path in [exp_path / 'S3']: #[Path(f.path) for f in os.scandir(exp_pa
         print(f'MOUSE : {mouse}')
         print("--------------")
         if os.path.exists(repo_path /  f'{mouse}_{code}_fiberbehav.csv'):
-            fiberbehav_df = pd.read_csv(repo_path /  f'{mouse}_{code}_fiberbehav.csv')
+            fiberbehav_df = pd.read_csv(repo_path /  f'{mouse}_{code}_fiberbehav.csv',index_col=0)
             group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
             sr = pp.samplerate(fiberbehav_df)
             
@@ -485,6 +487,7 @@ for mouse in subjects_df['Subject']:
         fibersniff_df = plp.align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse)
         fibersniff_df = plp.process_fibersniff(fibersniff_df, EVENT_TIME_THRESHOLD, THRESH_S, sr)
         dfibersniff_df = plp.derive(fibersniff_df)
+        fibersniff_df.to_csv(repo_path / f'{mouse}_{code}_fibersniffnotderived.csv')
         dfibersniff_df.to_csv(repo_path / f'{mouse}_{code}_fibersniff.csv')
         #plot figures
         if not (raw_path / f'{mouse}_WBPfiberpho_raw.pdf').is_file():
@@ -561,6 +564,7 @@ for mouse in subjects_df['Subject']:
         subject_list.append(mouse)
         group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
         dfibersniff_df = pd.read_csv(repo_path / f'{mouse}_{code}_fibersniff.csv',index_col=0)
+        fibersniff_df = pd.read_csv(repo_path / f'{mouse}_{code}_fibersniffnotderived.csv',index_col=0)
         sr = pp.samplerate(dfibersniff_df)
         list_BOI = dfibersniff_df.columns[3:]
         
@@ -569,10 +573,15 @@ for mouse in subjects_df['Subject']:
         group_list.append(group)
         #2 - mean, max and delta dFF
         diffmeanmaxdFF_list.append(sc.diffmeanmax_dFF(dfibersniff_df, list_BOI, mouse, group))
+        mean_dFFs_list.append(sc.meandFF_sniffs(fibersniff_df, exp, session, mouse, group, joined=True))
         
 #export to excel
 diffdFFs_allmice = pd.concat(diffmeanmaxdFF_list)
 diffdFFs_allmice.to_excel(groupanalysis_path / f'{exp}_{session}_diffmaxmeandFFs.xlsx')
+
+#export to excel
+meandFFs_allmice = pd.concat(mean_dFFs_list)
+meandFFs_allmice.to_excel(groupanalysis_path / f'{exp}_{session}_globmeandFFs.xlsx')
     
 #%% 3.5 - Plot PETH for all mice (each odor and all counts)
 

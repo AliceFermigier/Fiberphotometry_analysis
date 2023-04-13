@@ -77,6 +77,45 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group):
     
     return(meandFFs_df)
 
+def meandFF_sniffs(fiberbehav_df, exp, session, mouse, group, joined=True):
+    """
+    Calculates mean dFF during each behaviour
+    Output : dataframe with 'Subject','Group','Mean dFF','Baseline', 'Post_baseline', and mean dFF for each behaviour
+    """
+    list_meandFF = []
+    
+    fiberbehavsnip_df = fiberbehav_df[fiberbehav_df['Time(s)'] > 15]
+    
+    if joined == True:
+        #give same name to stims and sniffs with same odors
+        for col in fiberbehavsnip_df.columns[3:]:
+            fiberbehavsnip_df.rename(columns={col: col[:-2]}, inplace=True)
+        fiberbehavsnip_df = fiberbehavsnip_df.groupby(level=0, axis=1, sort=False).sum()
+        print(fiberbehavsnip_df.columns)
+        #put mean dFF in list
+        for behav in fiberbehavsnip_df.columns[3:]:
+            meandFF_behav_df = fiberbehavsnip_df.groupby([behav], as_index=False).mean()
+            print(meandFF_behav_df)
+            list_meandFF.append(meandFF_behav_df.loc[meandFF_behav_df[behav]==1, 'Denoised dFF'].values[0])
+                                
+    if joined == False:
+        #put mean dFF in list
+        for behav in fiberbehavsnip_df.columns[3:]:
+            meandFF_behav_df = fiberbehavsnip_df.groupby([behav], as_index=False).mean()
+            print(meandFF_behav_df)
+            list_meandFF.append(meandFF_behav_df.loc[meandFF_behav_df[behav]==1, 'Denoised dFF'].values[0])
+    
+    #create dataframe with values
+    
+    list_dFFs = [mouse, group]
+    list_columns = ['Subject','Group']
+    for (behav,meandFF) in zip(fiberbehavsnip_df.columns[3:],list_meandFF):
+        list_dFFs.append(meandFF)
+        list_columns.append(behav)
+    meandFFs_df = pd.DataFrame(data=[list_dFFs], columns=list_columns)
+    
+    return(meandFFs_df)
+
 def diffmeanmax_dFF_perbout(behavprocess_df, list_BOI, mouse, group):
     """
     Calculates dFF difference between beginning and end of bouts
