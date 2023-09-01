@@ -43,7 +43,7 @@ import statcalc as sc
 #LOADER#
 ########
 
-experiment_path = Path('K:\\Alice\\Fiber\\202301_CA2b5') #/Users/alice/Desktop/Fiberb5
+experiment_path = Path('K:\\Alice\\Fiber\\202306_CA2CA1b6') #/Users/alice/Desktop/Fiberb5
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -79,7 +79,7 @@ SAMPLERATE = 10 #in Hz
 #####################
 
 #------------------#
-exp =  'Plethysmo'
+exp =  'Essai2'
 
 exp_path = analysis_path / exp
 if not os.path.exists(exp_path):
@@ -98,7 +98,7 @@ if not os.path.exists(pp_path):
 
 #%% 1.1 - Deinterleave data and save in separate file.
 
-for session_path in [exp_path / 'Test']:#[Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
+for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:#[exp_path / 'Test']:#
     session = str(session_path).split('\\')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
