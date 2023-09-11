@@ -54,9 +54,6 @@ subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Inclu
 #import tasks in protocol
 proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 
-#PETH parameters
-list_EVENT = ['onset', 'withdrawal']
-list_TIMEWINDOW = [[4,5],[4,7]] 
 #time before behaviour for calculation of PETH baseline, in seconds
 PRE_EVENT_TIME = 1
 #time to crop at the beginning of the trial for , in seconds
@@ -79,7 +76,7 @@ SAMPLERATE = 10 #in Hz
 #####################
 
 #------------------#
-exp =  'Essai2'
+exp = 'ORM'
 
 exp_path = analysis_path / exp
 if not os.path.exists(exp_path):
@@ -154,7 +151,9 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
     code = gp.session_code(session,exp)
-    for mouse in subjects_df['Subject']:
+    lst = subjects_df['Subject'].tolist()
+    lst.remove('B4m')
+    for mouse in lst:
         print("--------------")
         print(f'MOUSE : {mouse}')
         print("--------------")
@@ -236,6 +235,45 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 #%% 2.2 - Plot PETH for each mouse
 #the beginning of the PETH will be plotted at the beginning of an ascending curve
 
+#PETH parameters
+list_EVENT = ['onset', 'withdrawal']
+list_TIMEWINDOW = [[4,20],[4,20]] 
+
+for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
+    session = str(session_path).split('\\')[-1]
+    print('##########################################')
+    print(f'EXPERIMENT : {exp} - SESSION : {session}')
+    print('##########################################')
+    code = gp.session_code(session,exp)
+    repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+    PETH_path = repo_path / 'PETH'
+    if not os.path.exists(PETH_path):
+            os.mkdir(PETH_path)
+    for mouse in subjects_df['Subject']:
+        group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+        if os.path.exists(repo_path /  f'{mouse}_{code}_fiberbehav.csv'):
+            print("--------------")
+            print(f'MOUSE : {mouse}')
+            print("--------------")
+            dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv',index_col=0)
+            list_BOI = dfiberbehav_df.columns[4:].tolist()
+            for BOI in list_BOI:
+                if BOI not in ['Entry in arena','Gate opens']:
+                    for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
+                        PETH_data = bp.PETH(dfiberbehav_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)
+                        fig_PETH = bp.plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse, group)
+                        fig_PETH.savefig(PETH_path /  f'{mouse}_{code}_{BOI}{event[0]}_PETH.png')
+                        
+#%% 2.3 - Plot PETH for all mice
+#the beginning of the PETH will be plotted at the beginning of an ascending curve  
+
+#------------------------------#
+#for PETH, groups that will be plotted:
+included_groups = ['CA1 CD','CA1 HFD','CA2 CD','CA2 HFD']
+event = 'onset' #or 'withdrawal'
+timewindow = [4,15]
+#------------------------------#
+
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = str(session_path).split('\\')[-1]
     print('##########################################')
@@ -248,41 +286,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             os.mkdir(PETH_path)
     for mouse in subjects_df['Subject']:
         if os.path.exists(repo_path /  f'{mouse}_{code}_fiberbehav.csv'):
-            print("--------------")
-            print(f'MOUSE : {mouse}')
-            print("--------------")
-            dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv',index_col=0)
-            list_BOI = dfiberbehav_df.columns[4:].tolist()
-            for BOI in list_BOI:
-                if BOI not in ['Entry in arena','Gate opens']:
-                    for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
-                        PETH_data = bp.PETH(dfiberbehav_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)
-                        fig_PETH = bp.plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse)
-                        fig_PETH.savefig(PETH_path /  f'{mouse}_{code}_{BOI}{event[0]}_PETH.png')
-                        
-#%% 2.3 - Plot PETH for all mice
-#the beginning of the PETH will be plotted at the beginning of an ascending curve  
-
-#------------------------------#
-#for PETH, groups that will be plotted:
-included_groups = ['CD','HFD']
-event = 'onset' #or 'withdrawal'
-timewindow = [4,5]
-#------------------------------#
-
-dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
-list_BOI = dfiberbehav_df.columns[2:].tolist()           
-
-for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-    session = str(session_path).split('\\')[-1]
-    print('##########################################')
-    print(f'EXPERIMENT : {exp} - SESSION : {session}')
-    print('##########################################')
-    code = gp.session_code(session,exp)
-    repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
-    PETH_path = repo_path / 'PETH'
-    if not os.path.exists(PETH_path):
-            os.mkdir(PETH_path)
+            dfiberbehav_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv')
+            list_BOI = dfiberbehav_df.columns[2:].tolist()
     for BOI in list_BOI:
         group_list = []
         PETH_array = None
@@ -295,7 +300,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             
                 #3 - PETH data
                 if PETH_array is None:
-                    PETH_array = np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0)
+                    PETH_array = np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME), axis=0)
                 else:
                     PETH_array = np.concatenate((PETH_array, np.mean(bp.PETH(fiberbehav_df, BOI, event, timewindow), axis=0)))
                         

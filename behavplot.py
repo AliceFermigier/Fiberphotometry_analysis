@@ -394,7 +394,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
     
     return PETH_array
 
-def plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse):
+def plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse, group):
     """
     Plots PETH average and heatmap
     """
@@ -439,7 +439,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse):
     ax6.set_yticks(np.arange(.5, len(PETH_data), 2))
     ax6.set_yticklabels(np.arange(0, len(PETH_data), 2))
     ax6.axvline(x=0, linewidth=2, color='black', ls = '--')
-    ax6.set_title(f'{BOI} {event} {exp} {session} {mouse}')
+    ax6.set_title(f'{BOI} {event} {exp} {session} {mouse} {group}')
     
     fig4.subplots_adjust(right=0.8, hspace = 0.1)
     cbar_ax = fig4.add_axes([0.85, 0.54, 0.02, 0.34])
