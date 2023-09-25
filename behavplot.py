@@ -138,7 +138,7 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
     
     if exp=='Fear':
         if session =='Test':
-            #plots fiberpho trace and behaviourb 
+            #plots fiberpho trace and behaviour
             p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = behavprocesssnip_df)
     
             #makes areas corresponding to behaviours
@@ -162,8 +162,10 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
         elif session =='Conditioning':
             #plots fiberpho trace and behaviourb 
             p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = behavprocesssnip_df)
-            x_entry = behavprocesssnip_df.at[int(np.where(behavprocesssnip_df['Shock'] == 1)[0][0]), 'Time(s)']
-            ax1.axvline(x_entry, color='yellow', ls = '-', lw=2, label = 'Shock' )
+            x_1 = behavprocess_df.at[int(np.where(behavprocess_df['Shock'] == 1)[0][0]), 'Time(s)']
+            x_2 = behavprocess_df.at[int(np.where(behavprocess_df['Shock'] == 1)[0][1]), 'Time(s)']
+            ax1.axvline(x_1, color='yellow', ls = '-', lw=2, label = 'Shock' )
+            ax1.axvline(x_2, color='yellow', ls = '-', lw=2, label = 'Shock' )
             
     elif exp=='NewContext':
         #plots fiberpho trace and behaviourb 

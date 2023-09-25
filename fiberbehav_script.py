@@ -43,7 +43,7 @@ import statcalc as sc
 #LOADER#
 ########
 
-experiment_path = Path('K:\\Alice\\Fiber\\202306_CA2CA1b6') #/Users/alice/Desktop/Fiberb5
+experiment_path = Path('K:\\Alice\\Fiber\\202309_CA2CA1b7') #/Users/alice/Desktop/Fiberb5
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -76,7 +76,7 @@ SAMPLERATE = 10 #in Hz
 #####################
 
 #------------------#
-exp = 'ORM'
+exp = 'Fear'
 
 exp_path = analysis_path / exp
 if not os.path.exists(exp_path):
@@ -109,24 +109,24 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:#
             rawdata_df = pd.read_csv(data_path_exp/f'{mouse}_{code}.csv',skiprows=1,usecols=['Time(s)','AIn-1','DI/O-1','DI/O-2'])
             deinterleaved_df = pp.deinterleave(rawdata_df)
             deinterleaved_df.to_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
-        
-# 1.2 - Look at rawdata and check for artifacts
-
+            
+    # 1.2 - Look at rawdata and check for artifacts
+    
             fig_raw = gp.plot_rawdata(deinterleaved_df,exp,session,mouse)
             fig_raw.savefig(pp_path/f'{mouse}_{code}_rawdata.png')
         
 #%% 1.3 - Open artifacted data in Dash using plotly and enter artifact timestamps in excel file
 
 #------------------#
-session = 'Test'
-mouse = 'C3m'
+session = 'Conditioning'
+mouse = 'B1f'
 #------------------#
 # in excel 'Filecode', put '{exp}_{session}_{mouse}'
 code = gp.session_code(session,exp)
 deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
 
 app = Dash(__name__)
-fig = px.line(deinterleaved_df[100:], x='Time(s)', y='470 Deinterleaved')
+fig = px.line(deinterleaved_df[100:], x='Time(s)', y='405 Deinterleaved')
 #fig = px.line(deinterleaved_df, x='Time(s)', y='405 Deinterleaved')
 app.layout = html.Div([
     html.H4(f'{exp} {session} {mouse}'),
@@ -152,27 +152,27 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     print('##########################################')
     code = gp.session_code(session,exp)
     lst = subjects_df['Subject'].tolist()
-    lst.remove('B4m')
     for mouse in lst:
-        print("--------------")
-        print(f'MOUSE : {mouse}')
-        print("--------------")
-        deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv',index_col=0)
-        filecode = f'{exp}_{session}_{mouse}'
-        sr = pp.samplerate(deinterleaved_df)
-        
-        # calculate dFF with artifacts removal, then interpolate missing data
-        dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,sr,method)
-        interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
-        
-        # smooth data with butterworth filter or simple moving average (SMA)
-        smoothdFF_df=pp.smoothing_SMA(interpdFFdata_df,win_size=7)
-        smoothdFF_df=pp.butterfilt(interpdFFdata_df, ORDER, CUT_FREQ)
-        smoothdFF_df.to_csv(pp_path/f'{mouse}_{code}_dFFfilt.csv')
-        
-        #plotted GCaMP and isosbestic curves after dFF or fitting
-        fig_dFF = gp.plot_fiberpho(smoothdFF_df,exp,session,mouse,method)
-        fig_dFF.savefig(pp_path/f'{mouse}_{code}_{method}dFF.png')
+        if mouse not in ['A4f','B3f']:
+            print("--------------")
+            print(f'MOUSE : {mouse}')
+            print("--------------")
+            deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv',index_col=0)
+            filecode = f'{exp}_{session}_{mouse}'
+            sr = pp.samplerate(deinterleaved_df)
+            
+            # calculate dFF with artifacts removal, then interpolate missing data
+            dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,sr,method)
+            interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
+            
+            # smooth data with butterworth filter or simple moving average (SMA)
+            smoothdFF_df=pp.smoothing_SMA(interpdFFdata_df,win_size=7)
+            smoothdFF_df=pp.butterfilt(interpdFFdata_df, ORDER, CUT_FREQ)
+            smoothdFF_df.to_csv(pp_path/f'{mouse}_{code}_dFFfilt.csv')
+            
+            #plotted GCaMP and isosbestic curves after dFF or fitting
+            fig_dFF = gp.plot_fiberpho(smoothdFF_df,exp,session,mouse,method)
+            fig_dFF.savefig(pp_path/f'{mouse}_{code}_{method}dFF.png')
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
@@ -440,7 +440,7 @@ for session_path in [exp_path / 'S3']: #[Path(f.path) for f in os.scandir(exp_pa
 
 #------------------#
 session = 'Test'
-mouse = 'B4f'
+mouse = 'C4m'
 #------------------#
 
 code = gp.session_code(session,exp)
@@ -484,11 +484,7 @@ for mouse in subjects_df['Subject']:
         fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv',index_col=0)
         rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
         sr = pp.samplerate(fiberpho_df)
-        #bug avec A3f
-        if mouse == 'A3f':
-            plethys_df = pd.read_csv(rawdata_path, usecols=['Time(s)','AIn-4'])
-        else :
-            plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
+        plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
         fibersniff_df = plp.align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse)
         fibersniff_df = plp.process_fibersniff(fibersniff_df, EVENT_TIME_THRESHOLD, THRESH_S, sr)
         dfibersniff_df = plp.derive(fibersniff_df)
