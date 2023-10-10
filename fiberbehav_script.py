@@ -43,7 +43,7 @@ import statcalc as sc
 #LOADER#
 ########
 
-experiment_path = Path('K:\\Alice\\Fiber\\202309_CA2CA1b7') #/Users/alice/Desktop/Fiberb5
+experiment_path = Path('K:\\Alice\\Fiber\\202301_CA2b5') #/Users/alice/Desktop/Fiberb5
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -59,9 +59,9 @@ PRE_EVENT_TIME = 1
 #time to crop at the beginning of the trial for , in seconds
 TIME_BEGIN = 60
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 1
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 1
+EVENT_TIME_THRESHOLD = 0
 #filter characteristics
 ORDER = 3
 CUT_FREQ = 2 #in Hz
@@ -76,7 +76,7 @@ SAMPLERATE = 10 #in Hz
 #####################
 
 #------------------#
-exp = 'Fear'
+exp = 'Plethysmo'
 
 exp_path = analysis_path / exp
 if not os.path.exists(exp_path):
@@ -358,7 +358,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     diffdFFs_allmice = pd.concat(diffmeanmaxdFF_list)
     diffdFFs_allmice.to_excel(groupanalysis_path / f'{exp}_{session}_diffmaxmeandFFs.xlsx')
     
-#%% 2.5 - Calculate mean and diff before and after behaviours (for point behaviours) for whole group
+#%% 2.5 - Calculate mean and max before and after behaviours (for point behaviours) for whole group
 #         Plot PETH for each group
 #the beginning of the PETH will begin at the beginning of an ascending curve
 
@@ -369,7 +369,7 @@ TIME_MEANMAX = 15 #in seconds
 TIME_BEFORE = 3 #in seconds
 #------------------------------#
 
-for session_path in [exp_path / 'S3']: #[Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
+for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = str(session_path).split('\\')[-1]
     print('##########################################')
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
@@ -440,7 +440,7 @@ for session_path in [exp_path / 'S3']: #[Path(f.path) for f in os.scandir(exp_pa
 
 #------------------#
 session = 'Test'
-mouse = 'C4m'
+mouse = 'B2f'
 #------------------#
 
 code = gp.session_code(session,exp)
@@ -482,22 +482,28 @@ for mouse in subjects_df['Subject']:
     print("--------------")
     if mouse in set(sniffs_df['Subject']):
         fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv',index_col=0)
-        rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
-        sr = pp.samplerate(fiberpho_df)
-        plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
-        fibersniff_df = plp.align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse)
-        fibersniff_df = plp.process_fibersniff(fibersniff_df, EVENT_TIME_THRESHOLD, THRESH_S, sr)
-        dfibersniff_df = plp.derive(fibersniff_df)
-        fibersniff_df.to_csv(repo_path / f'{mouse}_{code}_fibersniffnotderived.csv')
-        dfibersniff_df.to_csv(repo_path / f'{mouse}_{code}_fibersniff.csv')
+        if not (repo_path / f'{mouse}_{code}_fibersniff.csv').is_file():
+            srows=1
+            if mouse == 'A3f':
+                srows=0    
+            rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
+            sr = pp.samplerate(fiberpho_df)
+            plethys_df = pd.read_csv(rawdata_path, skiprows=srows, usecols=['Time(s)','AIn-4'])
+            fibersniff_df = plp.align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse)
+            fibersniff_df = plp.process_fibersniff(fibersniff_df, EVENT_TIME_THRESHOLD, THRESH_S, sr)
+            dfibersniff_df = plp.derive(fibersniff_df)
+            fibersniff_df.to_csv(repo_path / f'{mouse}_{code}_fibersniffnotderived.csv')
+            dfibersniff_df.to_csv(repo_path / f'{mouse}_{code}_fibersniff.csv')
         #plot figures
-        if not (raw_path / f'{mouse}_WBPfiberpho_raw.pdf').is_file():
+        if not (raw_path / f'{mouse}_WBPfiberpho_raw.png').is_file():
             fig_raw = plp.plethyfiber_plot_raw(fiberpho_df, plethys_df,mouse)
             fig_raw.savefig(raw_path / f'{mouse}_WBPfiberpho_raw.png') 
         if not (repo_path / f'{mouse}_WBPfiberpho_sniffs.pdf').is_file():
             fig_sniffs = plp.plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse)
             fig_sniffs.savefig(repo_path / f'{mouse}_WBPfiberpho_sniffs.png') 
             fig_sniffs.savefig(repo_path / f'{mouse}_WBPfiberpho_sniffs.pdf')
+        else: print('Done')
+            
                 
                 
 #%% 3.3 - Plot PETH for each mouse, sniffs and stim   
@@ -540,7 +546,43 @@ for mouse in subjects_df['Subject']:
                     fig_PETHstim.savefig(PETH_path / f'{mouse}{odor}_PETHstim{event[0]}.pdf')
         plt.close('all')
         
-#%% 3.4 - Calculate mean, max and diff dFF for stims and sniffs
+#%% 3.4.1 - Calculate mean and max before and during stims for whole group
+
+#------------------------------#
+TIME_MEANMAX = 30 #in seconds
+#------------------------------#
+
+print('##########################################')
+print(f'EXPERIMENT : {exp} - SESSION : {session}')
+print('##########################################')
+code = gp.session_code(session,exp)
+repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+groupanalysis_path = repo_path / 'Group analysis'
+if not os.path.exists(groupanalysis_path):
+        os.mkdir(groupanalysis_path)
+        
+meanmaxdFF_list = []
+
+for mouse in subjects_df['Subject']:
+    print("--------------")
+    print(f'MOUSE : {mouse}')
+    print("--------------")
+    if mouse in set(sniffs_df['Subject']):
+        group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+        dfibersniff_df = pd.read_csv(repo_path / f'{mouse}_{code}_fibersniff.csv',index_col=0)
+        sr = pp.samplerate(dfibersniff_df)
+        list_BOI = [i for i in dfibersniff_df.columns[3:] if 'Stim' in i]
+
+        meanmaxdFF_list.append(sc.meanmax_dFF_stims(dfibersniff_df, list_BOI, mouse, group, TIME_MEANMAX, sr))
+        
+#export to excel
+meanmaxdFF_allmice = pd.concat(meanmaxdFF_list)
+meanmaxdFF_allmice.to_excel(groupanalysis_path / f'{exp}_{session}_{TIME_MEANMAX}s_maxmeandFFstims.xlsx')
+
+        
+#%% 3.4.2 - Calculate mean, max and diff dFF for sniffs
+
+#note : ne donne rien avec sniffs pour batch 5
 
 print('##########################################')
 print(f'EXPERIMENT : {exp} - SESSION : {session}')
@@ -553,26 +595,19 @@ if not os.path.exists(groupanalysis_path):
 
 #create list of mean_dFFs and diff_dFFs
 mean_dFFs_list = []
-subject_list = []
 diffmeanmaxdFF_list = []
-group_list = []
 
 for mouse in subjects_df['Subject']:
     print("--------------")
     print(f'MOUSE : {mouse}')
     print("--------------")
     if mouse in set(sniffs_df['Subject']):
-        subject_list.append(mouse)
         group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
         dfibersniff_df = pd.read_csv(repo_path / f'{mouse}_{code}_fibersniff.csv',index_col=0)
         fibersniff_df = pd.read_csv(repo_path / f'{mouse}_{code}_fibersniffnotderived.csv',index_col=0)
         sr = pp.samplerate(dfibersniff_df)
         list_BOI = dfibersniff_df.columns[3:]
         
-        #1 - subjects
-        subject_list.append(mouse)
-        group_list.append(group)
-        #2 - mean, max and delta dFF
         diffmeanmaxdFF_list.append(sc.diffmeanmax_dFF(dfibersniff_df, list_BOI, mouse, group))
         mean_dFFs_list.append(sc.meandFF_sniffs(fibersniff_df, exp, session, mouse, group, joined=True))
         
@@ -599,7 +634,7 @@ print('##########################################')
 code = gp.session_code(session,exp)
 repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
 groupanalysis_path = repo_path / 'Group analysis'
-for type_event in ['Stim','Sniff']:
+for type_event in ['Stim']:
     for odor in set(sniffs_df['Odor']):
         print(odor)
         group_list = []

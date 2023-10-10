@@ -39,6 +39,8 @@ def align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse):
             print(f'Stim {odor} {count}')
             fibersniff_df.insert(len(fibersniff_df.columns),f'Stim {odor} {count}',0,allow_duplicates = False)
             [x_start,x_stop] = literal_eval(stim)
+            print("start,stop:",[x_start*sr,x_stop*sr])
+            print('b sdf:', fibersniff_df.loc[round(x_start*sr):round(x_stop*sr), f'Stim {odor} {count}'])
             fibersniff_df.loc[round(x_start*sr):round(x_stop*sr), f'Stim {odor} {count}'] = 1
         for (count,list_sniffs) in enumerate(sniffmouse_df.loc[sniffmouse_df['Odor']==odor,'Start_Stop'].values):
             print(f'Sniff {odor} {count}')
@@ -145,7 +147,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse):
     ax8 = fig5.add_subplot(211)
     
     #plot plethysmo data
-    p1, = ax8.plot('Time(s)', 'Plethysmograph', linewidth=.5, color='black', data=dfibersniff_df.loc[dfibersniff_df['Time(s)']>300])    
+    p1, = ax8.plot('Time(s)', 'Plethysmograph', linewidth=.5, color='black', data=dfibersniff_df)    
     ax8.set_ylabel('WBP (A.U.)')
     ax8.set_title(f'Whole body plethysmography and fiberphotometry - {mouse}')
     #ax8.legend(loc='lower left')
@@ -154,7 +156,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df,sniffs_df,mouse):
     #plot denoised fiberphotometry data
     ax9 = fig5.add_subplot(212, sharex=ax8)
     p2, = ax9.plot('Time(s)', 'Denoised dFF',
-                   linewidth=.6, color='black', label='GCaMP-ISOS', data = dfibersniff_df.loc[dfibersniff_df['Time(s)']>300])
+                   linewidth=.6, color='black', label='GCaMP-ISOS', data = dfibersniff_df)
     ax9.set_ylabel(r'$\Delta$F/F')
     ax9.legend(handles=[p2], loc='upper right')
     #ax9.set_ylim(-1,2)
