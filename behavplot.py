@@ -131,7 +131,7 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
     Plots denoised deltaF/F aligned with behaviour (includes baseline)
     """
     
-    behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 40]
+    behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 20]
     
     fig2 = plt.figure(figsize=(20,5))
     ax1 = fig2.add_subplot(111)
@@ -166,6 +166,61 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
             x_2 = behavprocess_df.at[int(np.where(behavprocess_df['Shock'] == 1)[0][1]), 'Time(s)']
             ax1.axvline(x_1, color='yellow', ls = '-', lw=2, label = 'Shock' )
             ax1.axvline(x_2, color='yellow', ls = '-', lw=2, label = 'Shock' )
+            
+    elif exp=='Consumption':
+        #plots fiberpho trace and behaviour
+        p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=.6, color='black', label='_GCaMP', data = behavprocesssnip_df)
+
+        #makes areas corresponding to behaviours
+        [i,j,k,l,m,n] = [0,0,0,0,0,0]
+        if 'Water consumption' in list_BOI:
+            for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Water consumption'].tolist()):
+                if y == 1:
+                    x_start = x
+                if y == -1 and x_start!=0:
+                    ax1.axvspan(x_start, x, facecolor='cornflowerblue', alpha=0.3, label = '_'*i + 'Water consumption')
+                    x_start=0
+                    i+=1
+        if 'Water ?' in list_BOI:
+            for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Water ?'].tolist()):
+                if y == 1:
+                    x_start = x
+                if y == -1 and x_start!=0:
+                    ax1.axvspan(x_start, x, facecolor='cornflowerblue', alpha=0.1, label = '_'*j + 'Water ?')
+                    x_start=0
+                    j+=1
+        if 'Saccharine consumption' in list_BOI:            
+            for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Saccharine consumption'].tolist()):
+                if y == 1:
+                    x_start = x
+                if y == -1 and x_start!=0:
+                    ax1.axvspan(x_start, x, facecolor='gold', alpha=0.3, label = '_'*k + 'Saccharine consumption')
+                    x_start=0
+                    k+=1
+        if 'Saccharine ?' in list_BOI:     
+            for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Saccharine ?'].tolist()):
+                if y == 1:
+                    x_start = x
+                if y == -1 and x_start!=0:
+                    ax1.axvspan(x_start, x, facecolor='gold', alpha=0.1, label = '_'*l + 'Saccharine ?')
+                    x_start=0
+                    l+=1
+        if 'Ethanol sniffing' in list_BOI: 
+            for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Ethanol sniffing'].tolist()):
+                if y == 1:
+                    x_start = x
+                if y == -1 and x_start!=0:
+                    ax1.axvspan(x_start, x, facecolor='purple', alpha=0.3, label = '_'*m + 'Ethanol sniffing')
+                    x_start=0
+                    m+=1
+        if 'Tail suspension' in list_BOI: 
+            for (x,y) in zip(behavprocesssnip_df['Time(s)'].tolist(), behavprocesssnip_df['Tail suspension'].tolist()):
+                if y == 1:
+                    x_start = x
+                if y == -1 and x_start!=0:
+                    ax1.axvspan(x_start, x, facecolor='red', alpha=0.3, label = '_'*n + 'Tail suspension')
+                    x_start=0
+                    n+=1
             
     elif exp=='NewContext':
         #plots fiberpho trace and behaviourb 
@@ -323,8 +378,9 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
             ax1.axvline(x_entry, color='lightsteelblue', ls = '--', label = 'Gate opens' )
                 
         #makes vertical line for entry in open field
-        x_entry = behavprocess_df.at[int(np.where(behavprocess_df['Entry in arena'] == 1)[0][0]), 'Time(s)']
-        ax1.axvline(x_entry, color='slategrey', ls = '--', label = 'Entry in arena' )
+        if 'Entry in arena' in list_BOI:
+            x_entry = behavprocess_df.at[int(np.where(behavprocess_df['Entry in arena'] == 1)[0][0]), 'Time(s)']
+            ax1.axvline(x_entry, color='slategrey', ls = '--', label = 'Entry in arena' )
     
     ax1.set_ylabel(r'$\Delta$F/F')
     ax1.set_xlabel('Seconds')
@@ -531,6 +587,7 @@ def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow, ex
     ax5.set_xlabel('Seconds')
     ax5.set_ylabel('z-scored $\Delta$F/F')
     ax5.legend(handles=[p2,p5,p8], loc='upper left', fontsize = 'small')
+    ax5.set_ylim(-2,8)
     ax5.margins(0, 0.1)
     ax5.set_title(f'{BOI} - {exp} {session} {included_groups[0]} {included_groups[1]}')
     

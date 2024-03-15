@@ -43,7 +43,7 @@ import statcalc as sc
 #LOADER#
 ########
 
-experiment_path = Path('K:\\Alice\\Fiber\\202301_CA2b5') #/Users/alice/Desktop/Fiberb5
+experiment_path = Path('K:\\Alice\\Fiber\\202403_Insulaire') #/Users/alice/Desktop/Fiberb5
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -57,9 +57,9 @@ proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 #time before behaviour for calculation of PETH baseline, in seconds
 PRE_EVENT_TIME = 1
 #time to crop at the beginning of the trial for , in seconds
-TIME_BEGIN = 60
+TIME_BEGIN = 20
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 1
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 #filter characteristics
@@ -76,7 +76,7 @@ SAMPLERATE = 10 #in Hz
 #####################
 
 #------------------#
-exp = 'Plethysmo'
+exp = 'Consumption'
 
 exp_path = analysis_path / exp
 if not os.path.exists(exp_path):
@@ -105,21 +105,22 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:#
         print("--------------")
         print(f'MOUSE : {mouse}')
         print("--------------")
-        if not os.path.exists(pp_path/f'{mouse}_{code}_deinterleaved.csv'):
-            rawdata_df = pd.read_csv(data_path_exp/f'{mouse}_{code}.csv',skiprows=1,usecols=['Time(s)','AIn-1','DI/O-1','DI/O-2'])
-            deinterleaved_df = pp.deinterleave(rawdata_df)
-            deinterleaved_df.to_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
-            
-    # 1.2 - Look at rawdata and check for artifacts
-    
-            fig_raw = gp.plot_rawdata(deinterleaved_df,exp,session,mouse)
-            fig_raw.savefig(pp_path/f'{mouse}_{code}_rawdata.png')
+        if os.path.exists(data_path_exp/f'{mouse}_{code}.csv'):
+            if not os.path.exists(pp_path/f'{mouse}_{code}_deinterleaved.csv'):
+                rawdata_df = pd.read_csv(data_path_exp/f'{mouse}_{code}.csv',skiprows=1,usecols=['Time(s)','AIn-1','DI/O-1','DI/O-2'])
+                deinterleaved_df = pp.deinterleave(rawdata_df)
+                deinterleaved_df.to_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
+                
+        # 1.2 - Look at rawdata and check for artifacts
+        
+                fig_raw = gp.plot_rawdata(deinterleaved_df,exp,session,mouse)
+                fig_raw.savefig(pp_path/f'{mouse}_{code}_rawdata.png')
         
 #%% 1.3 - Open artifacted data in Dash using plotly and enter artifact timestamps in excel file
 
 #------------------#
-session = 'Conditioning'
-mouse = 'B1f'
+session = 'Habituation'
+mouse = 'A1m'
 #------------------#
 # in excel 'Filecode', put '{exp}_{session}_{mouse}'
 code = gp.session_code(session,exp)
@@ -151,9 +152,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
     code = gp.session_code(session,exp)
-    lst = subjects_df['Subject'].tolist()
-    for mouse in lst:
-        if mouse not in ['A4f','B3f']:
+    for mouse in subjects_df['Subject']:
+        if os.path.exists(pp_path/f'{mouse}_{code}_deinterleaved.csv'):
             print("--------------")
             print(f'MOUSE : {mouse}')
             print("--------------")
@@ -483,9 +483,7 @@ for mouse in subjects_df['Subject']:
     if mouse in set(sniffs_df['Subject']):
         fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv',index_col=0)
         if not (repo_path / f'{mouse}_{code}_fibersniff.csv').is_file():
-            srows=1
-            if mouse == 'A3f':
-                srows=0    
+            srows=1  
             rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
             sr = pp.samplerate(fiberpho_df)
             plethys_df = pd.read_csv(rawdata_path, skiprows=srows, usecols=['Time(s)','AIn-4'])
@@ -549,7 +547,7 @@ for mouse in subjects_df['Subject']:
 #%% 3.4.1 - Calculate mean and max before and during stims for whole group
 
 #------------------------------#
-TIME_MEANMAX = 30 #in seconds
+TIME_MEANMAX = 15 #in seconds
 #------------------------------#
 
 print('##########################################')
@@ -625,7 +623,7 @@ meandFFs_allmice.to_excel(groupanalysis_path / f'{exp}_{session}_globmeandFFs.xl
 #for PETH, groups that will be plotted:
 included_groups = ['CD','HFD']
 event = 'onset' #or 'withdrawal'
-timewindow = [6,30]
+timewindow = [6,15]
 #------------------------------#
                 
 print('##########################################')
@@ -669,8 +667,8 @@ for type_event in ['Stim']:
             PETHarray_list.append(np.delete(PETH_array_group,(list_todelete),axis=0))
            # print(PETHarray_list,len(PETHarray_list))
         fig_PETHpooled = bp.plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow, exp, session) 
-        fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{event[0]}_PETH.pdf')
-        fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{event[0]}_PETH.png')
+        fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{event[0]}{timewindow[1]}_PETH.pdf')
+        fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{event[0]}{timewindow[1]}_PETH.png')
 
                 
 #%% 3.6 - Plot PETH for all mice (each odor and each count)
@@ -679,7 +677,7 @@ for type_event in ['Stim']:
 #for PETH, groups that will be plotted:
 included_groups = ['CD','HFD']
 event = 'onset' #or 'withdrawal'
-timewindow = [6,10]
+timewindow = [6,15]
 #------------------------------#
                 
 print('##########################################')
@@ -688,7 +686,7 @@ print('##########################################')
 code = gp.session_code(session,exp)
 repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
 groupanalysis_path = repo_path / 'Group analysis'
-for type_event in ['Stim','Sniff']:
+for type_event in ['Stim']:
     for odor in set(sniffs_df['Odor']):
         for count in set(sniffs_df.loc[sniffs_df['Odor']==odor,'Count'].values):
             count+=(-1)
@@ -721,5 +719,5 @@ for type_event in ['Stim','Sniff']:
                         list_todelete.append(i)
                 PETHarray_list.append(np.delete(PETH_array_group,(list_todelete),axis=0))
             fig_PETHpooled = bp.plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow, exp, session) 
-            fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{count}{event[0]}_PETH.pdf')
-            fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{count}{event[0]}_PETH.png')
+            fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{count}{event[0]}{timewindow[1]}_PETH.pdf')
+            fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{count}{event[0]}{timewindow[1]}_PETH.png')

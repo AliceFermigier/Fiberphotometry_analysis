@@ -31,9 +31,9 @@ def session_code(session,exp):
     else:
         if session in ['Habituation','Training','S1','Conditioning']:
             code = '0'
-        elif session in ['S2','Test 1h','Test']:
+        elif session in ['S2','Test 1h','Test','Test1']:
             code = '1'
-        elif session in ['S3','Test 24h']:
+        elif session in ['S3','Test 24h','Test2']:
             code = '2'
         
     return(code)
