@@ -63,7 +63,7 @@ def truncate(n, decimals=0):
     multiplier = 10 ** decimals
     return int(n * multiplier) / multiplier
 
-def time_vector(fiberpho, SAMPLERATE) :
+def time_vector(fiberpho, samplerate) :
     """
     Creates timevector on which to plot the data, in pd format
     --> Parameters :
@@ -77,7 +77,7 @@ def time_vector(fiberpho, SAMPLERATE) :
     #--> if better timevector of the exact same lenght as fiberpho data
     
     duration =  math.ceil(fiberpho.at[len(fiberpho)-2,'Time(s)'])
-    return pd.Series(np.linspace(0.0, duration, num = int(duration*SAMPLERATE)+1))
+    return pd.Series(np.linspace(0.0, duration, num = int(duration*samplerate)+1))
 
 def timestamp_camera(rawdata_df) :
     """

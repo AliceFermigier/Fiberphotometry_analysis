@@ -196,16 +196,21 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group):
         ind_start_trial = fiberbehavsnip_df.index[fiberbehavsnip_df['Fear cage'] == 1].tolist()[0]
     elif exp == 'Fear' and session == 'Conditioning':
         ind_start_trial = fiberbehavsnip_df.index[fiberbehavsnip_df['Shock'] == 1].tolist()[0]
+    elif exp == 'Consumption':
+        ind_start_trial = 0
     else:
         ind_start_trial = fiberbehavsnip_df.index[fiberbehavsnip_df['Entry in arena'] == 1].tolist()[0]
+
+        
     
     #create list of behaviours and list of corresponding mean dFFs
     for behav in list_BOI:
-        if fiberbehavsnip_df[behav].sum() > 2:
-            list_behav_analyzed.append(behav)
-            meandFF_behav_df = fiberbehavsnip_df.groupby([behav], as_index=False).mean()
-            print(meandFF_behav_df)
-            list_meandFF.append(meandFF_behav_df.loc[meandFF_behav_df[behav]==1, 'Denoised dFF'].values[0])
+        if behav in fiberbehav_df.columns[2:].tolist():
+            if fiberbehavsnip_df[behav].sum() > 2:
+                list_behav_analyzed.append(behav)
+                meandFF_behav_df = fiberbehavsnip_df.groupby([behav], as_index=False).mean()
+                print(meandFF_behav_df)
+                list_meandFF.append(meandFF_behav_df.loc[meandFF_behav_df[behav]==1, 'Denoised dFF'].values[0])
                                 
     #calculate mean dFF during baseline
     

@@ -178,7 +178,7 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
                 if y == 1:
                     x_start = x
                 if y == -1 and x_start!=0:
-                    ax1.axvspan(x_start, x, facecolor='cornflowerblue', alpha=0.3, label = '_'*i + 'Water consumption')
+                    ax1.axvspan(x_start, x, facecolor='cornflowerblue', alpha=0.5, label = '_'*i + 'Water consumption')
                     x_start=0
                     i+=1
         if 'Water ?' in list_BOI:
@@ -186,7 +186,7 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
                 if y == 1:
                     x_start = x
                 if y == -1 and x_start!=0:
-                    ax1.axvspan(x_start, x, facecolor='cornflowerblue', alpha=0.1, label = '_'*j + 'Water ?')
+                    ax1.axvspan(x_start, x, facecolor='cornflowerblue', alpha=0.3, label = '_'*j + 'Water ?')
                     x_start=0
                     j+=1
         if 'Saccharine consumption' in list_BOI:            
@@ -194,7 +194,7 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
                 if y == 1:
                     x_start = x
                 if y == -1 and x_start!=0:
-                    ax1.axvspan(x_start, x, facecolor='gold', alpha=0.3, label = '_'*k + 'Saccharine consumption')
+                    ax1.axvspan(x_start, x, facecolor='gold', alpha=0.5, label = '_'*k + 'Saccharine consumption')
                     x_start=0
                     k+=1
         if 'Saccharine ?' in list_BOI:     
@@ -202,7 +202,7 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
                 if y == 1:
                     x_start = x
                 if y == -1 and x_start!=0:
-                    ax1.axvspan(x_start, x, facecolor='gold', alpha=0.1, label = '_'*l + 'Saccharine ?')
+                    ax1.axvspan(x_start, x, facecolor='gold', alpha=0.3, label = '_'*l + 'Saccharine ?')
                     x_start=0
                     l+=1
         if 'Ethanol sniffing' in list_BOI: 
@@ -383,9 +383,9 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
             ax1.axvline(x_entry, color='slategrey', ls = '--', label = 'Entry in arena' )
     
     ax1.set_ylabel(r'$\Delta$F/F')
-    ax1.set_xlabel('Seconds')
+    ax1.set_xlabel('Time(s)')
     #ax1.set_ylim(-1.5,2.5)
-    ax1.legend(loc = 'upper right')
+    ax1.legend(loc = 'upper left')
     ax1.margins(0.01,0.03)
     ax1.set_title(f'dFF with Behavioural Scoring - {exp} {session} {mouse} - interbout {THRESH_S} - cut {EVENT_TIME_THRESHOLD}')
     
@@ -402,17 +402,12 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
     --> Returns
         PETHo_array : np array, normalized fiberpho data centered on event
     """
-    print(f'PETH {BOI}')
     #set time window relative to event
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
     
     #round samplerate
     sr = round(sr)
-    
-    #if behaviour not recognized
-    if BOI not in behavprocess_df.columns[2:].tolist() :
-        print('BOI not recognized')
         
     list_ind_event_o = np.where(behavprocess_df[BOI] == 1)[0].tolist()
     list_ind_event_w = np.where(behavprocess_df[BOI] == -1)[0].tolist()
@@ -436,19 +431,20 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
     if list_ind_event[-1]+POST_TIME*sr >= len(behavprocess_df):
         list_ind_event.pop(-1)
     
-    #take the beginning of the behaviour as the beginning of the slope : min(dFF) on 3 secs before entry
+    #take the beginning of the behaviour as the beginning of the slope : min(dFF) on 5 secs before entry
     if event == 'onset':
         for i,ind_onset in enumerate(list_ind_event):
-            list_ind_event[i] = behavprocess_df.loc[ind_onset-3*sr:ind_onset, 'Denoised dFF'].idxmin()
+            list_ind_event[i] = behavprocess_df.loc[ind_onset-5*sr:ind_onset, 'Denoised dFF'].idxmin()
         
     PETH_array = np.zeros((len(list_ind_event),(POST_TIME+PRE_TIME)*sr+1))
+    std_alltrace = np.std(behavprocess_df['Denoised dFF'])
     for i, ind_event in enumerate(list_ind_event) :
         #calculates baseline F0 on time window before event (from PRE_TIME to PRE_EVENT_TIME)
         F0 = np.mean(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
-        std0 = np.std(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
+        #std0 = np.std(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
         #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
         if len(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event+(POST_TIME*sr), 'Denoised dFF']) == len(PETH_array[0]):
-            PETH_array[i] = (behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event+(POST_TIME*sr), 'Denoised dFF']-F0)/std0
+            PETH_array[i] = (behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event+(POST_TIME*sr), 'Denoised dFF']-F0)/std_alltrace
     
     return PETH_array
 
@@ -492,7 +488,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse, group):
     ax6 = fig4.add_subplot(211)
     cs = ax6.imshow(PETH_data, cmap='magma', aspect = 'auto',
                     interpolation='none', extent=[-PRE_TIME, POST_TIME, len(PETH_data), 0],
-                    vmin = -6, vmax = 9)
+                    vmin = -3, vmax = 3)
     ax6.set_ylabel('Bout Number')
     ax6.set_yticks(np.arange(.5, len(PETH_data), 2))
     ax6.set_yticklabels(np.arange(0, len(PETH_data), 2))
@@ -533,7 +529,7 @@ def plot_PETH_average(PETH_data, BOI, event, timewindow, exp, session, mouse):
     
     return fig4
     
-def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow, exp, session):
+def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, session, group):
     """
     Plots PETH averaged over 2 groups
 
@@ -554,41 +550,34 @@ def plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow, ex
     #create time vector
     peri_time = np.arange(-PRE_TIME, POST_TIME+0.1, 0.1)       
     
-    listmean_dFF_snips = []
-    listsem_dFF_snips = []
-    #calculate mean dFF and std error
-    for (i,PETH_data) in enumerate(PETHarray_list):
-        listmean_dFF_snips.append(np.mean(PETH_data, axis=0))
-        listsem_dFF_snips.append(np.std(PETH_data, axis=0))
+    if type(PETH_array[0])!=np.float64:
+        listmean_dFF_snips = np.mean(PETH_array, axis=0)
+        listsem_dFF_snips = np.std(PETH_array, axis=0)
+    else:
+        listmean_dFF_snips = PETH_array
+        listsem_dFF_snips = [2]*len(PETH_array)
         
-    #plot individual traces and mean CD
-    # for snip in PETHarray_list[0]:
-    #     p1, = ax5.plot(peri_time, snip, linewidth=.5,
-    #                    color='cornflowerblue', alpha=.3)
-    #print(peri_time,listmean_dFF_snips)
-    p2, = ax5.plot(peri_time, listmean_dFF_snips[0], linewidth=1,
-                   color='slategrey', label=included_groups[0])   
-    #plot standard error bars
-    p3 = ax5.fill_between(peri_time, listmean_dFF_snips[0]+(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))),
-                      listmean_dFF_snips[0]-(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))), facecolor='slategrey', alpha=0.2)
+    #plot individual traces and mean
+    if type(PETH_array[0])!=np.float64:
+        for snip in PETH_array:
+            p1, = ax5.plot(peri_time, snip, linewidth=.5,
+                            color='cornflowerblue', alpha=.3)
     
-    #plot individual traces and mean HFD
-    # for snip in PETHarray_list[1]:
-    #     p4, = ax5.plot(peri_time, snip, linewidth=.5,
-    #                    color='coral', alpha=.3)
-    p5, = ax5.plot(peri_time, listmean_dFF_snips[1], linewidth=1,
-                   color='purple', label=included_groups[1])   
+    print(peri_time,listmean_dFF_snips)
+
+    p2, = ax5.plot(peri_time, listmean_dFF_snips, linewidth=1,
+                   color='slategrey', label=group)   
     #plot standard error bars
-    p6 = ax5.fill_between(peri_time, listmean_dFF_snips[1]+(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))),
-                      listmean_dFF_snips[1]-(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))), facecolor='purple', alpha=0.2)
+    p3 = ax5.fill_between(peri_time, listmean_dFF_snips+(listsem_dFF_snips/np.sqrt(len(PETH_array))),
+                      listmean_dFF_snips-(listsem_dFF_snips/np.sqrt(len(PETH_array))), facecolor='slategrey', alpha=0.5)
     
     p8 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=BOI)
     
     ax5.set_xlabel('Seconds')
     ax5.set_ylabel('z-scored $\Delta$F/F')
-    ax5.legend(handles=[p2,p5,p8], loc='upper left', fontsize = 'small')
+    ax5.legend(handles=[p2,p8], loc='upper left', fontsize = 'small')
     ax5.set_ylim(-2,8)
     ax5.margins(0, 0.1)
-    ax5.set_title(f'{BOI} - {exp} {session} {included_groups[0]} {included_groups[1]}')
+    ax5.set_title(f'{BOI} - {exp} {session} {group}')
     
     return fig4
