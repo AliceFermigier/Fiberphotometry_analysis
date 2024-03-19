@@ -103,33 +103,38 @@ def diffmeanmax_dFF(behavprocess_df, list_BOI, mouse, group):
     """
     list_behav_analyzed = []
     for behav in list_BOI:
-        if behav not in ['Entry in arena','Gate opens','Shock']:
+        if behav not in ['Entry in arena','Gate opens','Shock','Tail suspension']:
             list_behav_analyzed.append(behav)
+            
     list_deltadFF = []
     list_meandFF = []
     list_maxdFF = []
     listind_behav = []
-    
     for behav in list_behav_analyzed:
-        list_starts = np.where(behavprocess_df[behav]==1)[0].tolist()
-        list_stops = np.where(behavprocess_df[behav]==-1)[0].tolist()
         listind_behav.append(behav)
-        list_deltadFF_behav = []
-        list_meandFF_behav = []
-        list_maxdFF_behav = []
-        for (start, stop) in zip(list_starts, list_stops):
-            mean_start = behavprocess_df.loc[start-5:start+5, 'Denoised dFF'].mean()
-            mean_stop = behavprocess_df.loc[stop-5:stop+5, 'Denoised dFF'].mean()
-            delta = mean_stop-mean_start
-            mean = behavprocess_df.loc[start:stop, 'Denoised dFF'].mean()
-            maximum = behavprocess_df.loc[start:stop, 'Denoised dFF'].max()
-            list_deltadFF_behav.append(delta)
-            list_meandFF_behav.append(mean)
-            list_maxdFF_behav.append(maximum)
-            
-        list_deltadFF.append(np.mean(list_deltadFF_behav))
-        list_meandFF.append(np.mean(list_meandFF_behav))
-        list_maxdFF.append(np.mean(list_maxdFF_behav))
+        if behav in behavprocess_df.columns[2:]:
+            list_starts = np.where(behavprocess_df[behav]==1)[0].tolist()
+            list_stops = np.where(behavprocess_df[behav]==-1)[0].tolist()
+            list_deltadFF_behav = []
+            list_meandFF_behav = []
+            list_maxdFF_behav = []
+            for (start, stop) in zip(list_starts, list_stops):
+                mean_start = behavprocess_df.loc[start-5:start+5, 'Denoised dFF'].mean()
+                mean_stop = behavprocess_df.loc[stop-5:stop+5, 'Denoised dFF'].mean()
+                delta = mean_stop-mean_start
+                mean = behavprocess_df.loc[start:stop, 'Denoised dFF'].mean()
+                maximum = behavprocess_df.loc[start:stop, 'Denoised dFF'].max()
+                list_deltadFF_behav.append(delta)
+                list_meandFF_behav.append(mean)
+                list_maxdFF_behav.append(maximum)
+                
+            list_deltadFF.append(np.mean(list_deltadFF_behav))
+            list_meandFF.append(np.mean(list_meandFF_behav))
+            list_maxdFF.append(np.mean(list_maxdFF_behav))
+        else:
+            list_deltadFF.append(np.nan)
+            list_meandFF.append(np.nan)
+            list_maxdFF.append(np.nan)
             
     
     diffdFF_df = pd.DataFrame(data = {'Subject':[mouse]*len(listind_behav), 'Group':[group]*len(listind_behav),
@@ -174,11 +179,6 @@ def meanmax_dFF_stims(behavprocess_df, list_BOI, mouse, group, TIME_MEANMAX, sr)
     
     return(meanmaxdFF_df)
 
-#%%
-#####
-#OLD#
-#####
-
 def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group):
     """
     Calculates mean dFF during each behaviour
@@ -197,7 +197,7 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group):
     elif exp == 'Fear' and session == 'Conditioning':
         ind_start_trial = fiberbehavsnip_df.index[fiberbehavsnip_df['Shock'] == 1].tolist()[0]
     elif exp == 'Consumption':
-        ind_start_trial = 0
+        ind_start_trial = 200
     else:
         ind_start_trial = fiberbehavsnip_df.index[fiberbehavsnip_df['Entry in arena'] == 1].tolist()[0]
 

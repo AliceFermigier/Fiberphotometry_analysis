@@ -43,7 +43,7 @@ import statcalc as sc
 #LOADER#
 ########
 
-experiment_path = Path('D:\\Alice\\Fiber\\202403_Insulaire') #/Users/alice/Desktop/Fiberb5
+experiment_path = Path('K:\\Alice\\Fiber\\202403_Insulaire') #/Users/alice/Desktop/Fiberb5
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -55,11 +55,11 @@ subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Inclu
 proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 
 #time before behaviour for calculation of PETH baseline, in seconds
-PRE_EVENT_TIME = 1
+PRE_EVENT_TIME = 0
 #time to crop at the beginning of the trial for , in seconds
 TIME_BEGIN = 20
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 #filter characteristics
@@ -238,7 +238,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 
 #PETH parameters
 list_EVENT = ['onset'] #, 'withdrawal']
-list_TIMEWINDOW = [[5,15]] #,[4,15]] 
+list_TIMEWINDOW = [[15,15]] #,[4,15]] 
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = str(session_path).split('\\')[-1]
@@ -261,9 +261,11 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             for BOI in list_BOI:
                 if BOI not in ['Entry in arena','Gate opens','Tail suspension']:
                     for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
-                        PETH_data = bp.PETH(dfiberbehav_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)
+                        PETH_data = bp.PETH(dfiberbehav_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVENT_TIME)
+                        PETH_df = pd.DataFrame(np.transpose(PETH_data),index=np.arange(-timewindow[0], timewindow[1]+0.1, 0.1))
+                        PETH_df.to_excel(PETH_path / f'{mouse}_{code}_{BOI}{event[0]}{timewindow}_PETHdata.xlsx')
                         fig_PETH = bp.plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse, group)
-                        fig_PETH.savefig(PETH_path /  f'{mouse}_{code}_{BOI}{event[0]}_PETH.png')
+                        fig_PETH.savefig(PETH_path /  f'{mouse}_{code}_{BOI}{event[0]}_PETH.pdf')
                         
 
 #%% 2.3 - Calculate mean, max and diff within behaviours (for state behaviours)
