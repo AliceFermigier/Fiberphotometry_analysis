@@ -43,7 +43,7 @@ import statcalc as sc
 #LOADER#
 ########
 
-experiment_path = Path('D:\\Alice\\Fiber\\202403_Insulaire') #/Users/alice/Desktop/Fiberb5
+experiment_path = Path('D:\\Alice\\Fiber\\202301_CA2b5') #/Users/alice/Desktop/Fiberb5
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -55,7 +55,7 @@ subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Inclu
 proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 
 #time before behaviour for calculation of PETH baseline, in seconds
-PRE_EVENT_TIME = 1
+PRE_EVENT_TIME = 0
 #time to crop at the beginning of the trial for , in seconds
 TIME_BEGIN = 20
 #threshold to fuse behaviour if bouts are too close, in secs
@@ -76,7 +76,8 @@ SAMPLERATE = 10 #in Hz
 #####################
 
 #------------------#
-exp = 'Consumption'
+exp = 'Fear'
+#------------------#
 
 exp_path = analysis_path / exp
 if not os.path.exists(exp_path):
@@ -91,7 +92,6 @@ data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].val
 pp_path = data_path_exp / 'Preprocessing' # put all raw plots and deinterleaved_df in separate folder
 if not os.path.exists(pp_path):
     os.mkdir(pp_path)
-#------------------#
 
 #%% 1.1 - Deinterleave data and save in separate file.
 
@@ -107,7 +107,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:#
         print("--------------")
         if os.path.exists(data_path_exp/f'{mouse}_{code}.csv'):
             if not os.path.exists(pp_path/f'{mouse}_{code}_deinterleaved.csv'):
-                rawdata_df = pd.read_csv(data_path_exp/f'{mouse}_{code}.csv',skiprows=1,usecols=['Time(s)','AIn-1','DI/O-1','DI/O-2'])
+                rawdata_df = pd.read_csv(data_path_exp/f'{mouse}_{code}.csv',skiprows=1,usecols=['Time(s)','AIn-1','DI/O-1','DI/O-2'], encoding = "ISO-8859-1")
                 deinterleaved_df = pp.deinterleave(rawdata_df)
                 deinterleaved_df.to_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
                 
@@ -164,6 +164,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             # calculate dFF with artifacts removal, then interpolate missing data
             dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,sr,method)
             interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
+            #sometimes 1st timestamps=Nan instead of 0, raises an error
+            interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
             
             # smooth data with butterworth filter or simple moving average (SMA)
             #smoothdFF_df=pp.smoothing_SMA(interpdFFdata_df,win_size=7)
@@ -207,7 +209,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         print(f'done? {done}')
         
         if ready == True and done == False:
-            rawdata_cam_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','DI/O-3'])
+            rawdata_cam_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','DI/O-3'], encoding = "ISO-8859-1")
             behav10Sps = pd.read_csv(behav_path)
             fiberpho = pd.read_csv(fiberpho_path,index_col=0)
             sr=pp.samplerate(fiberpho)
@@ -238,7 +240,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 
 #PETH parameters
 list_EVENT = ['onset'] #, 'withdrawal']
-list_TIMEWINDOW = [[5,15]] #,[4,15]] 
+list_TIMEWINDOW = [[5,30]] #,[4,15]] 
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = str(session_path).split('\\')[-1]
@@ -263,7 +265,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
                     for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
                         PETH_data = bp.PETH(dfiberbehav_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)
                         fig_PETH = bp.plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse, group)
-                        fig_PETH.savefig(PETH_path /  f'{mouse}_{code}_{BOI}{event[0]}_PETH.png')
+                        fig_PETH.savefig(PETH_path /  f'{mouse}_{code}_{BOI}{event[0]}{timewindow[0]-timewindow[1]}_PETH.png')
                         
 
 #%% 2.3 - Calculate mean, max and diff within behaviours (for state behaviours)
@@ -307,15 +309,70 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     diffdFFs_allmice = pd.concat(diffmeanmaxdFF_list)
     diffdFFs_allmice.to_excel(groupanalysis_path / f'{exp}_{session}_diffmaxmeandFFs.xlsx')
     
-#%% 2.5 - Calculate mean and max before and after behaviours (for point behaviours) for whole group
-#         Plot PETH for each group
-#the beginning of the PETH will begin at the beginning of an ascending curve
+#%% 2.5 - Calculate mean and max before and after behaviour onset for whole group
 
 #------------------------------#
-BOI = 'Saccharine consumption'
-timewindow = [6,15]
-TIME_MEANMAX = 10 #in seconds
-TIME_BEFORE = 5 #in seconds
+BOI = 'Shock'
+TIME_MEANMAX = 5 #in seconds
+TIME_BEFORE = 1 #in seconds
+maxboutsnumber = None
+#------------------------------#
+
+for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
+    session = str(session_path).split('\\')[-1]
+    print('##########################################')
+    print(f'EXPERIMENT : {exp} - SESSION : {session}')
+    print('##########################################')
+    code = gp.session_code(session,exp)
+    repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+    groupanalysis_path = repo_path / 'Group_analysis'
+    if len(os.listdir(repo_path)) > 1:
+        if not os.path.exists(groupanalysis_path): 
+                os.mkdir(groupanalysis_path)
+        #create list of mean_dFFs, max_dFFs
+        meandFF_list = []
+        meandFF_before_list = []
+        subject_list = []
+        group_list = []
+        maxdFF_list = []
+        maxdFF_before_list = []
+        for mouse in subjects_df['Subject']:
+            print("--------------")
+            print(f'MOUSE : {mouse}')
+            print("--------------")
+            if os.path.exists(repo_path /  f'{mouse}_{code}_fiberbehav.csv'):
+                fiberbehav_df = pd.read_csv(repo_path /  f'{mouse}_{code}_fiberbehav.csv',index_col=0)
+                group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+                sr = pp.samplerate(fiberbehav_df)
+                
+                if BOI in fiberbehav_df.columns[2:].tolist():
+                    ind_event_list = np.where(fiberbehav_df[BOI] == 1)[0].tolist()
+                    if maxboutsnumber != None:
+                        ind_event_list = ind_event_list[:maxboutsnumber] #ne mesurer que pour le nombre de bouts désiré
+                    for ind_event in ind_event_list:
+                        #1 - subjects 
+                        subject_list.append(mouse)
+                        group_list.append(group)
+                        #2 - mean and max dFF
+                        ind_event = fiberbehav_df.loc[ind_event-TIME_BEFORE*sr:ind_event, 'Denoised dFF'].idxmin()
+                        meandFF_list.append(fiberbehav_df.loc[ind_event:ind_event+TIME_MEANMAX*sr, 'Denoised dFF'].mean()) #mean after entry
+                        meandFF_before_list.append(fiberbehav_df.loc[ind_event-TIME_MEANMAX*sr:ind_event, 'Denoised dFF'].mean()) #mean before entry
+                        maxdFF_list.append(fiberbehav_df.loc[ind_event:ind_event+TIME_MEANMAX*sr, 'Denoised dFF'].max()) #max after entry
+                        maxdFF_before_list.append(fiberbehav_df.loc[ind_event-TIME_MEANMAX*sr:ind_event, 'Denoised dFF'].max()) #max before entry
+            
+        #export data to excel
+        if not os.path.exists(groupanalysis_path / f'{exp}_{session}_{TIME_MEANMAX}s_maxmeandFFentry.xlsx'):
+            meanmaxdFFs_df = pd.DataFrame(data={'Subject' : subject_list, 'Group' : group_list, 
+                                                'Mean dFF before entry' : meandFF_before_list, 'Mean dFF entry' : meandFF_list, 
+                                                'Max dFF before entry' : maxdFF_before_list, 'Max dFF entry' : maxdFF_list})
+            meanmaxdFFs_df.to_excel(groupanalysis_path / f'{exp}_{session}_{TIME_MEANMAX}s_maxmeandFFentry.xlsx')
+        
+        
+#%%Plot PETH for each group
+#------------------------------#
+BOI = 'Shock'
+timewindow = [5,30]
+maxboutsnumber = 1
 #------------------------------#
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
@@ -329,12 +386,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         if not os.path.exists(PETH_path): 
                 os.mkdir(PETH_path)
         #create list of mean_dFFs, max_dFFs
-        meandFF_list = []
-        meandFF_before_list = []
         subject_list = []
         group_list = []
-        maxdFF_list = []
-        maxdFF_before_list = []
         PETH_array = None
         for mouse in subjects_df['Subject']:
             print("--------------")
@@ -346,47 +399,29 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
                 sr = pp.samplerate(fiberbehav_df)
                 
                 if BOI in fiberbehav_df.columns[2:].tolist():
-                    #1 - subjects
                     subject_list.append(mouse)
                     group_list.append(group)
-                    #2 - mean and max dFF
-                    ind_event = np.where(fiberbehav_df[BOI] == 1)[0][0]
-                    ind_event = fiberbehav_df.loc[ind_event-TIME_BEFORE*sr:ind_event, 'Denoised dFF'].idxmin()
-                    meandFF_list.append(fiberbehav_df.loc[ind_event:ind_event+TIME_MEANMAX*sr, 'Denoised dFF'].mean()) #mean after entry
-                    meandFF_before_list.append(fiberbehav_df.loc[ind_event-TIME_MEANMAX*sr:ind_event, 'Denoised dFF'].mean()) #mean before entry
-                    maxdFF_list.append(fiberbehav_df.loc[ind_event:ind_event+TIME_MEANMAX*sr, 'Denoised dFF'].max()) #max after entry
-                    maxdFF_before_list.append(fiberbehav_df.loc[ind_event-TIME_MEANMAX*sr:ind_event, 'Denoised dFF'].max()) #max before entry
-                    #3 - PETH data
                     print(f'PETH {BOI}')
                     if PETH_array is None:
-                        print('first : ',len(bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)), len(bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)[0]))
-                        PETH_array = bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)
+                        PETH_array = bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME, maxboutsnumber)
                         print('initialize successful')
                     else:
-                        print('then : ',len(bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)), len(bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)[0]))
-                        PETH_array = np.concatenate((PETH_array,bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)))
+                        PETH_array = np.concatenate((PETH_array,bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME, maxboutsnumber)))
                         print('stacking successful')
         
-        included_groups = ['GCamP','GRAB ACh']
+        included_groups = ['CD','HFD']
         for group in included_groups:
             PETH_array_group = PETH_array
             list_todelete = []
             for (i,group_mouse) in enumerate(group_list): 
                 if group not in group_mouse:
                     list_todelete.append(i)
-            np.delete(PETH_array_group,(list_todelete),axis=0)
+            PETH_array_group = np.delete(PETH_array_group,(list_todelete),axis=0)
+            print(len(PETH_array_group))
             fig_PETHpooled = bp.plot_PETH_pooled(PETH_array_group, BOI, 'onset', timewindow, exp, session, group)
             
-            fig_PETHpooled.savefig(repo_path / f'{group}{BOI}{timewindow[1]}_PETH.pdf')
-            fig_PETHpooled.savefig(repo_path / f'{group}{BOI}{timewindow[1]}_PETH.png')
-            
-        #export data to excel
-        if not os.path.exists(repo_path / f'{exp}_{session}_{TIME_MEANMAX}s_maxmeandFFentry.xlsx'):
-            meanmaxdFFs_df = pd.DataFrame(data={'Subject' : subject_list, 'Group' : group_list, 
-                                                'Mean dFF before entry' : meandFF_before_list, 'Mean dFF entry' : meandFF_list, 
-                                                'Max dFF before entry' : maxdFF_before_list, 'Max dFF entry' : maxdFF_list})
-            meanmaxdFFs_df.to_excel(repo_path / f'{exp}_{session}_{TIME_MEANMAX}s_maxmeandFFentry.xlsx')
-        
+            fig_PETHpooled.savefig(PETH_path / f'{group}{BOI}{timewindow[1]}_PETH.pdf')
+            fig_PETHpooled.savefig(PETH_path / f'{group}{BOI}{timewindow[1]}_PETH.png')
 #%% 3 - ANALYSIS - PLETHYSMOGRAPH
 #################################
 

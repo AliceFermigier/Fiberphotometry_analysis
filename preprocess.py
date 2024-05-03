@@ -156,7 +156,7 @@ def butterfilt(data_df, ORDER, CUT_FREQ):
     for col in data_df.columns[1:]:
         fiberpho = data_df[col]
         samplingrate = 1000/(data_df.loc[1000,'Time(s)']-data_df.loc[0,'Time(s)'])
-        sos = signal.butter(ORDER, CUT_FREQ, btype='low', analog=False, output='sos', fs=samplingrate)
+        sos = signal.butter(ORDER, CUT_FREQ, btype='low', output='sos', fs=samplingrate)
         filtered_data = signal.sosfilt(sos, fiberpho)
         
         filtered_df[col] = filtered_data

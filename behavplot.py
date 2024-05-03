@@ -391,7 +391,7 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
     
     return fig2
 
-def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME):
+def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME, maxboutsnumber):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI
     --> Parameters
@@ -412,6 +412,10 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
     list_ind_event_o = np.where(behavprocess_df[BOI] == 1)[0].tolist()
     list_ind_event_w = np.where(behavprocess_df[BOI] == -1)[0].tolist()
     
+    if maxboutsnumber != None:
+        list_ind_event_o = list_ind_event_o[:maxboutsnumber]
+        list_ind_event_w = list_ind_event_w[:maxboutsnumber]
+    
     #if event too short, don't process it
     EVENT_TIME_THRESHOLD = EVENT_TIME_THRESHOLD*sr
     for (start,end) in zip(list_ind_event_o, list_ind_event_w):
@@ -431,10 +435,10 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
     if list_ind_event[-1]+POST_TIME*sr >= len(behavprocess_df):
         list_ind_event.pop(-1)
     
-    #take the beginning of the behaviour as the beginning of the slope : min(dFF) on 5 secs before entry
+    #take the beginning of the behaviour as the beginning of the slope : min(dFF) on 1 secs before entry
     if event == 'onset':
         for i,ind_onset in enumerate(list_ind_event):
-            list_ind_event[i] = behavprocess_df.loc[ind_onset-5*sr:ind_onset, 'Denoised dFF'].idxmin()
+            list_ind_event[i] = behavprocess_df.loc[ind_onset-1*sr:ind_onset+1, 'Denoised dFF'].idxmin()
         
     PETH_array = np.zeros((len(list_ind_event),(POST_TIME+PRE_TIME)*sr+1))
     std_alltrace = np.std(behavprocess_df['Denoised dFF'])
@@ -576,7 +580,7 @@ def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, session, group):
     ax5.set_xlabel('Seconds')
     ax5.set_ylabel('z-scored $\Delta$F/F')
     ax5.legend(handles=[p2,p8], loc='upper left', fontsize = 'small')
-    ax5.set_ylim(-2,8)
+    ax5.set_ylim(-2,4)
     ax5.margins(0, 0.1)
     ax5.set_title(f'{BOI} - {exp} {session} {group}')
     
