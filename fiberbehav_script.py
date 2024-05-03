@@ -59,7 +59,7 @@ PRE_EVENT_TIME = 0
 #time to crop at the beginning of the trial for , in seconds
 TIME_BEGIN = 20
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 #filter characteristics
@@ -263,11 +263,12 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             for BOI in list_BOI:
                 if BOI not in ['Entry in arena','Gate opens','Tail suspension']:
                     for event, timewindow in zip(list_EVENT,list_TIMEWINDOW): #CAUTION : adapt function!!
-                        PETH_data = bp.PETH(dfiberbehav_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME)
+                        PETH_data = bp.PETH(dfiberbehav_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVENT_TIME)
+                        PETH_df = pd.DataFrame(np.transpose(PETH_data),index=np.arange(-timewindow[0], timewindow[1]+0.1, 0.1))
+                        PETH_df.to_excel(PETH_path / f'{mouse}_{code}_{BOI}{event[0]}{timewindow}_PETHdata.xlsx')
                         fig_PETH = bp.plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse, group)
                         fig_PETH.savefig(PETH_path /  f'{mouse}_{code}_{BOI}{event[0]}{timewindow[0]-timewindow[1]}_PETH.png')
                         
-
 #%% 2.3 - Calculate mean, max and diff within behaviours (for state behaviours)
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:

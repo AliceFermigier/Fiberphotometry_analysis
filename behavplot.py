@@ -15,6 +15,11 @@ Functions for plotting with behavioural data
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
+
+if 'D:\Profil\Documents\GitHub\Fiberphotometry_analysis' not in sys.path:
+    sys.path.append('D:\Profil\Documents\GitHub\Fiberphotometry_analysis')
+import preprocess as pp
 
 #%%
 ###################
@@ -392,6 +397,7 @@ def plot_fiberpho_behav(behavprocess_df,list_BOI,exp,session,mouse,THRESH_S,EVEN
     return fig2
 
 def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME, maxboutsnumber):
+
     """
     Creates dataframe of fiberpho data centered on bout event for BOI
     --> Parameters
@@ -406,8 +412,8 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
     
-    #round samplerate
-    sr = round(sr)
+    #samplerate
+    sr = round(pp.samplerate(behavprocess_df))
         
     list_ind_event_o = np.where(behavprocess_df[BOI] == 1)[0].tolist()
     list_ind_event_w = np.where(behavprocess_df[BOI] == -1)[0].tolist()
@@ -442,13 +448,14 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
         
     PETH_array = np.zeros((len(list_ind_event),(POST_TIME+PRE_TIME)*sr+1))
     std_alltrace = np.std(behavprocess_df['Denoised dFF'])
+    F0_alltrace = np.mean(behavprocess_df['Denoised dFF'])
     for i, ind_event in enumerate(list_ind_event) :
         #calculates baseline F0 on time window before event (from PRE_TIME to PRE_EVENT_TIME)
-        F0 = np.mean(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
+        #F0 = np.mean(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
         #std0 = np.std(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
         #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
         if len(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event+(POST_TIME*sr), 'Denoised dFF']) == len(PETH_array[0]):
-            PETH_array[i] = (behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event+(POST_TIME*sr), 'Denoised dFF']-F0)/std_alltrace
+            PETH_array[i] = (behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event+(POST_TIME*sr), 'Denoised dFF']-F0_alltrace)/std_alltrace
     
     return PETH_array
 
@@ -460,14 +467,14 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse, group):
     POST_TIME = timewindow[1]
     
     #create figure
-    fig4 = plt.figure(figsize=(6,10))
+    fig4 = plt.figure(figsize=(15,10))
     
     #create time vector
     peri_time = np.arange(-PRE_TIME, POST_TIME+0.1, 0.1)
     
     #calculate mean dFF and std error
     mean_dFF_snips = np.mean(PETH_data, axis=0)
-    std_dFF_snips = np.std(PETH_data, axis=0)
+    std_dFF_snips = np.std(PETH_data, axis=0)/(np.sqrt(len(PETH_data)))
         
     #plot individual traces and mean
     ax5 = fig4.add_subplot(212)
@@ -483,6 +490,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse, group):
     p4 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label='Exploration '+event)
     
     #ax5.axis('tight')
+    #ax5.set_ylim(ymin=-1,ymax=3)
     ax5.set_xlabel('Time(s)')
     ax5.set_ylabel('z-scored $\Delta$F/F')
     ax5.legend(handles=[p1, p2, p4], loc='upper left', fontsize = 'small')
@@ -492,7 +500,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse, group):
     ax6 = fig4.add_subplot(211)
     cs = ax6.imshow(PETH_data, cmap='magma', aspect = 'auto',
                     interpolation='none', extent=[-PRE_TIME, POST_TIME, len(PETH_data), 0],
-                    vmin = -3, vmax = 3)
+                    vmin = -3, vmax = 4)
     ax6.set_ylabel('Bout Number')
     ax6.set_yticks(np.arange(.5, len(PETH_data), 2))
     ax6.set_yticklabels(np.arange(0, len(PETH_data), 2))
