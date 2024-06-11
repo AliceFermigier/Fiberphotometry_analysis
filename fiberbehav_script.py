@@ -235,10 +235,10 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             fig_fiberbehav.savefig(repo_path/f'{mouse}_{code}_fiberbehav.pdf')
             fig_fiberbehav.savefig(repo_path/f'{mouse}_{code}_fiberbehav.png')
 
-#%% 2.2 - Plot PETH for each mouse
+#%% 2.2 - Plot PETH for each mouse and calculate mean and max z-scored dFF before and after behaviour
 #the beginning of the PETH will be plotted at the beginning of an ascending curve
 
-#PETH parameters
+#PETH parameters 
 list_EVENT = ['onset'] #, 'withdrawal']
 list_TIMEWINDOW = [[5,30]] #,[4,15]] 
 
@@ -390,6 +390,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         subject_list = []
         group_list = []
         PETH_array = None
+        PETH_mean_list = []
+        PETH_max_list = []
         for mouse in subjects_df['Subject']:
             print("--------------")
             print(f'MOUSE : {mouse}')
@@ -403,13 +405,22 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
                     subject_list.append(mouse)
                     group_list.append(group)
                     print(f'PETH {BOI}')
+                    PETH_mouse = bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME, maxboutsnumber)
                     if PETH_array is None:
-                        PETH_array = bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME, maxboutsnumber)
+                        PETH_array = PETH_mouse
                         print('initialize successful')
                     else:
-                        PETH_array = np.concatenate((PETH_array,bp.PETH(fiberbehav_df, BOI, 'onset', timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME, maxboutsnumber)))
+                        PETH_array = np.concatenate((PETH_array,PETH_mouse))
                         print('stacking successful')
-        
+                    #calculate mean and max a z-scored dFF
+                    PETH_mean_list.append(np.mean(PETH_mouse[:timewindow[0]]),np.mean(PETH_mouse[timewindow[0]:]))
+                    PETH_max_list.append(np.max(PETH_mouse[:timewindow[0]]),np.max(PETH_mouse[timewindow[0]:]))
+                    
+        meanmaxPETH_df = pd.DataFrame(data={'Subject' : subject_list, 'Group' : group_list, 
+                                                        f'Mean dFF before {BOI}' : list(list(zip(*PETH_mean_list))[0]), f'Mean dFF {BOI}' : list(list(zip(*PETH_mean_list))[1]), 
+                                                        f'Max dFF before {BOI}' : list(list(zip(*PETH_max_list))[0]), f'Max dFF {BOI}' : list(list(zip(*PETH_max_list))[1])})
+        meanmaxPETH_df.to_excel(PETH_path / f'{BOI}_{timewindow[0]}{timewindow[1]}_PETHmeanmax.xlsx')
+                    
         included_groups = ['CD','HFD']
         for group in included_groups:
             PETH_array_group = PETH_array
