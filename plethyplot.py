@@ -217,8 +217,8 @@ def PETH_sniff(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EV
     sr = round(sr)
     
     #set time window relative to event
-    PRE_TIME = timewindow[0]
-    POST_TIME = timewindow[1]
+    PRE_TIME = float(timewindow[0])
+    POST_TIME = float(timewindow[1])
     
     if count == 0:
         list_ind_event_o = []
@@ -294,8 +294,8 @@ def PETH_stim(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EVE
     PETH_array = np.zeros((len(list_ind_event),(POST_TIME+PRE_TIME)*sr+1))
     for (i, ind_event) in enumerate(list_ind_event) :
         #calculates baseline F0 on time window before event (from PRE_TIME to PRE_EVENT_TIME)
-        F0 = np.mean(dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
-        std0 = np.std(dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
+        F0 = np.mean(dfibersniff_df.loc[ind_event-10*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
+        std0 = np.std(dfibersniff_df.loc[ind_event-10*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
         #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
         PETH_array[i] = (dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event+POST_TIME*sr, 'Denoised dFF']-F0)/std0
     

@@ -21,29 +21,22 @@ import matplotlib.pyplot as plt
 plt.rcParams.update({'figure.max_open_warning' : 0})
 from pathlib import Path
 import os
-import sys
 from dash import Dash, dcc, html
 import plotly.express as px
-
-#Custom
-#put path to directory where python files are stored
-if 'D:\Profil\Documents\GitHub\Fiberphotometry_analysis' not in sys.path:
-    sys.path.append('D:\Profil\Documents\GitHub\Fiberphotometry_analysis')
-if '/Users/alice/Documents/GitHub/Fiberphotometry_analysis' not in sys.path:
-    sys.path.append('/Users/alice/Documents/GitHub/Fiberphotometry_analysis')
 
 import preprocess as pp
 import genplot as gp
 import behavplot as bp
 import plethyplot as plp
 import statcalc as sc
+import transients as tr
 
 #%%
 ########
 #LOADER#
 ########
 
-experiment_path = Path('D:\\Alice\\Fiber\\202301_CA2b5') #/Users/alice/Desktop/Fiberb5
+experiment_path = Path('E:\\Alice\\Fiber\\202301_CA2b5')
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -59,9 +52,9 @@ PRE_EVENT_TIME = 0
 #time to crop at the beginning of the trial for , in seconds
 TIME_BEGIN = 20
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 5
+THRESH_S = 1
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 0
+EVENT_TIME_THRESHOLD = 1
 #filter characteristics
 ORDER = 4
 CUT_FREQ = 1 #in Hz
@@ -76,7 +69,7 @@ SAMPLERATE = 10 #in Hz
 #####################
 
 #------------------#
-exp = 'Fear'
+exp = 'Plethysmo'
 #------------------#
 
 exp_path = analysis_path / exp
@@ -484,10 +477,12 @@ for mouse in subjects_df['Subject']:
     if mouse in set(sniffs_df['Subject']):
         fiberpho_df = pd.read_csv(pp_path / f'{mouse}_{code}_dFFfilt.csv',index_col=0)
         if not (repo_path / f'{mouse}_{code}_fibersniff.csv').is_file():
-            srows=1  
             rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
             sr = pp.samplerate(fiberpho_df)
-            plethys_df = pd.read_csv(rawdata_path, skiprows=srows, usecols=['Time(s)','AIn-4'])
+            if mouse == 'A3f':
+                plethys_df = pd.read_csv(rawdata_path, usecols=['Time(s)','AIn-4'])
+            else:
+                plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
             fibersniff_df = plp.align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse)
             fibersniff_df = plp.process_fibersniff(fibersniff_df, EVENT_TIME_THRESHOLD, THRESH_S, sr)
             dfibersniff_df = plp.derive(fibersniff_df)
@@ -545,7 +540,7 @@ for mouse in subjects_df['Subject']:
                     fig_PETHstim.savefig(PETH_path / f'{mouse}{odor}_PETHstim{event[0]}.pdf')
         plt.close('all')
         
-#%% 3.4.1 - Calculate mean and max before and during stims for whole group
+#%% 3.4.1 - Calculate mean, max before and during stims for whole group
 
 #------------------------------#
 TIME_MEANMAX = 15 #in seconds
@@ -624,7 +619,7 @@ meandFFs_allmice.to_excel(groupanalysis_path / f'{exp}_{session}_globmeandFFs.xl
 #for PETH, groups that will be plotted:
 included_groups = ['CD','HFD']
 event = 'onset' #or 'withdrawal'
-timewindow = [6,15]
+timewindow = [-6,15]
 #------------------------------#
                 
 print('##########################################')
@@ -678,7 +673,7 @@ for type_event in ['Stim']:
 #for PETH, groups that will be plotted:
 included_groups = ['CD','HFD']
 event = 'onset' #or 'withdrawal'
-timewindow = [6,15]
+timewindow = [-6,15]
 #------------------------------#
                 
 print('##########################################')
@@ -722,3 +717,49 @@ for type_event in ['Stim']:
             fig_PETHpooled = bp.plot_PETH_pooled(included_groups, PETHarray_list, BOI, event, timewindow, exp, session) 
             fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{count}{event[0]}{timewindow[1]}_PETH.pdf')
             fig_PETHpooled.savefig(groupanalysis_path / f'{included_groups[0]}{included_groups[1]}{type_event}{odor}{count}{event[0]}{timewindow[1]}_PETH.png')
+
+#%% 3.6 - Compute variance and transients
+
+# Paramètres du filtre
+lowcut = 0.001  # Fréquence de coupure inférieure en Hz
+highcut = 0.5  # Fréquence de coupure supérieure en Hz
+
+print('##########################################')
+print(f'EXPERIMENT : {exp} - SESSION : {session}')
+print('##########################################')
+code = gp.session_code(session,exp)
+repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+groupanalysis_path = repo_path / 'Group analysis'
+
+mouse_list=[]
+group_list=[]
+var_list=[]
+transients_freq_list=[]
+transients_meanamp_list=[]
+
+for mouse in subjects_df['Subject']:
+    if mouse in set(sniffs_df['Subject']):
+        print("--------------")
+        print(f'MOUSE : {mouse}')
+        print("--------------")
+        dfiber_df = pd.read_csv(repo_path / f'{mouse}_{code}_fibersniff.csv', 
+                             usecols=['Time(s)','Denoised dFF'])
+        sr = pp.samplerate(dfiber_df)
+        dfiber_df['Filtered dFF'] = tr.bandpass_filter(dfiber_df['Denoised dFF'], lowcut, highcut, sr)
+        tr.plot_signal_and_spectrum(dfiber_df['Time(s)'], dfiber_df['Denoised dFF'], dfiber_df['Filtered dFF'], sr)
+        group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+        group_list.append(group) 
+        mouse_list.append(mouse)
+        var_list.append(np.var(dfiber_df['Denoised dFF']))
+        fiberpeaks_df, peak_frequency, mean_peak_amplitudes = tr.transients(dfiber_df,sr)
+        transients_freq_list.append(peak_frequency)
+        transients_meanamp_list.append(mean_peak_amplitudes)
+        
+list_data = [mouse_list, group_list, var_list, transients_freq_list, transients_meanamp_list]
+list_columns = ['Subject','Group','Variance','Transients frequency', 'Transients amplitude']        
+data = {list_columns[i]: list_data[i] for i in range(len(list_columns))}
+variability_df=pd.DataFrame(data)
+variability_df.to_excel(groupanalysis_path / f'Variability_1o{ORDER}f{lowcut}_{highcut}.xlsx')
+        
+        
+        

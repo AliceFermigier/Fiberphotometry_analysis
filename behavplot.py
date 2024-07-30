@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+ # -*- coding: utf-8 -*-
 """
 Created on Fri Mar 24 16:44:33 2023
 
@@ -447,15 +447,15 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
             list_ind_event[i] = behavprocess_df.loc[ind_onset-1*sr:ind_onset+1, 'Denoised dFF'].idxmin()
         
     PETH_array = np.zeros((len(list_ind_event),(POST_TIME+PRE_TIME)*sr+1))
-    std_alltrace = np.std(behavprocess_df['Denoised dFF'])
-    F0_alltrace = np.mean(behavprocess_df['Denoised dFF'])
+    # std_alltrace = np.std(behavprocess_df['Denoised dFF'])
+    # F0_alltrace = np.mean(behavprocess_df['Denoised dFF'])
     for i, ind_event in enumerate(list_ind_event) :
         #calculates baseline F0 on time window before event (from PRE_TIME to PRE_EVENT_TIME)
-        #F0 = np.mean(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
-        #std0 = np.std(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
+        F0 = np.mean(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
+        std0 = np.std(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
         #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
         if len(behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event+(POST_TIME*sr), 'Denoised dFF']) == len(PETH_array[0]):
-            PETH_array[i] = (behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event+(POST_TIME*sr), 'Denoised dFF']-F0_alltrace)/std_alltrace
+            PETH_array[i] = (behavprocess_df.loc[ind_event-PRE_TIME*sr:ind_event+(POST_TIME*sr), 'Denoised dFF']-F0)/std0
     
     return PETH_array
 
@@ -552,15 +552,15 @@ def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, session, group):
     timewindow : time before and after behaviour
     """
     
-    PRE_TIME = timewindow[0]
-    POST_TIME = timewindow[1]
+    PRE_TIME = float(timewindow[0])
+    POST_TIME = float(timewindow[1])
     
     #create figure
     fig4 = plt.figure(figsize=(6,4))
     ax5 = fig4.add_subplot(111)
     
     #create time vector
-    peri_time = np.arange(-PRE_TIME, POST_TIME+0.1, 0.1)       
+    peri_time = np.arange(-6, 15+0.1, 0.1)       
     
     if type(PETH_array[0])!=np.float64:
         listmean_dFF_snips = np.mean(PETH_array, axis=0)
