@@ -23,6 +23,10 @@ from pathlib import Path
 import os
 from dash import Dash, dcc, html
 import plotly.express as px
+import sys
+
+if 'C:\\Users\\alice\\Documents\\GitHub\\Fiberphotometry_analysis' not in sys.path:
+    sys.path.append('C:\\Users\\alice\\Documents\\GitHub\\Fiberphotometry_analysis')
 
 import preprocess as pp
 import genplot as gp
@@ -50,7 +54,7 @@ proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 #time before behaviour for calculation of PETH baseline, in seconds
 PRE_EVENT_TIME = 0
 #time to crop at the beginning of the trial for , in seconds
-TIME_BEGIN = 20
+TIME_BEGIN = 60
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 1
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
@@ -69,7 +73,7 @@ SAMPLERATE = 10 #in Hz
 #####################
 
 #------------------#
-exp = 'Plethysmo'
+exp = 'OdDispostshock'
 #------------------#
 
 exp_path = analysis_path / exp
@@ -427,6 +431,50 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             
             fig_PETHpooled.savefig(PETH_path / f'{group}{BOI}{timewindow[1]}_PETH.pdf')
             fig_PETHpooled.savefig(PETH_path / f'{group}{BOI}{timewindow[1]}_PETH.png')
+            
+#%% 2.6 - Compute variance and transients
+
+# Paramètres du filtre
+lowcut = 0.005  # Fréquence de coupure inférieure en Hz
+highcut = 0.5  # Fréquence de coupure supérieure en Hz
+
+print('##########################################')
+print(f'EXPERIMENT : {exp} - SESSION : {session}')
+print('##########################################')
+code = gp.session_code(session,exp)
+repo_path = session_path /  f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+groupanalysis_path = repo_path / 'Group analysis'
+
+mouse_list=[]
+group_list=[]
+var_list=[]
+transients_freq_list=[]
+transients_meanamp_list=[]
+
+for mouse in subjects_df['Subject']:
+        print("--------------")
+        print(f'MOUSE : {mouse}')
+        print("--------------")
+        dfiber_df = pd.read_csv(repo_path / f'{mouse}_{code}_fiberbehav.csv', 
+                             usecols=['Time(s)','Denoised dFF'])
+        dfiber_df=dfiber_df[TIME_BEGIN*10:]
+        dfiber_df.reset_index(inplace=True)
+        sr = pp.samplerate(dfiber_df)
+        dfiber_df['Filtered dFF'] = tr.bandpass_filter(dfiber_df['Denoised dFF'], lowcut, highcut, sr)
+        tr.plot_signal_and_spectrum(dfiber_df['Time(s)'], dfiber_df['Denoised dFF'], dfiber_df['Filtered dFF'], sr)
+        group = subjects_df.loc[subjects_df['Subject']==mouse, 'Group'].values[0]
+        group_list.append(group) 
+        mouse_list.append(mouse)
+        var_list.append(np.var(dfiber_df['Denoised dFF']))
+        fiberpeaks_df, peak_frequency, mean_peak_amplitudes = tr.transients(dfiber_df,sr)
+        transients_freq_list.append(peak_frequency)
+        transients_meanamp_list.append(mean_peak_amplitudes)
+        
+list_data = [mouse_list, group_list, var_list, transients_freq_list, transients_meanamp_list]
+list_columns = ['Subject','Group','Variance','Transients frequency', 'Transients amplitude']        
+data = {list_columns[i]: list_data[i] for i in range(len(list_columns))}
+variability_df=pd.DataFrame(data)
+variability_df.to_excel(groupanalysis_path / f'Variability_1o{ORDER}f{lowcut}_{highcut}.xlsx')
 #%% 3 - ANALYSIS - PLETHYSMOGRAPH
 #################################
 
