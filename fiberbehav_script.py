@@ -25,9 +25,11 @@ from dash import Dash, dcc, html
 import plotly.express as px
 import sys
 
+#path to other scripts in sys.path
 if 'C:\\Users\\alice\\Documents\\GitHub\\Fiberphotometry_analysis' not in sys.path:
     sys.path.append('C:\\Users\\alice\\Documents\\GitHub\\Fiberphotometry_analysis')
 
+#import functions
 import preprocess as pp
 import genplot as gp
 import behavplot as bp
@@ -41,7 +43,7 @@ import transients as tr
 ########
 
 experiment_path = Path('E:\\Alice\\Fiber\\202301_CA2b5')
-analysis_path = experiment_path / 'Analysis'
+analysis_path = experiment_path / 'Analysis' 
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
 os.getcwd()
@@ -51,8 +53,10 @@ subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Inclu
 #import tasks in protocol
 proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 
-#time before behaviour for calculation of PETH baseline, in seconds
-PRE_EVENT_TIME = 0
+############
+#PARAMETERS#
+############
+
 #time to crop at the beginning of the trial for , in seconds
 TIME_BEGIN = 60
 #threshold to fuse behaviour if bouts are too close, in secs
@@ -62,13 +66,12 @@ EVENT_TIME_THRESHOLD = 1
 #filter characteristics
 ORDER = 4
 CUT_FREQ = 1 #in Hz
-# ideal samplerate : deinterleaved data samplerate should be 10 but is 9.99 instead ==> change index to align with behaviour
+#deinterleaved data samplerate should be 10 but is 9.99 instead ==> change index to align with behaviour
 SAMPLERATE = 10 #in Hz
 
 ########
 #SCRIPT#
 ########
-
 #%% 1 - PREPROCESSING
 #####################
 
@@ -86,7 +89,8 @@ for session_list in proto_df.loc[proto_df['Task']==exp,'Sessions'].values[0].spl
 #get data path related to the task in protocol excel file
 data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
 
-pp_path = data_path_exp / 'Preprocessing' # put all raw plots and deinterleaved_df in separate folder
+# put all raw plots and deinterleaved_df in separate folder
+pp_path = data_path_exp / 'Preprocessing'
 if not os.path.exists(pp_path):
     os.mkdir(pp_path)
 
@@ -124,8 +128,7 @@ code = gp.session_code(session,exp)
 deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
 
 app = Dash(__name__)
-fig = px.line(deinterleaved_df[100:], x='Time(s)', y='405 Deinterleaved')
-#fig = px.line(deinterleaved_df, x='Time(s)', y='405 Deinterleaved')
+fig = px.line(deinterleaved_df[TIME_BEGIN:], x='Time(s)', y='405 Deinterleaved')
 app.layout = html.Div([
     html.H4(f'{exp} {session} {mouse}'),
     dcc.Graph(
@@ -238,6 +241,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 #PETH parameters 
 list_EVENT = ['onset'] #, 'withdrawal']
 list_TIMEWINDOW = [[5,30]] #,[4,15]] 
+#time before behaviour for calculation of PETH baseline, in seconds
+PRE_EVENT_TIME = 0
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = str(session_path).split('\\')[-1]
@@ -435,7 +440,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 #%% 2.6 - Compute variance and transients
 
 # Paramètres du filtre
-lowcut = 0.005  # Fréquence de coupure inférieure en Hz
+lowcut = 0.0001  # Fréquence de coupure inférieure en Hz
 highcut = 0.5  # Fréquence de coupure supérieure en Hz
 
 print('##########################################')
