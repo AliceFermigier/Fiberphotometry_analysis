@@ -27,32 +27,6 @@ from ast import literal_eval
 
 def align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse):
     """
-    Aligns fiberpho data with plethysmo and sniffs
-    """
-    sniffmouse_df = sniffs_df.loc[(sniffs_df['Subject']==mouse)]
-    fibersniff_df = pd.DataFrame({'Time(s)':fiberpho_df['Time(s)'], 'Denoised dFF':fiberpho_df['Denoised dFF']})
-    #downsample plethys_df:
-    plethys_df = plethys_df.loc[[round(i) for i in np.linspace(0,len(plethys_df)-1,len(fiberpho_df))]]
-    fibersniff_df.insert(len(fibersniff_df.columns),'Plethysmograph',plethys_df['AIn-4'].values,allow_duplicates = False)
-    for odor in set(sniffs_df['Odor']):
-        for (count,stim) in enumerate(sniffmouse_df.loc[sniffmouse_df['Odor']==odor,'Stim'].values):
-            print(f'Stim {odor} {count}')
-            fibersniff_df.insert(len(fibersniff_df.columns),f'Stim {odor} {count}',0,allow_duplicates = False)
-            [x_start,x_stop] = literal_eval(stim)
-            print("start,stop:",[x_start*sr,x_stop*sr])
-            print('b sdf:', fibersniff_df.loc[round(x_start*sr):round(x_stop*sr), f'Stim {odor} {count}'])
-            fibersniff_df.loc[round(x_start*sr):round(x_stop*sr), f'Stim {odor} {count}'] = 1
-        for (count,list_sniffs) in enumerate(sniffmouse_df.loc[sniffmouse_df['Odor']==odor,'Start_Stop'].values):
-            print(f'Sniff {odor} {count}')
-            fibersniff_df.insert(len(fibersniff_df.columns),f'Sniff {odor} {count}',0,allow_duplicates = False)
-            for [x_start, x_stop] in literal_eval(list_sniffs):
-                if [x_start, x_stop] != [0,0]:
-                    fibersniff_df.loc[round(x_start*sr):round(x_stop*sr), f'Sniff {odor} {count}'] = 1
-    
-    return fibersniff_df
-
-def align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse):
-    """
     Aligns fiberpho data with plethysmograph and sniffs data for a specific mouse.
 
     --> Parameters:
@@ -61,7 +35,7 @@ def align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse):
         plethys_df : pd.DataFrame 
             DataFrame containing plethysmograph data.
         sniffs_df : pd.DataFrame 
-            DataFrame containing sniffing information, with 'Subject', 'Odor', 'Stim', and 'Start_Stop' columns.
+            DataFrame containing sniffing information, with 'Subject', 'Odor', 'Stim' and 'Start_Stop' columns.
         sr : float 
             Sampling rate of the system.
         mouse : str 
@@ -345,7 +319,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df, sniffs_df, mouse):
     # Return the figure object
     return fig
 
-def PETH_sniff(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EVENT_TIME):
+def PETH_sniff(dfibersniff_df, odor, event, timewindow, mouse, sr, PRE_EVENT_TIME=0, count=0, baselinewindow=False):
     """
     Creates a Peri-Event Time Histogram (PETH) of fiberphotometry data centered on sniff events for a specified odor.
     
@@ -366,13 +340,16 @@ def PETH_sniff(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EV
             Two-element list specifying the [PRE_TIME, POST_TIME] window around the event (in seconds).
             
         mouse : str 
-            Identifier for the subject (e.g., 'Mouse_A').
+            Identifier for the subject
             
         sr : float 
             Sampling rate (samples per second) of the recorded data.
             
-        PRE_EVENT_TIME : float 
+        PRE_EVENT_TIME : float (optional)
             Amount of time (in seconds) prior to the event to use for baseline normalization.
+            
+        baselinewindow : Bool
+            Tells if standard deviation for z-score calculation is on a timewindow before behavior onset (True) or on whole trace (False)
             
     --> Returns:
         PETH_array : np.ndarray 
@@ -415,6 +392,10 @@ def PETH_sniff(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EV
     event_duration_samples = int((POST_TIME + PRE_TIME) * sr + 1)
     PETH_array = np.zeros((len(list_event), event_duration_samples))
     
+    # Initialize mean dFF and std on whole trace
+    F0 = dfibersniff_df['Denoised dFF'].mean()
+    std0 = dfibersniff_df['Denoised dFF'].std()
+    
     # Step 3: Calculate z-scored dFF centered on each event
     for i, ind_event in enumerate(list_event):
         # Ensure indices are valid (check if pre-event baseline window fits in the DataFrame)
@@ -424,10 +405,11 @@ def PETH_sniff(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EV
         # Calculate baseline F0 and standard deviation (std) from pre-event window
         baseline_start = int(ind_event - PRE_TIME * sr)
         baseline_end = int(ind_event - PRE_EVENT_TIME * sr)
-        dFF_baseline = dfibersniff_df.loc[baseline_start:baseline_end, 'Denoised dFF']
         
-        F0 = dFF_baseline.mean()
-        std0 = dFF_baseline.std()
+        if baselinewindow:
+            dFF_baseline = dfibersniff_df.loc[baseline_start:baseline_end, 'Denoised dFF']
+            F0 = dFF_baseline.mean()
+            std0 = dFF_baseline.std()
         
         # Extract the fiberphotometry signal for the full window around the event
         event_start = int(ind_event - PRE_TIME * sr)
@@ -442,218 +424,296 @@ def PETH_sniff(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EV
     
     return PETH_array
 
-
-def PETH_sniff(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EVENT_TIME):
+def PETH_stim(dfibersniff_df, odor, event, timewindow, mouse, sr, PRE_EVENT_TIME=0, count=0, baselinewindow=False):
     """
-    Creates dataframe of fiberpho data centered on bout event for BOI
-    --> Parameters
-        behavprocess_df : pd dataframe, aligned fiberpho and behav data for 1 mouse
-        BOI : str, behaviour of interest (must have the same name as behavprocess column name)
-        event : str, onset or withdrawal
-        timewindow : list, time pre and post event
-    --> Returns
-        PETHo_array : np array, normalized fiberpho data centered on event
+    Creates a Peri-Event Time Histogram (PETH) of fiberphotometry data centered on stimulus events.
+    
+    --> Parameters:
+        dfibersniff_df : pd.DataFrame 
+            DataFrame containing fiberphotometry and behavioral data with columns such as 'Denoised dFF' and 'Stim {odor} {count}'
+            
+        odor : str 
+            Odor type (e.g., 'Clean', 'HC', 'Novel')
+            
+        count : int (optional, default=0)
+            If 0, uses all stimulus events for the given odor; otherwise, filters for a specific stimulus count.
+            
+        event : str 
+            Either 'onset' or 'withdrawal', defining which moment to center the PETH on.
+            
+        timewindow : list 
+            Two-element list specifying the [PRE_TIME, POST_TIME] window around the event (in seconds).
+            
+        mouse : str 
+            Identifier for the subject (e.g., 'Mouse_A').
+            
+        sr : float 
+            Sampling rate (samples per second) of the recorded data.
+            
+        PRE_EVENT_TIME : float (optional, default=0)
+            Amount of time (in seconds) prior to the event to use for baseline normalization.
+            
+        baselinewindow : Bool (optional, default=False)
+            Tells if standard deviation for z-score calculation is on a timewindow before behavior onset (True) or on whole trace (False)
+            
+    --> Returns:
+        PETH_array : np.ndarray 
+            2D array where each row corresponds to the z-scored fiberphotometry signal for a specific event, 
+            centered on the event and spanning the timewindow [PRE_TIME, POST_TIME].
     """
-    #round samplerate because has to be an int
+    
+    # Round sampling rate to ensure it's an integer
     sr = round(sr)
     
-    #set time window relative to event
-    PRE_TIME = float(timewindow[0])
-    POST_TIME = float(timewindow[1])
-    
-    if count == 0:
-        list_ind_event_o = []
-        list_ind_event_w = []
-        for col in dfibersniff_df.columns[3:]:
-            if col.split()[0] == 'Sniff' and col.split()[1] == odor:
-                for i in np.where(dfibersniff_df[col] == 1)[0].tolist():
-                    list_ind_event_o.append(i)
-                for j in np.where(dfibersniff_df[col] == -1)[0].tolist():
-                    list_ind_event_w.append(j)
-    else:
-        list_ind_event_o = np.where(dfibersniff_df[f'Sniff {odor} {count}'] == 1)[0].tolist()
-        list_ind_event_w = np.where(dfibersniff_df[f'Sniff {odor} {count}'] == -1)[0].tolist()
-    
-    #creates array of fiberpho data centered on event
-    if event == 'onset':
-        list_event = list_ind_event_o
-    elif event == 'withdrawal':
-        list_event = list_ind_event_w
-        
-        #take the beginning of the behaviour as the beginning of the slope : min(dFF) on 3 secs before entry
-    if event == 'onset':
-        for i,ind_onset in enumerate(list_event):
-            list_event[i] = dfibersniff_df.loc[ind_onset-3*sr:ind_onset, 'Denoised dFF'].idxmin()
-        
-    PETH_array = np.zeros((len(list_event),(POST_TIME+PRE_TIME)*sr+1))
-    for (i, ind_event) in enumerate(list_event) :
-        #calculates baseline F0 on time window before event (from PRE_TIME to PRE_EVENT_TIME)
-        F0 = np.mean(dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
-        std0 = np.std(dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
-        #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
-        PETH_array[i] = (dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event+POST_TIME*sr, 'Denoised dFF']-F0)/std0
-    
-    return PETH_array
-
-def PETH_stim(dfibersniff_df, odor, count, event, timewindow, mouse, sr, PRE_EVENT_TIME):
-    """
-    Creates dataframe of fiberpho data centered on bout event for BOI
-    --> Parameters
-        behavprocess_df : pd dataframe, aligned fiberpho and behav data for 1 mouse
-        BOI : str, behaviour of interest (must have the same name as behavprocess column name)
-        event : str, onset or withdrawal
-        timewindow : list, time pre and post event
-    --> Returns
-        PETHo_array : np array, normalized fiberpho data centered on event
-    """
-    #round samplerate because has to be an int
-    sr = round(sr)
-    
-    #set time window relative to event
+    # Set time window relative to event
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
+    BASELINE_DURATION = 10  # Duration in seconds for baseline calculation before PRE_EVENT_TIME
+    
+    # Step 1: Identify indices for event onsets and withdrawals
+    list_ind_event_o = []
+    list_ind_event_w = []
     
     if count == 0:
-        list_ind_event_o = []
-        list_ind_event_w = []
         for col in dfibersniff_df.columns[3:]:
-            if col.split()[0] == 'Stim' and col.split()[1] == odor:
-                for i in np.where(dfibersniff_df[col] == 1)[0].tolist():
-                    list_ind_event_o.append(i)
-                for j in np.where(dfibersniff_df[col] == -1)[0].tolist():
-                    list_ind_event_w.append(j)
+            if col.startswith(f'Stim {odor}'):
+                list_ind_event_o.extend(np.where(dfibersniff_df[col] == 1)[0].tolist())
+                list_ind_event_w.extend(np.where(dfibersniff_df[col] == -1)[0].tolist())
     else:
         list_ind_event_o = np.where(dfibersniff_df[f'Stim {odor} {count}'] == 1)[0].tolist()
         list_ind_event_w = np.where(dfibersniff_df[f'Stim {odor} {count}'] == -1)[0].tolist()
     
-    #creates array of fiberpho data centered on event
-    if event == 'onset':
-        list_ind_event = list_ind_event_o
-    elif event == 'withdrawal':
-        list_ind_event = list_ind_event_o
+    # Step 2: Select the event type (onset or withdrawal)
+    list_ind_event = list_ind_event_o if event == 'onset' else list_ind_event_w
+
+    # Handle case where there are no events
+    if len(list_ind_event) == 0:
+        print(f"No {event} events found for odor {odor} and count {count}.")
+        return np.array([])  # Return empty array if no events found
+    
+    # Calculate the size of the PETH array
+    event_duration_samples = int((POST_TIME + PRE_TIME) * sr + 1)
+    PETH_array = np.zeros((len(list_ind_event), event_duration_samples))
+    
+    # Initiates mean dFF and std on whole trace
+    F0 = dfibersniff_df['Denoised dFF'].mean()
+    std0 = dfibersniff_df['Denoised dFF'].std()
+    
+    # Step 3: Calculate z-scored dFF centered on each event
+    for i, ind_event in enumerate(list_ind_event):
+        # Ensure indices are within bounds of DataFrame
+        baseline_start = int(ind_event - BASELINE_DURATION * sr)
+        baseline_end = int(ind_event - PRE_EVENT_TIME * sr)
+        event_start = int(ind_event - PRE_TIME * sr)
+        event_end = int(ind_event + POST_TIME * sr)
         
-    PETH_array = np.zeros((len(list_ind_event),(POST_TIME+PRE_TIME)*sr+1))
-    for (i, ind_event) in enumerate(list_ind_event) :
-        #calculates baseline F0 on time window before event (from PRE_TIME to PRE_EVENT_TIME)
-        F0 = np.mean(dfibersniff_df.loc[ind_event-10*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
-        std0 = np.std(dfibersniff_df.loc[ind_event-10*sr:ind_event-PRE_EVENT_TIME*sr, 'Denoised dFF'])
-        #creates array of z-scored dFF : z = (dFF-meandFF_baseline)/stddFF_baseline
-        PETH_array[i] = (dfibersniff_df.loc[ind_event-PRE_TIME*sr:ind_event+POST_TIME*sr, 'Denoised dFF']-F0)/std0
+        if baseline_start < 0 or event_end >= len(dfibersniff_df):
+            continue  # Skip event if it exceeds DataFrame boundaries
+        
+        if baselinewindow:
+            # Calculate baseline F0 and standard deviation (std) for dFF
+            dFF_baseline = dfibersniff_df.loc[baseline_start:baseline_end, 'Denoised dFF']
+            F0 = dFF_baseline.mean()
+            std0 = dFF_baseline.std()
+            
+        # Extract the dFF signal for the event window
+        dFF_signal = dfibersniff_df.loc[event_start:event_end, 'Denoised dFF']
+        
+        # Z-score the signal: z = (dFF - F0) / std0
+        if std0 > 0:  # Avoid division by zero
+            PETH_array[i] = (dFF_signal - F0) / std0
+        else:
+            PETH_array[i] = dFF_signal  # If std0 == 0, return raw signal
     
     return PETH_array
 
 def plot_PETH(PETH_data, odor, event, timewindow, BOI, sr, mouse):
     """
-    Plots PETH average and heatmap
-    BOI = 'Sniff' or 'Stim'
+    Plots the PETH (Peri-Event Time Histogram) as both an average plot and a heatmap.
+    
+    --> Parameters:
+        PETH_data : np.ndarray 
+            2D array where each row corresponds to a single trial, and each column corresponds to 
+            a time point relative to the event (z-scored fluorescence data)
+            
+        odor : str 
+            The odor associated with the event (e.g., 'Clean', 'HC', 'Novel')
+            
+        event : str 
+            The event type ('onset' or 'withdrawal')
+            
+        timewindow : list 
+            A two-element list specifying the [PRE_TIME, POST_TIME] relative to the event (in seconds)
+            
+        BOI : str 
+            Behavior of interest ('Sniff' or 'Stim')
+            
+        sr : float 
+            Sampling rate (samples per second) of the recorded data
+            
+        mouse : str 
+            Identifier for the subject (e.g., 'Mouse_A')
+            
+    --> Returns:
+        fig : matplotlib.figure.Figure 
+            The figure object containing the PETH plot.
     """
+    
+    # Extract pre and post event times
     PRE_TIME = timewindow[0]
     POST_TIME = timewindow[1]
+    sr = round(sr)  # Ensure sampling rate is an integer
     
-    sr = round(sr)
+    # Handle case where PETH_data is empty
+    if PETH_data.size == 0:
+        print(f"No data available for {odor} {event} for mouse {mouse}. Returning None.")
+        return None
     
-    #create figure
-    fig7 = plt.figure(figsize=(6,10))
+    # Create time vector for the x-axis
+    peri_time = np.arange(-PRE_TIME, POST_TIME + 1/sr, 1/sr)
     
-    #create time vector
-    peri_time = np.arange(-PRE_TIME, POST_TIME+1/sr, 1/sr)
-    print(len(peri_time))
+    if PETH_data.shape[1] != len(peri_time):
+        print(f"Warning: Data length ({PETH_data.shape[1]}) does not match peri_time length ({len(peri_time)}).")
     
-    #calculate mean dFF and std error
+    # Calculate mean and standard deviation for each time point
     mean_dFF_snips = np.mean(PETH_data, axis=0)
     std_dFF_snips = np.std(PETH_data, axis=0)
-        
-    #plot individual traces and mean
-    ax5 = fig7.add_subplot(212)
-    for snip in PETH_data:
-        print(len(snip))
-        p1, = ax5.plot(peri_time, snip, linewidth=.5,
-                       color=[.7, .7, .7], label='Individual trials')
-    p2, = ax5.plot(peri_time, mean_dFF_snips, linewidth=2,
-                   color='green', label='Mean response')
     
-    #plot standard error bars
-    p3 = ax5.fill_between(peri_time, mean_dFF_snips+std_dFF_snips,
-                      mean_dFF_snips-std_dFF_snips, facecolor='green', alpha=0.2)
-    p4 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=f'{BOI} {event}')
+    # Create figure and subplots
+    fig, (ax6, ax5) = plt.subplots(2, 1, figsize=(6, 10), gridspec_kw={'height_ratios': [1, 2]})
     
-    #ax5.axis('tight')
-    ax5.set_xlabel('Time(s)')
-    ax5.set_ylabel('z-scored $\Delta$F/F')
-    ax5.legend(handles=[p1, p2, p4], loc='upper left', fontsize = 'small')
-    ax5.margins(0,0.01)
-    
-    #add heatmap
-    ax6 = fig7.add_subplot(211)
-    cs = ax6.imshow(PETH_data, cmap='magma', aspect = 'auto',
-                    interpolation='none', extent=[-PRE_TIME, POST_TIME, len(PETH_data), 0],
-                    vmin = -6, vmax = 9)
+    # ----- Plot 1: Heatmap -----
+    cax = ax6.imshow(
+        PETH_data, 
+        cmap='magma', 
+        aspect='auto', 
+        interpolation='none', 
+        extent=[-PRE_TIME, POST_TIME, len(PETH_data), 0], 
+        vmin=-6, 
+        vmax=9
+    )
     ax6.set_ylabel('Bout Number')
-    ax6.set_yticks(np.arange(.5, len(PETH_data), 2))
+    ax6.set_yticks(np.arange(0.5, len(PETH_data), 2))
     ax6.set_yticklabels(np.arange(0, len(PETH_data), 2))
-    ax6.axvline(x=0, linewidth=2, color='black', ls = '--')
+    ax6.axvline(x=0, linewidth=2, color='black', linestyle='--')
     ax6.set_title(f'{odor} {event} - Plethysmo {mouse}')
     
-    fig7.subplots_adjust(right=0.8, hspace = 0.1)
-    cbar_ax = fig7.add_axes([0.85, 0.54, 0.02, 0.34])
-    fig7.colorbar(cs, cax=cbar_ax)
+    # Colorbar for the heatmap
+    fig.subplots_adjust(right=0.8, hspace=0.1)
+    cbar_ax = fig.add_axes([0.85, 0.54, 0.02, 0.34])
+    fig.colorbar(cax, cax=cbar_ax)
     
-    return fig7
+    # ----- Plot 2: Average Plot with Individual Traces -----
+    for snip in PETH_data:
+        ax5.plot(peri_time, snip, linewidth=0.5, color=[0.7, 0.7, 0.7], label='Individual trials' if snip is PETH_data[0] else None)
+    
+    ax5.plot(peri_time, mean_dFF_snips, linewidth=2, color='green', label='Mean response')
+    
+    ax5.fill_between(
+        peri_time, 
+        mean_dFF_snips + std_dFF_snips, 
+        mean_dFF_snips - std_dFF_snips, 
+        facecolor='green', 
+        alpha=0.2, 
+        label='±1 Std Dev'
+    )
+    
+    ax5.axvline(x=0, linewidth=2, color='slategray', linestyle='--', label=f'{BOI} {event}')
+    ax5.set_xlabel('Time (s)')
+    ax5.set_ylabel('z-scored ΔF/F')
+    ax5.marg
+    
+    return fig
 
 def plot_PETH_pooled(included_groups, colorscheme, PETHarray_list, BOI, event, timewindow, exp, session):
     """
-    Plots PETH averaged over 2 groups
-
-    included_groups : list of included groups (['CD','HFD'])
-    PETHarray_list : list of PETH arrays
-    BOI : behaviour of interest
-    event : onset or withdrawal
-    timewindow : time before and after behaviour
+    Plots a pooled PETH (Peri-Event Time Histogram) averaged over multiple groups.
+    
+    --> Parameters:
+        included_groups : list of str
+            Names of the groups included in the plot (e.g., ['CD', 'HFD'])
+        
+        colorscheme : list of str
+            List of colors for each group (e.g., ['cornflowerblue', 'coral'])
+        
+        PETHarray_list : list of np.ndarray
+            Each element of the list is a 2D array for one group's PETH data 
+            (trials x timepoints) relative to the event.
+        
+        BOI : str 
+            Behavior of interest (e.g., 'Sniff' or 'Stim')
+        
+        event : str 
+            Event type ('onset' or 'withdrawal')
+        
+        timewindow : list of int 
+            Two-element list specifying the [PRE_TIME, POST_TIME] relative to the event (in seconds)
+        
+        exp : str 
+            Name of the experiment (e.g., 'Experiment 1')
+        
+        session : str 
+            Name of the session (e.g., 'Session A')
+        
+    --> Returns:
+        fig : matplotlib.figure.Figure 
+            The figure object containing the pooled PETH plot.
     """
     
-    PRE_TIME = timewindow[0]
-    POST_TIME = timewindow[1]
+    # Extract pre and post event times
+    PRE_TIME, POST_TIME = timewindow
+    peri_time = np.arange(-PRE_TIME, POST_TIME + 0.1, 0.1)  # Create peri-event time vector
     
-    #create figure
-    fig4 = plt.figure(figsize=(6,4))
-    ax5 = fig4.add_subplot(111)
+    # Error check: Make sure the number of groups matches the number of PETH arrays
+    if len(included_groups) != len(PETHarray_list):
+        raise ValueError(f"Mismatch: {len(included_groups)} groups but {len(PETHarray_list)} PETH arrays.")
     
-    #create time vector
-    peri_time = np.arange(-PRE_TIME, POST_TIME+0.1, 0.1)       
+    if len(colorscheme) != len(included_groups):
+        raise ValueError(f"Mismatch: {len(colorscheme)} colors but {len(included_groups)} groups.")
     
-    listmean_dFF_snips = []
-    listsem_dFF_snips = []
-    #calculate mean dFF and std error
-    for (i,PETH_data) in enumerate(PETHarray_list):
-        listmean_dFF_snips.append(np.mean(PETH_data, axis=0))
-        listsem_dFF_snips.append(np.std(PETH_data, axis=0))
+    # Create figure and axis
+    fig, ax = plt.subplots(figsize=(6, 4))
+    
+    list_mean_dFF_snips = []
+    list_sem_dFF_snips = []
+    
+    for i, (group, PETH_data) in enumerate(zip(included_groups, PETHarray_list)):
         
-    #plot individual traces and mean CD
-    # for snip in PETHarray_list[0]:
-    #     p1, = ax5.plot(peri_time, snip, linewidth=.5,
-    #                    color='cornflowerblue', alpha=.3)
-    p2, = ax5.plot(peri_time, listmean_dFF_snips[0], linewidth=2,
-                   color=colorscheme[0], label=included_groups[0])   
-    #plot standard error bars
-    p3 = ax5.fill_between(peri_time, listmean_dFF_snips[0]+(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))),
-                      listmean_dFF_snips[0]-(listsem_dFF_snips[0]/np.sqrt(len(PETHarray_list[0]))), facecolor=colorscheme[0], alpha=0.2)
+        if PETH_data.size == 0:
+            print(f"Warning: No data available for group '{group}'. Skipping this group.")
+            continue
+        
+        # Calculate mean and SEM for this group's PETH data
+        mean_dFF_snips = np.mean(PETH_data, axis=0)
+        sem_dFF_snips = np.std(PETH_data, axis=0) / np.sqrt(len(PETH_data))
+        
+        list_mean_dFF_snips.append(mean_dFF_snips)
+        list_sem_dFF_snips.append(sem_dFF_snips)
+        
+        # Plot individual traces for this group
+        for snip in PETH_data:
+            ax.plot(peri_time, snip, linewidth=0.5, color=colorscheme[i], alpha=0.3)
+        
+        # Plot mean response for this group
+        ax.plot(peri_time, mean_dFF_snips, linewidth=2, color=colorscheme[i], label=group)
+        
+        # Plot shaded region for standard error of the mean (SEM)
+        ax.fill_between(
+            peri_time, 
+            mean_dFF_snips + sem_dFF_snips, 
+            mean_dFF_snips - sem_dFF_snips, 
+            color=colorscheme[i], 
+            alpha=0.2
+        )
     
-    #plot individual traces and mean HFD
-    # for snip in PETHarray_list[1]:
-    #     p4, = ax5.plot(peri_time, snip, linewidth=.5,
-    #                    color='coral', alpha=.3)
-    p5, = ax5.plot(peri_time, listmean_dFF_snips[1], linewidth=2,
-                   color=colorscheme[1], label=included_groups[1])   
-    #plot standard error bars
-    p6 = ax5.fill_between(peri_time, listmean_dFF_snips[1]+(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))),
-                      listmean_dFF_snips[1]-(listsem_dFF_snips[1]/np.sqrt(len(PETHarray_list[1]))), colorscheme[1], alpha=0.2)
+    # Add vertical line for event (0s time point)
+    ax.axvline(x=0, linewidth=2, color='slategray', linestyle='--', label=f'{BOI} {event}')
     
-    p8 = ax5.axvline(x=0, linewidth=2, color='slategray', ls = '--', label=BOI)
+    # Customize axes
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('z-scored ΔF/F')
+    ax.legend(loc='upper left', fontsize='small')
+    ax.margins(0, 0.1)
+    ax.set_title(f'{BOI} - {exp} {session} ({", ".join(included_groups)})')
     
-    ax5.set_xlabel('Time(s)')
-    ax5.set_ylabel('z-scored $\Delta$F/F')
-    ax5.legend(handles=[p2,p5,p8], loc='upper left', fontsize = 'small')
-    ax5.margins(0, 0.1)
-    ax5.set_title(f'{BOI} - {exp} {session} {included_groups[0]} {included_groups[1]}')
-    
-    return fig4
+    return fig

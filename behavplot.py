@@ -257,7 +257,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, session, mouse, THRESH_S
     
     return fig2
 
-def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_EVENT_TIME, maxboutsnumber):
+def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVENT_TIME=0, maxboutsnumber=None, baselinewindow=False):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI.
     
@@ -272,12 +272,12 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
             Time before and after the event, [PRE_TIME, POST_TIME].
     - EVENT_TIME_THRESHOLD : float 
             Minimum time (in seconds) a bout must last to be included.
-    - sr : int 
-            Sampling rate of the data.
     - PRE_EVENT_TIME : float 
             Time window before event for baseline calculations.
     - maxboutsnumber : int or None 
             Maximum number of bouts to include.
+    - baselinewindow : Bool 
+        Tells if standard deviation for z-score calculation is on a timewindow before behavior onset (True) or on whole trace (False)
     
     Returns
     - PETH_array : np.ndarray 
@@ -320,14 +320,19 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
     n_bouts = len(list_ind_event)
     n_timepoints = (POST_TIME + PRE_TIME) * sr + 1
     PETH_array = np.zeros((n_bouts, n_timepoints))
+    
+    # Initialize mean and std on whole trace
+    F0 = behavprocess_df['Denoised dFF'].mean()
+    std0 = behavprocess_df['Denoised dFF'].std()
 
     # Loop through each event and extract the fiberpho trace centered on the event
     for i, ind_event in enumerate(list_ind_event):
         try: 
-            # Calculate baseline mean (F0) and standard deviation (std0) for the time window before the event
-            baseline_window = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event - PRE_EVENT_TIME * sr, 'Denoised dFF']
-            F0 = baseline_window.mean()
-            std0 = baseline_window.std()
+            if baselinewindow:
+                # Calculate baseline mean (F0) and standard deviation (std0) for the time window before the event
+                dFF_baseline = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event - PRE_EVENT_TIME * sr, 'Denoised dFF']
+                F0 = dFF_baseline.mean() 
+                std0 = dFF_baseline.std()
 
             # Extract the fiberpho trace for the time window around the event
             event_window = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event + POST_TIME * sr, 'Denoised dFF']
@@ -341,7 +346,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, sr, PRE_
     return PETH_array
 
 def plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse, group, 
-              trace_color='green', fill_alpha=0.2, trace_linewidth=2, heatmap_cmap='magma'):
+              trace_color='black', fill_alpha=0.2, trace_linewidth=2, heatmap_cmap='magma'):
     """
     Plots PETH average and heatmap.
     

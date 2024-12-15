@@ -2,12 +2,14 @@
 """
 Created on Tue Jul 30 09:54:44 2024
 
-@author: alice
+@author: alice fermigier
 """
 from scipy.signal import find_peaks
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt 
+
+import preprocess as pp
 
 def bandpass_filter(data, lowcut, highcut, sr, order=3):
     nyquist = 0.5 * sr
@@ -45,13 +47,16 @@ def plot_signal_and_spectrum(time, signal, filtered_signal, fs):
 def mad(data, axis=None):
     return np.median(np.abs(data - np.median(data, axis)), axis)
 
-def transients(fiberpho_df, sr):
+def transients(fiberpho_df, threshold='one_MAD'):
     # Détection des pics
+    sr=pp.samplerate(fiberpho_df)
     fiberpeaks_df = fiberpho_df
     filtered_sig=fiberpeaks_df['Filtered dFF']
-    two_MAD_th = np.median(filtered_sig) + (2 * mad(filtered_sig))
-    one_MAD_th = np.median(filtered_sig) + mad(filtered_sig)
-    peaks, properties = find_peaks(filtered_sig, height=one_MAD_th, distance=sr*0.5)
+    if threshold == 'two_MAD':
+        MAD_th = np.median(filtered_sig) + (2 * mad(filtered_sig))
+    elif threshold == 'one_MAD':
+        MAD_th = np.median(filtered_sig) + mad(filtered_sig)
+    peaks, properties = find_peaks(filtered_sig, height=MAD_th, distance=sr*0.5)
     
     # Ajout des pics détectés au DataFrame
     fiberpeaks_df['Peaks'] = 0
