@@ -101,38 +101,60 @@ def controlFit(control, signal):
     fitted_signal = (p[0] * control) + p[1]
     return fitted_signal
 
-
 def remove_artifacts(data_df, artifact_intervals, col, begin, end, sr, method='mean'):
     """
     Helper function to remove artifacts from a specific column of the data.
     
     Parameters:
     - data_df (pd.DataFrame): Input data
-    - artifact_intervals (list): List of artifact intervals as [(start, stop), ...]
-    - col (str): Column to process
+    - artifact_intervals (list of tuples): List of artifact intervals as [(start, stop), ...]
+    - col (str): Column to process ('405 Deinterleaved' or '470 Deinterleaved')
     - begin (int): Starting index for the segment
     - end (int): Ending index for the segment
     - sr (int): Sampling rate
+    - method (str): 'mean' or 'fit' method to compute dFF
     
     Returns:
-    - Tuple: Updated begin, end indices, and dFF for the processed segment
+    - Tuple: Updated dFF segment, updated 'begin' index, and 'end' index
     """
-    dFF_segment = np.full(len(data_df), np.nan)
+    dFF_segment = np.full(len(data_df), np.nan)  # Create an array filled with NaNs of the same length as data_df
+    artifact_intervals.append([len(data_df),len(data_df)])
+    
     for x_start, x_stop in artifact_intervals:
-        end = data_df.loc[data_df['Time(s)'] > x_start].index[0]
-        segment = data_df.loc[begin+1:end, col]
-        if method == 'mean':
-            mean_fluorescence = np.nanmean(segment)
-            dFF_segment[begin+1:end] = ((segment - mean_fluorescence) / mean_fluorescence) * 100
-        else:
-            dFF_segment[begin+1:end] = controlFit(data_df.loc[begin+1:end, '405 Deinterleaved'], 
-                                                  data_df.loc[begin+1:end, '470 Deinterleaved'])
-        
-        begin = data_df.loc[data_df['Time(s)'] < x_stop].index[-1]
-    return dFF_segment, begin, end
+        try:
+            # Calculate 'end' as the first index where 'Time(s)' is greater than x_start, -1 to not overlap with artifact
+            end = data_df.index[data_df['Time(s)'] < x_start][-1]
+            
+            # Extract the segment of data for processing
+            segment = data_df.iloc[begin+1:end][col].values  # Use iloc for absolute indexing
+            
+            if method == 'mean':
+                mean_fluorescence = np.nanmean(segment)
+                dFF_values = ((segment - mean_fluorescence) / mean_fluorescence) * 100
+                # Check for length match before assignment
+                if len(dFF_values) == len(dFF_segment[begin+1:end]):
+                    dFF_segment[begin+1:end] = dFF_values
+                else:
+                    print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
+            
+            elif method == 'fit':
+                dFF_values = controlFit(data_df.loc[begin+1:end, '405 Deinterleaved'], 
+                                        data_df.loc[begin+1:end, '470 Deinterleaved'])
+                if len(dFF_values) == len(dFF_segment[begin+1:end]):
+                    dFF_segment[begin+1:end] = dFF_values
+                else:
+                    print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
+            
+            # Update 'begin' to the index just before the stop of the artifact
+            if x_stop != len(data_df):
+                begin = data_df.index[data_df['Time(s)'] > x_stop][0]
+                
+        except Exception as e:
+            print(f"Error processing artifact interval ({x_start}, {x_stop}): {e}")
+    
+    return dFF_segment
 
-
-def dFF(data_df, artifacts_df, filecode, sr, method='mean'):
+def dFF(data_df, artifacts_df, filecode, method='mean'):
     """
     Calculates dFF (delta F over F) and removes artifacts from 405nm and 470nm photometry data.
     
@@ -146,16 +168,17 @@ def dFF(data_df, artifacts_df, filecode, sr, method='mean'):
     Returns:
     - dFFdata_df (pd.DataFrame): DataFrame with 'Time(s)', '405 dFF', '470 dFF', and 'Denoised dFF'
     """
-    sr = round(sr)
+    sr = round(samplerate(data_df))
     dFFdata = np.full([3, len(data_df)], np.nan)  # [405 dFF, 470 dFF, Denoised dFF]
 
     if method == 'mean':
         for i, col in enumerate(['405 Deinterleaved', '470 Deinterleaved']):
             if filecode in artifacts_df['Filecode'].values:
                 artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
-                artifact_intervals = literal_eval(artifact_intervals[0]) if len(artifact_intervals) > 0 else []
-                begin = round(5 * sr)
-                dFFdata[i], begin, _ = remove_artifacts(data_df, artifact_intervals, col, begin, len(data_df), sr, method='mean')
+                artifact_intervals = literal_eval(artifact_intervals[0])
+                print(artifact_intervals)
+                begin = 0
+                dFFdata[i] = remove_artifacts(data_df, artifact_intervals, col, begin, len(data_df), sr, method='mean')
             else:
                 mean_fluorescence = np.nanmean(data_df[col])
                 dFFdata[i] = ((data_df[col] - mean_fluorescence) / mean_fluorescence) * 100
@@ -163,14 +186,12 @@ def dFF(data_df, artifacts_df, filecode, sr, method='mean'):
     elif method == 'fit':
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
-            artifact_intervals = literal_eval(artifact_intervals[0]) if len(artifact_intervals) > 0 else []
-            begin = round(5 * sr)
-            dFFdata[0], begin, _ = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', begin, len(data_df), sr, method='fit')
+            artifact_intervals = literal_eval(artifact_intervals[0])
+            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', len(data_df), sr, method='fit')
             dFFdata[1] = data_df['470 Deinterleaved'].to_numpy()
         else:
-            begin = round(5 * sr)
-            dFFdata[0] = controlFit(data_df.loc[begin+1:, '405 Deinterleaved'], data_df.loc[begin+1:, '470 Deinterleaved'])
-            dFFdata[1] = data_df.loc[begin+1:, '470 Deinterleaved'].to_numpy()
+            dFFdata[0] = controlFit(data_df['405 Deinterleaved'], data_df['470 Deinterleaved'])
+            dFFdata[1] = data_df['470 Deinterleaved'].to_numpy()
 
         # Calculate Denoised dFF
         dFFdata[2] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100

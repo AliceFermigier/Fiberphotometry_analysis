@@ -16,13 +16,15 @@ To run fiberphotometry analysis with behaviour or plethysmography data
 import pandas as pd
 from pathlib import Path
 import os
-from dash import Dash, dcc, html
+from dash import Dash, dcc, html 
 import plotly.express as px
-import sys
+import sys  
+import matplotlib.pyplot as plt
 
 #path to other scripts in sys.path
-if 'C:\\Users\\alice\\Documents\\GitHub\\Fiberphotometry_analysis' not in sys.path:
-    sys.path.append('C:\\Users\\alice\\Documents\\GitHub\\Fiberphotometry_analysis')
+path_to_gitrepo=r'C:\Users\alice\Documents\GitHub\Fiberphotometry_analysis'
+if path_to_gitrepo not in sys.path:
+    sys.path.append(path_to_gitrepo)
 
 #import functions
 import preprocess as pp
@@ -33,7 +35,7 @@ import genplot as gp
 #LOADER#
 ########
 
-experiment_path = Path('E:\\Alice\\Fiber\\202301_CA2b5')
+experiment_path = Path(r'C:\Users\alice\Desktop\Data_Fiber')
 analysis_path = experiment_path / 'Analysis' 
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -58,7 +60,7 @@ CUT_FREQ = 1 #in Hz
 #####################
 
 #------------------#
-exp = 'OdDispostshock'
+exp = 'OdDis1'
 #------------------#
 
 exp_path = analysis_path / exp
@@ -120,6 +122,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             #3 Plot raw data and save as PNG
             fig_raw = gp.plot_rawdata(deinterleaved_df, exp, session, mouse)
             fig_raw.savefig(raw_plot_path)
+            plt.close(fig_raw)
 
         
 #%% 1.3 - Open artifacted data in Dash using plotly and enter artifact timestamps in excel file
@@ -157,17 +160,17 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
     code = gp.session_code(session,exp)
-    for mouse in subjects_df['Subject']:
+    for mouse in ['A2m']:#subjects_df['Subject']:
         if os.path.exists(pp_path/f'{mouse}_{code}_deinterleaved.csv'):
+  #          try:
             print("--------------")
             print(f'MOUSE : {mouse}')
             print("--------------")
-            deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv',index_col=0)
+            deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
             filecode = f'{exp}_{session}_{mouse}'
-            sr = pp.samplerate(deinterleaved_df)
             
             # calculate dFF with artifacts removal, then interpolate missing data
-            dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,sr,method)
+            dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,method)
             interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
             #sometimes 1st timestamps=Nan instead of 0, raises an error
             interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
@@ -180,3 +183,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             #plotted GCaMP and isosbestic curves after dFF or fitting
             fig_dFF = gp.plot_fiberpho(smoothdFF_df,exp,session,mouse,method)
             fig_dFF.savefig(pp_path/f'{mouse}_{code}_{method}dFF.png')
+            plt.close(fig_dFF) 
+        #    except Exception as e:
+         #       print(f'Problem in processing mouse {mouse} : {e}')
+            
