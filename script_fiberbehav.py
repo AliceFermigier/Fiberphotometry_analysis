@@ -5,7 +5,7 @@ Created on Sun Dec 15 16:53:24 2024
 To run fiberphotometry analysis with behaviour or plethysmography data
 2 - ANALYSIS WITH BEHAVIOUR BORIS FILE
 
-@author: alice
+@author: alice fermigier
 """
 
 #%%IMPORTED
@@ -14,8 +14,9 @@ To run fiberphotometry analysis with behaviour or plethysmography data
 import pandas as pd
 import numpy as np
 from pathlib import Path
+import matplotlib.pyplot as plt
 import os
-import warnings
+import warnings 
 
 #import functions
 import preprocess as pp
@@ -37,14 +38,14 @@ os.getcwd()
 #import ID and groups of all mice
 subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Included')
 #import tasks in protocol
-proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
+proto_df = pd.read_excel(experiment_path / 'protocol.xlsx') 
 
 ############
 #PARAMETERS#
 ############
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 1
+THRESH_S = 0.5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 1
     
@@ -108,7 +109,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
                 encoding="ISO-8859-1"
             )
             behav10Sps = pd.read_csv(behav_path)
-            fiberpho = pd.read_csv(fiberpho_path, index_col=0)
+            fiberpho = pd.read_csv(fiberpho_path)
             
             # Get the sampling rate for the fiberphotometry data
             sr = pp.samplerate(fiberpho)
@@ -148,8 +149,9 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             # Save plots in both PDF and PNG formats
             fig_fiberbehav.savefig(fiberbehav_plot_pdf_path)
             fig_fiberbehav.savefig(fiberbehav_plot_png_path)
+            plt.close(fig_fiberbehav)
             
-            print(f'Analysis for mouse {mouse} complete. Data saved in {repo_path}')
+print(f'Analysis for {exp} complete. Data saved in {repo_path}')
                         
 #%% 2.2 - Calculate mean, max, and delta dFF within behavioural states (for state behaviours)
 
@@ -217,10 +219,10 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         print('No delta max mean dFF data to export.')
         
 #%% 2.3 - Calculate mean and max before and after behaviour onset for whole group
+
 # ----------------------------- #
-BOI = 'Shock'  # Behavior of Interest
+BOI = 'Gate opens'  # Behavior of Interest
 TIME_MEANMAX = 5  # Time window for mean and max calculation, before and after behaviour (seconds)
-TIME_BEFORE = 1  # Time before event to analyze (seconds)
 MAX_BOUTS_NUMBER = None  # Limit the number of bouts to analyze, if specified
 # ----------------------------- #
 
@@ -238,13 +240,13 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         if not groupanalysis_path.exists():
             groupanalysis_path.mkdir()
         
-        # Initialize lists to store data
-        meandFF_list = []
-        meandFF_before_list = []
-        subject_list = []
-        group_list = []
-        maxdFF_list = []
-        maxdFF_before_list = []
+        # Initialize result Dataframe
+        results_df = pd.DataFrame(columns=['Subject', 
+                                           'Group', 
+                                           f'Mean dFF before {BOI}', 
+                                           f'Mean dFF after {BOI}', 
+                                           f'Max dFF before {BOI}', 
+                                           f'Max dFF after {BOI}'])
         
         for mouse in subjects_df['Subject']:
             print("--------------")
@@ -252,71 +254,31 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             print("--------------")
             
             fiberbehav_file = repo_path / f'{mouse}_{code}_fiberbehav.csv'
-            
             if not fiberbehav_file.exists():
                 print(f"File not found: {fiberbehav_file}")
                 continue
             
             try:
-                # Read in the CSV file
-                fiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
+                # Read in the CSV file, get mouse group
+                fiberbehav_df = pd.read_csv(fiberbehav_file)
                 group = subjects_df.loc[subjects_df['Subject'] == mouse, 'Group'].values[0]
-                sr = pp.samplerate(fiberbehav_df)  # Calculate the sample rate
+                # Calculate results for mouse
+                results_mouse_df = sc.process_mouse_meanmax_beforeafter(fiberbehav_df, mouse, group, BOI, MAX_BOUTS_NUMBER)
+                # Put results in general Dataframe
+                results_df = pd.concat([results_df, results_mouse_df], ignore_index=True)
                 
-                if BOI in fiberbehav_df.columns[2:].tolist():
-                    ind_event_list = np.where(fiberbehav_df[BOI] == 1)[0].tolist()
-                    
-                    if MAX_BOUTS_NUMBER is not None:
-                        ind_event_list = ind_event_list[:MAX_BOUTS_NUMBER]  # Limit the number of bouts if specified
-
-                    for ind_event in ind_event_list:
-                        try:
-                            # Identify the time of the event (index of minimum dFF before onset)
-                            ind_event_adjusted = fiberbehav_df.loc[ind_event - TIME_BEFORE * sr : ind_event, 'Denoised dFF'].idxmin()
-                            
-                            # Calculate mean and max dFF after the event
-                            dFF_after_event = fiberbehav_df.loc[ind_event_adjusted : ind_event_adjusted + TIME_MEANMAX * sr, 'Denoised dFF']
-                            mean_dFF_entry = dFF_after_event.mean() if not dFF_after_event.empty else np.nan
-                            max_dFF_entry = dFF_after_event.max() if not dFF_after_event.empty else np.nan
-                            
-                            # Calculate mean and max dFF before the event
-                            dFF_before_event = fiberbehav_df.loc[ind_event_adjusted - TIME_MEANMAX * sr : ind_event_adjusted, 'Denoised dFF']
-                            mean_dFF_before_entry = dFF_before_event.mean() if not dFF_before_event.empty else np.nan
-                            max_dFF_before_entry = dFF_before_event.max() if not dFF_before_event.empty else np.nan
-                            
-                            # Append results to lists
-                            subject_list.append(mouse)
-                            group_list.append(group)
-                            meandFF_list.append(mean_dFF_entry)
-                            meandFF_before_list.append(mean_dFF_before_entry)
-                            maxdFF_list.append(max_dFF_entry)
-                            maxdFF_before_list.append(max_dFF_before_entry)
-                        
-                        except Exception as e:
-                            print(f"Error processing event at index {ind_event} for mouse {mouse}: {e}")
-                            continue
-            
             except Exception as e:
                 print(f"Error processing file {fiberbehav_file}: {e}")
                 continue
         
         # Export data to Excel
-        output_file = groupanalysis_path / f'{exp}_{session}_{TIME_MEANMAX}sbeforeafter_maxmeandFF.xlsx'
+        output_file = groupanalysis_path / f'{exp}_{session}_{TIME_MEANMAX}sbeforeafter{BOI}_maxmeandFF.xlsx'
         
-        if not output_file.exists():
-            try:
-                meanmaxdFFs_df = pd.DataFrame({
-                    'Subject': subject_list,
-                    'Group': group_list,
-                    'Mean dFF before entry': meandFF_before_list,
-                    'Mean dFF entry': meandFF_list,
-                    'Max dFF before entry': maxdFF_before_list,
-                    'Max dFF entry': maxdFF_list
-                })
-                meanmaxdFFs_df.to_excel(output_file, index=False)
-                print(f"Data successfully exported to {output_file}")
-            except Exception as e:
-                print(f"Error exporting data to {output_file}: {e}")
+        try:
+            results_df.to_excel(output_file, index=False)
+            print(f"Data successfully exported to {output_file}")
+        except Exception as e:
+            print(f"Error exporting data to {output_file}: {e}")
 
 #%% 2.4 - Plot PETH for each mouse
 
@@ -386,7 +348,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 # Parameters
 BOI = 'Shock'
 TIME_WINDOW = [5, 30]  # In seconds
-MAXBOUTSNUMBER = 1
+MAXBOUTSNUMBER = None
 # ----------------------------- #
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:

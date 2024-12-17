@@ -14,6 +14,7 @@ import pandas as pd
 import numpy as np
 
 import transients as tr
+import preprocess as pp
 
 #%%
 ###################
@@ -349,6 +350,61 @@ def variance_transients_baseline(fiberbehav_df, list_BOI, mouse, group, exp, ses
     
     return results_df
 
+def process_event(fiberbehav_df, ind_event, TIME_MEANMAX):
+    """Calculate mean and max dFF before and after a behavioral event."""
+    try:
+        sr=pp.samplerate(fiberbehav_df)
+        # Calculate mean and max dFF after the event
+        dFF_after_event = fiberbehav_df.loc[ind_event : ind_event + TIME_MEANMAX * sr, 'Denoised dFF']
+        mean_dFF_after = dFF_after_event.mean()
+        max_dFF_after = dFF_after_event.max()
+        
+        # Calculate mean and max dFF before the event
+        dFF_before_event = fiberbehav_df.loc[ind_event - TIME_MEANMAX * sr : ind_event, 'Denoised dFF']
+        mean_dFF_before = dFF_before_event.mean()
+        max_dFF_before = dFF_before_event.max()
+        
+        return mean_dFF_after, max_dFF_after, mean_dFF_before, max_dFF_before
+    except Exception as e:
+        print(f"Error processing event at index {ind_event}: {e}")
+        return None, None, None, None
+    
+def process_mouse_meanmax_beforeafter(fiberbehav_df, mouse, group, BOI, MAX_BOUTS_NUMBER=None):
+    """Process the fiberbehav file for a single mouse, calculating mean and max dFF for events."""
+    results = pd.DataFrame(columns=['Subject', 'Group', 'Mean dFF before entry', 
+                                    'Mean dFF entry', 'Max dFF before entry', 'Max dFF entry'])
+    
+    try:
+        sr = pp.samplerate(fiberbehav_df)  # Sample rate
+        
+        if BOI not in fiberbehav_df.columns[2:]:
+            print(f'{BOI} not in data for mouse {mouse}')
+            return results  # Return empty DataFrame
+        
+        ind_event_list = np.where(fiberbehav_df[BOI] == 1)[0].tolist()
+        print(f"Events for mouse {mouse}: {ind_event_list}")
+        
+        if MAX_BOUTS_NUMBER is not None:
+            ind_event_list = ind_event_list[:MAX_BOUTS_NUMBER]  # Limit the number of bouts if specified
+
+        for ind_event in ind_event_list:
+            mean_dFF_entry, max_dFF_entry, mean_dFF_before_entry, max_dFF_before_entry = process_event(fiberbehav_df, ind_event, sr)
+            
+            if mean_dFF_entry is not None:
+                results = pd.DataFrame({
+                    'Subject': mouse,
+                    'Group': group,
+                    f'Mean dFF before {BOI}': mean_dFF_before_entry,
+                    f'Mean dFF after {BOI}': mean_dFF_entry,
+                    f'Max dFF before {BOI}': max_dFF_before_entry,
+                    f'Max dFF after {BOI}': max_dFF_entry
+                }, index=[0])
+        
+        return results
+    except Exception as e:
+        print(f"Error processing mouse {mouse}: {e}")
+        return results
+
 def meandFF_sniffs(fiberbehav_df, exp, session, mouse, group, joined=True):
     """
     Calculates mean dFF (delta F/F) during each behavior for a given mouse and session.
@@ -410,7 +466,6 @@ def meandFF_sniffs(fiberbehav_df, exp, session, mouse, group, joined=True):
     meandFFs_df = pd.DataFrame(data=[dFF_values], columns=dFF_columns)
     
     return meandFFs_df
-
 
 def meanmax_dFF_stims(behavprocess_df, list_BOI, mouse, group, TIME_MEANMAX, sr):
     """

@@ -17,6 +17,8 @@ import numpy as np
 from scipy import signal
 from ast import literal_eval
 
+import nomenclature as nom
+
 
 #%%
 ###################
@@ -85,6 +87,34 @@ def samplerate(data_df):
     sr = len(data_df)/(data_df['Time(s)'].max()-data_df['Time(s)'].min())
     
     return sr
+
+def update_artifacts_file(file_path, filecode, artifacts):
+    """
+    Update the artifacts file with a new entry or update an existing entry for the given filecode.
+    
+    Parameters:
+    - file_path (Path): Path to the artifacts Excel file.
+    - filecode (str): Unique identifier for the file (e.g., 'Experiment1_Session1_MouseA1').
+    - artifacts (list of tuples): List of artifact intervals (e.g., [(start1, end1), (start2, end2)]).
+    """
+    # Load the existing file (or create a new one if it doesn't exist)
+    df = nom.create_or_load_artifacts_file(file_path)
+    
+    # Convert the list of artifact intervals to a string for storage in Excel
+    artifacts_str = str(artifacts)  # Store as a string representation of the list
+    
+    # Check if the filecode already exists in the DataFrame
+    if filecode in df['Filecode'].values:
+        print(f"Filecode '{filecode}' already exists. Updating artifact data.")
+        df.loc[df['Filecode'] == filecode, 'Artifacts'] = artifacts_str
+    else:
+        print(f"Adding new entry for Filecode '{filecode}'.")
+        new_entry = {'Filecode': filecode, 'Artifacts': artifacts_str}
+        df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
+    
+    # Save the updated DataFrame back to the Excel file
+    df.to_excel(file_path, index=False)
+    print(f"Updated Excel file at: {file_path}")
 
 def controlFit(control, signal):
     """

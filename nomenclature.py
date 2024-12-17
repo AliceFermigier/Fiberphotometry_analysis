@@ -8,6 +8,7 @@ Functions for nomenclature
 """
 
 import os
+import pandas as pd
 
 def create_directory(path):
     """Create a directory if it doesn't already exist."""
@@ -86,3 +87,26 @@ def setup_preprocessing_directory(data_path_exp):
     pp_path = data_path_exp / 'Preprocessing'
     create_directory(pp_path)
     return pp_path
+
+def create_or_load_artifacts_file(file_path, option='create_or_load'):
+    """
+    Create an Excel file with 'Filecode' and 'Artifacts' columns if it doesn't exist.
+    If it exists, load the file as a DataFrame.
+    
+    Parameters:
+    - file_path (Path): Path to the artifacts Excel file.
+    
+    Returns:
+    - pd.DataFrame: DataFrame containing the existing or newly created file.
+    """
+    if not file_path.exists():
+        # Create a new DataFrame with required columns
+        df = pd.DataFrame(columns=['Filecode', 'Artifacts'])
+        df.to_excel(file_path, index=False)
+    elif option=='create_or_load':
+        df = pd.read_excel(file_path)
+    else:
+        df = None
+    return df
+
+

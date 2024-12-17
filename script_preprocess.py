@@ -46,6 +46,9 @@ os.getcwd()
 subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Included')
 #import tasks in protocol
 proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
+#create artifacts file if not existent
+artifact_file = experiment_path / 'artifacts.xlsx' # File to store artifact timestamps
+nom.create_or_load_artifacts_file(artifact_file, option='create_only')
 
 ############
 #PARAMETERS#
@@ -130,9 +133,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 
 #------------------#
 session = 'Test'
-mouse = 'A1m'
-exp = 'OdDis1'
-artifact_file = f'{mouse}_{exp}_{session}_artifacts.xlsx'  # File to store artifact timestamps
+mouse = 'A2m'
+filecode = f'{exp}_{session}_{mouse}'
 #------------------#
 
 # in excel 'Filecode', put '{exp}_{session}_{mouse}'
@@ -211,8 +213,9 @@ def save_artifacts_to_excel(n_clicks, artifact_intervals):
     """
     if n_clicks > 0:
         if len(artifact_intervals) > 0:
-            artifact_df = pd.DataFrame(artifact_intervals, columns=['Start (s)', 'End (s)'])
-            artifact_df.to_excel(artifact_file, index=False)
+            print(f"\n--- Processing filecode: {filecode} ---")
+            print(f"Artifacts to store: {artifact_intervals}")
+            pp.update_artifacts_file(artifact_file, filecode, artifact_intervals)
             print(f"Saved {len(artifact_intervals)} artifact intervals to {artifact_file}")
             return f'Saved {len(artifact_intervals)} Artifacts'
         else:
