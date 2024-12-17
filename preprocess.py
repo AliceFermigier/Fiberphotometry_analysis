@@ -101,7 +101,7 @@ def controlFit(control, signal):
     fitted_signal = (p[0] * control) + p[1]
     return fitted_signal
 
-def remove_artifacts(data_df, artifact_intervals, col, begin, end, sr, method='mean'):
+def remove_artifacts(data_df, artifact_intervals, col, sr, method='mean'):
     """
     Helper function to remove artifacts from a specific column of the data.
     
@@ -117,8 +117,9 @@ def remove_artifacts(data_df, artifact_intervals, col, begin, end, sr, method='m
     Returns:
     - Tuple: Updated dFF segment, updated 'begin' index, and 'end' index
     """
+    begin=0
     dFF_segment = np.full(len(data_df), np.nan)  # Create an array filled with NaNs of the same length as data_df
-    artifact_intervals.append([len(data_df),len(data_df)])
+    artifact_intervals.append([len(data_df), 'End'])
     
     for x_start, x_stop in artifact_intervals:
         try:
@@ -138,15 +139,15 @@ def remove_artifacts(data_df, artifact_intervals, col, begin, end, sr, method='m
                     print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
             
             elif method == 'fit':
-                dFF_values = controlFit(data_df.loc[begin+1:end, '405 Deinterleaved'], 
-                                        data_df.loc[begin+1:end, '470 Deinterleaved'])
+                dFF_values = controlFit(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
+                                        data_df.iloc[begin+1:end]['470 Deinterleaved'].values)
                 if len(dFF_values) == len(dFF_segment[begin+1:end]):
                     dFF_segment[begin+1:end] = dFF_values
                 else:
                     print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
             
             # Update 'begin' to the index just before the stop of the artifact
-            if x_stop != len(data_df):
+            if x_stop != 'End':
                 begin = data_df.index[data_df['Time(s)'] > x_stop][0]
                 
         except Exception as e:
@@ -176,9 +177,7 @@ def dFF(data_df, artifacts_df, filecode, method='mean'):
             if filecode in artifacts_df['Filecode'].values:
                 artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
                 artifact_intervals = literal_eval(artifact_intervals[0])
-                print(artifact_intervals)
-                begin = 0
-                dFFdata[i] = remove_artifacts(data_df, artifact_intervals, col, begin, len(data_df), sr, method='mean')
+                dFFdata[i] = remove_artifacts(data_df, artifact_intervals, col, sr, method='mean')
             else:
                 mean_fluorescence = np.nanmean(data_df[col])
                 dFFdata[i] = ((data_df[col] - mean_fluorescence) / mean_fluorescence) * 100
@@ -187,7 +186,7 @@ def dFF(data_df, artifacts_df, filecode, method='mean'):
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', len(data_df), sr, method='fit')
+            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', sr, method='fit')
             dFFdata[1] = data_df['470 Deinterleaved'].to_numpy()
         else:
             dFFdata[0] = controlFit(data_df['405 Deinterleaved'], data_df['470 Deinterleaved'])

@@ -16,7 +16,7 @@ To run fiberphotometry analysis with behaviour or plethysmography data
 import pandas as pd
 from pathlib import Path
 import os
-from dash import Dash, dcc, html 
+from dash import Dash, dcc, html, Input, Output, State
 import plotly.express as px
 import sys  
 import matplotlib.pyplot as plt
@@ -29,6 +29,7 @@ if path_to_gitrepo not in sys.path:
 #import functions
 import preprocess as pp
 import genplot as gp
+import nomenclature as nom
 
 #%%
 ########
@@ -63,20 +64,21 @@ CUT_FREQ = 1 #in Hz
 exp = 'OdDis1'
 #------------------#
 
-exp_path = analysis_path / exp
-if not os.path.exists(exp_path):
-    os.mkdir(exp_path)
-for session_list in proto_df.loc[proto_df['Task']==exp,'Sessions'].values[0].split():
-    if not os.path.exists(exp_path / session_list):
-        os.mkdir(exp_path / session_list)
-            
-#get data path related to the task in protocol excel file
-data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
+# Step 1: Get the list of sessions for the experiment
+session_names = nom.get_experiment_sessions(proto_df, exp)
+print(f"Sessions for experiment '{exp}': {session_names}")
 
-# put all raw plots and deinterleaved_df in separate folder
-pp_path = data_path_exp / 'Preprocessing'
-if not os.path.exists(pp_path):
-    os.mkdir(pp_path)
+# Step 2: Create main experiment folder and session subfolders
+exp_path = nom.setup_experiment_directory(analysis_path, exp, session_names)
+print(f"Experiment directory created at: {exp_path}")
+
+# Step 3: Get the path to the raw data folder for the experiment
+data_path_exp = nom.get_experiment_data_path(proto_df, data_path, exp)
+print(f"Raw data path for experiment '{exp}': {data_path_exp}")
+
+# Step 4: Create preprocessing directory inside the raw data path
+pp_path = nom.setup_preprocessing_directory(data_path_exp)
+print(f"Preprocessing directory created at: {pp_path}")
 
 #%% 1.1 - Deinterleave data and save in separate file
 
@@ -92,7 +94,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     
     # Loop through each mouse in the subject DataFrame
     for mouse in subjects_df['Subject']:
-        print("--------------")
+        print("--------------") 
         print(f'MOUSE : {mouse}')
         print("--------------")
         
@@ -124,35 +126,113 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             fig_raw.savefig(raw_plot_path)
             plt.close(fig_raw)
 
-        
-#%% 1.3 - Open artifacted data in Dash using plotly and enter artifact timestamps in excel file
+#%% 1.2 - Open artifacted data and score artifacts
 
 #------------------#
-session = 'Habituation'
+session = 'Test'
 mouse = 'A1m'
+exp = 'OdDis1'
+artifact_file = f'{mouse}_{exp}_{session}_artifacts.xlsx'  # File to store artifact timestamps
 #------------------#
+
 # in excel 'Filecode', put '{exp}_{session}_{mouse}'
 code = gp.session_code(session,exp)
 deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
 
+# Create the Dash app
 app = Dash(__name__)
+
+# Create the figure
 fig = px.line(deinterleaved_df[TIME_BEGIN:], x='Time(s)', y='405 Deinterleaved')
+
+# App layout
 app.layout = html.Div([
     html.H4(f'{exp} {session} {mouse}'),
+    
     dcc.Graph(
-        id=f'{exp}',
-        figure=fig
-    )
+        id='plot',
+        figure=fig,
+        config={'displayModeBar': True}  # Add buttons for zooming, panning, etc.
+    ),
+    
+    html.Div(id='artifact-message', style={'color': 'green', 'fontWeight': 'bold'}),
+    
+    html.Button("Save Artifacts", id="save-button", n_clicks=0),
+    
+    dcc.Store(id='artifact-storage', data=[]),  # Store artifact tuples (start, end)
+    dcc.Store(id='click-tracker', data=None)  # Keep track of first/second click
 ])
+
+# Callback to handle user clicks and record artifact intervals
+@app.callback(
+    [Output('artifact-storage', 'data'),
+     Output('artifact-message', 'children'),
+     Output('click-tracker', 'data')],
+    Input('plot', 'clickData'),
+    [State('artifact-storage', 'data'),
+     State('click-tracker', 'data')]
+)
+def capture_artifact(click_data, artifact_intervals, click_state):
+    """
+    Handles clicks on the plot. 
+    On the first click, the start of the artifact is captured. 
+    On the second click, the end of the artifact is captured, and the interval is saved.
+    """
+    if click_data:
+        time_clicked = click_data['points'][0]['x']
+        
+        if click_state is None:  # First click (start of the artifact)
+            click_state = time_clicked
+            message = f'Artifact start marked at {time_clicked:.2f} seconds. Now click the end point.'
+            print(message)
+        else:  # Second click (end of the artifact)
+            start = min(click_state, time_clicked)
+            end = max(click_state, time_clicked)
+            artifact_intervals.append((start, end))
+            message = f'Artifact interval ({start:.2f}s, {end:.2f}s) saved. Click to start a new interval.'
+            print(message)
+            click_state = None  # Reset click state for next pair of clicks
+
+    else:
+        message = 'Click on the graph to mark the start of an artifact.'
+
+    return artifact_intervals, message, click_state
+
+# Callback to save artifact intervals to an Excel file
+@app.callback(
+    Output('save-button', 'children'),
+    Input('save-button', 'n_clicks'),
+    State('artifact-storage', 'data')
+)
+def save_artifacts_to_excel(n_clicks, artifact_intervals):
+    """
+    Saves the artifact intervals to an Excel file when the save button is pressed.
+    Each row in the Excel file contains the start and end times of each artifact.
+    """
+    if n_clicks > 0:
+        if len(artifact_intervals) > 0:
+            artifact_df = pd.DataFrame(artifact_intervals, columns=['Start (s)', 'End (s)'])
+            artifact_df.to_excel(artifact_file, index=False)
+            print(f"Saved {len(artifact_intervals)} artifact intervals to {artifact_file}")
+            return f'Saved {len(artifact_intervals)} Artifacts'
+        else:
+            print("No artifacts to save.")
+            return "No artifacts to save"
+
+    return "Save Artifacts"
+
+# Run the server
 if __name__ == '__main__':
     app.run_server(debug=False, use_reloader=False)
 
+# Dash is running on http://127.0.0.1:8050/
+# You can change port if 8050 already taken (8051, etc)
 
 #%% 1.4 - Artifact correction and dFF calculation
 
 #import artifacts boundaries
 artifacts_df = pd.read_excel(experiment_path / 'artifacts.xlsx')
-method = 'mean'
+method = 'fit'
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = str(session_path).split('\\')[-1]
@@ -160,30 +240,30 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
     code = gp.session_code(session,exp)
-    for mouse in ['A2m']:#subjects_df['Subject']:
+    for mouse in subjects_df['Subject']:
         if os.path.exists(pp_path/f'{mouse}_{code}_deinterleaved.csv'):
-  #          try:
-            print("--------------")
-            print(f'MOUSE : {mouse}')
-            print("--------------")
-            deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
-            filecode = f'{exp}_{session}_{mouse}'
-            
-            # calculate dFF with artifacts removal, then interpolate missing data
-            dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,method)
-            interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
-            #sometimes 1st timestamps=Nan instead of 0, raises an error
-            interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
-            
-            # smooth data with butterworth filter or simple moving average (SMA)
-            #smoothdFF_df=pp.smoothing_SMA(interpdFFdata_df,win_size=7)
-            smoothdFF_df=pp.butterfilt(interpdFFdata_df, ORDER, CUT_FREQ)
-            smoothdFF_df.to_csv(pp_path/f'{mouse}_{code}_dFFfilt.csv')
-            
-            #plotted GCaMP and isosbestic curves after dFF or fitting
-            fig_dFF = gp.plot_fiberpho(smoothdFF_df,exp,session,mouse,method)
-            fig_dFF.savefig(pp_path/f'{mouse}_{code}_{method}dFF.png')
-            plt.close(fig_dFF) 
-        #    except Exception as e:
-         #       print(f'Problem in processing mouse {mouse} : {e}')
+            try:
+                print("--------------")
+                print(f'MOUSE : {mouse}')
+                print("--------------")
+                deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
+                filecode = f'{exp}_{session}_{mouse}'
+                
+                # calculate dFF with artifacts removal, then interpolate missing data
+                dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,method)
+                interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
+                #sometimes 1st timestamps=Nan instead of 0, raises an error
+                interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
+                
+                # smooth data with butterworth filter or simple moving average (SMA)
+                #smoothdFF_df=pp.smoothing_SMA(interpdFFdata_df,win_size=7)
+                smoothdFF_df=pp.butterfilt(interpdFFdata_df, ORDER, CUT_FREQ)
+                smoothdFF_df.to_csv(pp_path/f'{mouse}_{code}_dFFfilt.csv')
+                
+                #plotted GCaMP and isosbestic curves after dFF or fitting
+                fig_dFF = gp.plot_fiberpho(smoothdFF_df,exp,session,mouse,method)
+                fig_dFF.savefig(pp_path/f'{mouse}_{code}_{method}dFF.png')
+                plt.close(fig_dFF) 
+            except Exception as e:
+                    print(f'Problem in processing mouse {mouse} : {e}')
             
