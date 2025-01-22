@@ -17,6 +17,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from ast import literal_eval
+
+import nomenclature as nom
 # citing pyabf : 
 # Harden, SW (2020). pyABF 2.2.3. [Online]. Available: https://pypi.org/project/pyabf/
 
@@ -24,6 +26,40 @@ from ast import literal_eval
 ###################
 #DEFINED FUNCTIONS#
 ###################
+
+def update_sniffs_file(file_path, mouse, group, odor, count, sniffs, stim):
+    """
+    Update the artifacts file with a new entry or update an existing entry for the given filecode.
+    
+    Parameters:
+    - file_path (Path): Path to the artifacts Excel file.
+    - filecode (str): Unique identifier for the file (e.g., 'Experiment1_Session1_MouseA1').
+    -  (list of tuples): List of intervals (e.g., [(start1, end1), (start2, end2)]).
+    """
+    # Load the existing file (or create a new one if it doesn't exist)
+    df = nom.create_or_load_sniffs_file(file_path)
+    
+    # Convert the list of artifact intervals to a string for storage in Excel
+    sniffs_str = str(sniffs)
+    stim_str = str(stim) # Store as a string representation of the list
+    
+    # Check if the row already exists in the DataFrame
+    matching_row = df[(df['Subject'] == mouse) &
+                       (df['Group'] == group) &
+                       (df['Odor'] == odor) &
+                       (df['Count'] == count)]
+    if not matching_row.empty:
+        print("Row already exists. Updating data.")
+        matching_row['Sniffs'] = sniffs_str
+        matching_row['Stims'] = stim_str
+    else:
+        print(f"Adding new entry for {mouse} {group} {odor} {count}.")
+        new_entry = {'Subject': mouse, 'Group': group, 'Odor': odor, 'Count': count, 'Stim': stim_str, 'Sniffs': sniffs_str}   
+        df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
+    
+    # Save the updated DataFrame back to the Excel file
+    df.to_excel(file_path, index=False)
+    print(f"Updated Excel file at: {file_path}")
 
 def align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse):
     """

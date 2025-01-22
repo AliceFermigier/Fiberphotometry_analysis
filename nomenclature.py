@@ -9,6 +9,7 @@ Functions for nomenclature
 
 import os
 import pandas as pd
+import shutil
 
 def create_directory(path):
     """Create a directory if it doesn't already exist."""
@@ -109,4 +110,62 @@ def create_or_load_artifacts_file(file_path, option='create_or_load'):
         df = None
     return df
 
+def create_or_load_sniffs_file(file_path, option='create_or_load'):
+    """
+    Create an Excel file with ['Subject', 'Group', 'Odor', 'Count', 'Stim', 'Sniffs'] columns if it doesn't exist.
+    If it exists, load the file as a DataFrame.
+    
+    Parameters:
+    - file_path (Path): Path to the artifacts Excel file.
+    
+    Returns:
+    - pd.DataFrame: DataFrame containing the existing or newly created file.
+    """
+    if not file_path.exists():
+        # Create a new DataFrame with required columns
+        df = pd.DataFrame(columns=['Subject', 'Group', 'Odor', 'Count', 'Stim', 'Sniffs'])
+        df.to_excel(file_path, index=False)
+    elif option=='create_or_load':
+        df = pd.read_excel(file_path)
+    else:
+        df = None
+    return df
+            
+def move_behav_files(data_path, behav_path):
+    # Créer le dossier cible s'il n'existe pas
+    os.makedirs(behav_path, exist_ok=True)
 
+    for filename in os.listdir(data_path):
+        file_path = os.path.join(data_path, filename)
+
+        # Vérifier si le fichier correspond au modèle "behav_*"
+        if os.path.isfile(file_path) and filename.startswith("behav_"):
+            # Déplacer le fichier vers le dossier cible
+            shutil.move(file_path, os.path.join(behav_path, filename))            
+
+def correction_behav_files(directory):
+    for filename in os.listdir(directory):
+        file_path = os.path.join(directory, filename)
+
+        # Ignorer les dossiers et les fichiers déjà nommés correctement
+        if os.path.isfile(file_path) and not filename.startswith("behav_"):
+            # Extraire la partie centrale du nom du fichier
+            filename_base = os.path.splitext(filename)[0]
+            parts = filename_base.split('_')
+            
+            # Trouver le coden ou générer le code si oubli
+            if parts[-3] not in ['0','1','2','3']:
+                code = '0'
+            else:
+                code = parts[-3]
+
+            # Vérifier si le nom de la souris est répété
+            if parts[-1] != parts[-2]:
+                # Supprimer le fichier non correspondant
+                os.remove(file_path)   
+            elif parts[-1] == parts[-2]:
+                # Changer le nom du fichier
+                new_name = f"behav_{code}_{parts[-1]}.csv"
+                new_path = os.path.join(directory, new_name)
+                os.rename(file_path, new_path)
+                

@@ -30,42 +30,10 @@ if path_to_gitrepo not in sys.path:
 import preprocess as pp
 import genplot as gp
 import nomenclature as nom
-
-#%%
-########
-#LOADER#
-########
-
-experiment_path = Path(r'C:\Users\alice\Desktop\Data_Fiber')
-analysis_path = experiment_path / 'Analysis' 
-data_path = experiment_path / 'Data'
-os.chdir(experiment_path)
-os.getcwd()
-
-#import ID and groups of all mice
-subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Included')
-#import tasks in protocol
-proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
-#create artifacts file if not existent
-artifact_file = experiment_path / 'artifacts.xlsx' # File to store artifact timestamps
-nom.create_or_load_artifacts_file(artifact_file, option='create_only')
-
-############
-#PARAMETERS#
-############
-
-#time to crop at the beginning of the trial for , in seconds
-TIME_BEGIN = 60
-#filter characteristics
-ORDER = 4
-CUT_FREQ = 1 #in Hz
+from loader import experiment_path, analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, artifact_file, TIME_BEGIN
 
 #%% 1 - PREPROCESSING
 #####################
-
-#------------------#
-exp = 'OdDis1'
-#------------------#
 
 # Step 1: Get the list of sessions for the experiment
 session_names = nom.get_experiment_sessions(proto_df, exp)
@@ -157,7 +125,7 @@ app.layout = html.Div([
         config={'displayModeBar': True}  # Add buttons for zooming, panning, etc.
     ),
     
-    html.Div(id='artifact-message', style={'color': 'green', 'fontWeight': 'bold'}),
+    html.Div(id='artifact-message', style={'color': 'black', 'fontWeight': 'bold'}),
     
     html.Button("Save Artifacts", id="save-button", n_clicks=0),
     

@@ -24,39 +24,24 @@ import genplot as gp
 import behavplot as bp
 import statcalc as sc
 import transients as tr
+import nomenclature as nom
 
-from script_preprocess import experiment_path, exp, ORDER, CUT_FREQ
+from loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, THRESH_S, EVENT_TIME_THRESHOLD
 
-#%%LOADER
-##########
-
-analysis_path = experiment_path / 'Analysis' 
-data_path = experiment_path / 'Data'
-os.chdir(experiment_path)
-os.getcwd() 
-
-#import ID and groups of all mice
-subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Included')
-#import tasks in protocol
-proto_df = pd.read_excel(experiment_path / 'protocol.xlsx') 
-
-############
-#PARAMETERS#
-############
-
-#threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0.5
-#threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 1
-    
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
 
 exp_path = analysis_path / exp
-data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
+data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]  
 pp_path = data_path_exp / 'Preprocessing'
+behav_path_exp = data_path_exp / 'Behaviour'
 
-# 2.1 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
+# 2.0 - Correction behavioural data nomenclature
+
+nom.move_behav_files(data_path_exp, behav_path_exp)
+nom.correction_behav_files(behav_path_exp)
+
+#%% 2.1 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = session_path.name  # Extract session name
@@ -81,7 +66,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         
         # Define paths for raw, behavioral, and fiberphotometry data
         rawdata_path = data_path_exp / f'{file_prefix}.csv'
-        behav_path = data_path_exp / f'behav_{code}_{mouse}.csv'
+        behav_path = behav_path_exp / f'behav_{code}_{mouse}.csv'
         fiberpho_path = pp_path / f'{file_prefix}_dFFfilt.csv'
         
         # Paths for output files to be checked
@@ -221,7 +206,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 #%% 2.3 - Calculate mean and max before and after behaviour onset for whole group
 
 # ----------------------------- #
-BOI = 'Gate opens'  # Behavior of Interest
+BOI = 'Shock'  # Behavior of Interest
 TIME_MEANMAX = 5  # Time window for mean and max calculation, before and after behaviour (seconds)
 MAX_BOUTS_NUMBER = None  # Limit the number of bouts to analyze, if specified
 # ----------------------------- #
@@ -241,7 +226,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             groupanalysis_path.mkdir()
         
         # Initialize result Dataframe
-        results_df = pd.DataFrame(columns=['Subject', 
+        results_df = pd.DataFrame(columns=['Subject',  
                                            'Group', 
                                            f'Mean dFF before {BOI}', 
                                            f'Mean dFF after {BOI}', 

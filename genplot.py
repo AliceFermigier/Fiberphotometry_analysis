@@ -43,6 +43,8 @@ def session_code(session, exp):
     for code, sessions in session_codes.items():
         if session in sessions:
             return code
+        else:
+            print('WARNING : session name unknown. Please give in protocol.xlsx a session name referenced in gp.session_code.')
     
     # Default return value if the session does not match any known category
     return 'Unknown'
