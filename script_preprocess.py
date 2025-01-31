@@ -30,13 +30,13 @@ if path_to_gitrepo not in sys.path:
 import preprocess as pp
 import genplot as gp
 import nomenclature as nom
-from loader import experiment_path, analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, artifact_file, TIME_BEGIN
+from loader import experiment_path, analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
 
 #%% 1 - PREPROCESSING
 #####################
 
-# Step 1: Get the list of sessions for the experiment
-session_names = nom.get_experiment_sessions(proto_df, exp)
+# Step 1: Get the list of sessions for the experiment for aehc included batch
+session_names = nom.get_experiment_sessions(batches, proto_df, exp)
 print(f"Sessions for experiment '{exp}': {session_names}")
 
 # Step 2: Create main experiment folder and session subfolders
@@ -44,12 +44,8 @@ exp_path = nom.setup_experiment_directory(analysis_path, exp, session_names)
 print(f"Experiment directory created at: {exp_path}")
 
 # Step 3: Get the path to the raw data folder for the experiment
-data_path_exp = nom.get_experiment_data_path(proto_df, data_path, exp)
-print(f"Raw data path for experiment '{exp}': {data_path_exp}")
-
-# Step 4: Create preprocessing directory inside the raw data path
-pp_path = nom.setup_preprocessing_directory(data_path_exp)
-print(f"Preprocessing directory created at: {pp_path}")
+datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
+print(f"Raw data paths for experiment '{exp}': {datapath_exp_dict}")
 
 #%% 1.1 - Deinterleave data and save in separate file
 
@@ -64,13 +60,18 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     code = gp.session_code(session, exp)
     
     # Loop through each mouse in the subject DataFrame
-    for mouse in subjects_df['Subject']:
-        print("--------------") 
-        print(f'MOUSE : {mouse}')
-        print("--------------")
+    for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+        print("-----------------------------") 
+        print(f'BATCH : {batch}, MOUSE : {mouse}')
+        print("-----------------------------")
+        
+        data_path_exp = datapath_exp_dict[batch]
         
         # Create a common file prefix
         file_prefix = f'{mouse}_{code}'
+        
+        # Create preprocessing directory inside the raw data path
+        pp_path = nom.setup_preprocessing_directory(data_path_exp)
         
         # Paths for input raw data and output deinterleaved and plot files
         raw_data_path = data_path_exp / f'{file_prefix}.csv'
@@ -102,11 +103,13 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 #------------------#
 session = 'Test'
 mouse = 'A2m'
+batch = 'B5'
 filecode = f'{exp}_{session}_{mouse}'
 #------------------#
 
 # in excel 'Filecode', put '{exp}_{session}_{mouse}'
 code = gp.session_code(session,exp)
+pp_path = datapath_exp_dict[batch] / 'Preprocessing'
 deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
 
 # Create the Dash app
@@ -211,7 +214,11 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     print(f'EXPERIMENT : {exp} - SESSION : {session}')
     print('##########################################')
     code = gp.session_code(session,exp)
-    for mouse in subjects_df['Subject']:
+    for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+        print("-----------------------------") 
+        print(f'BATCH : {batch}, MOUSE : {mouse}')
+        print("-----------------------------")
+        pp_path = datapath_exp_dict[batch] / 'Preprocessing'
         if os.path.exists(pp_path/f'{mouse}_{code}_deinterleaved.csv'):
             try:
                 print("--------------")
@@ -237,4 +244,3 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
                 plt.close(fig_dFF) 
             except Exception as e:
                     print(f'Problem in processing mouse {mouse} : {e}')
-            

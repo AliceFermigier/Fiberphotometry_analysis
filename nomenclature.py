@@ -15,42 +15,66 @@ def create_directory(path):
     """Create a directory if it doesn't already exist."""
     os.makedirs(path, exist_ok=True)
 
-
-def get_experiment_sessions(proto_df, exp):
+def get_experiment_sessions(batches, proto_df, exp):
     """
     Get a list of session names for a given experiment from the protocol DataFrame.
     
     Parameters:
+    - batches (list): List of included batches of mice.
     - proto_df (pd.DataFrame): DataFrame containing protocol information.
     - exp (str): Name of the experiment.
     
     Returns:
-    - list: List of session names for the experiment.
+    - dict: Dictionary mapping batch names to lists of session names.
     """
-    try:
-        sessions = proto_df.loc[proto_df['Task'] == exp, 'Sessions'].values[0]
-        return sessions.split()
-    except (KeyError, IndexError):
-        raise ValueError(f"Sessions not found for experiment '{exp}' in the protocol DataFrame.")
+    sessions_list = []
+    
+    for B in batches:
+        try:
+            filtered_df = proto_df[(proto_df['Task'] == exp) & (proto_df['Batch'] == B)]
+            
+            if filtered_df.empty:
+                raise ValueError(f"No sessions found for experiment '{exp}' in batch '{B}'.")
+            
+            sessions_list.append(filtered_df['Sessions'].values[0])  # Extract session value
+        
+        except KeyError as e:
+            raise ValueError(f"Missing column in DataFrame: {e}")
+        except IndexError:
+            raise ValueError(f"Sessions not found for experiment '{exp}' in batch '{B}'.")
+    
+    return list(set(sessions_list))
 
-
-def get_experiment_data_path(proto_df, data_path, exp):
+def get_experiment_data_path(batches, proto_df, data_path, exp):
     """
     Get the raw data path for the experiment from the protocol DataFrame.
     
     Parameters:
+    - batches : included batches of mice
     - proto_df (pd.DataFrame): DataFrame containing protocol information.
     - data_path (Path): Base path to data storage.
     - exp (str): Name of the experiment.
     
     Returns:
-    - Path: Full path to the experiment's data directory.
+    - dictionary of paths to the experiment's data directories
     """
-    try:
-        relative_path = proto_df.loc[proto_df['Task'] == exp, 'Data_path'].values[0]
-        return data_path / relative_path
-    except (KeyError, IndexError):
-        raise ValueError(f"Data path not found for experiment '{exp}' in the protocol DataFrame.")
+    datapathexp_dict = {B: None for B in batches}
+    
+    for B in batches:
+        try:
+            filtered_df = proto_df[(proto_df['Task'] == exp) & (proto_df['Batch'] == B)]
+            
+            if filtered_df.empty:
+                raise ValueError(f"No sessions found for experiment '{exp}' in batch '{B}'.")
+            
+            relative_path = filtered_df['Data_path'].values[0]
+            
+            datapathexp_dict[B] = data_path / relative_path
+
+        except (KeyError, IndexError):
+            raise ValueError(f"Data path not found for experiment '{exp}' in the protocol DataFrame.")
+            
+    return datapathexp_dict
 
 
 def setup_experiment_directory(analysis_path, exp, session_names):

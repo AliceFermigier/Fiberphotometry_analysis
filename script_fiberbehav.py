@@ -26,20 +26,21 @@ import statcalc as sc
 import transients as tr
 import nomenclature as nom
 
-from loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, THRESH_S, EVENT_TIME_THRESHOLD
+from loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, THRESH_S, EVENT_TIME_THRESHOLD, batches
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
 
 exp_path = analysis_path / exp
-data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]  
-pp_path = data_path_exp / 'Preprocessing'
-behav_path_exp = data_path_exp / 'Behaviour'
+datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
 # 2.0 - Correction behavioural data nomenclature
 
-nom.move_behav_files(data_path_exp, behav_path_exp)
-nom.correction_behav_files(behav_path_exp)
+for batch in batches :
+    data_path_exp = datapath_exp_dict[batch]
+    behav_path_exp = data_path_exp / 'Behaviour'
+    nom.move_behav_files(data_path_exp, behav_path_exp)
+    nom.correction_behav_files(behav_path_exp)
 
 #%% 2.1 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
 
@@ -56,11 +57,16 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     repo_path = session_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
     repo_path.mkdir(exist_ok=True)  # Create directory if it doesn't exist
     
-    for mouse in subjects_df['Subject']:
-        print("--------------")
-        print(f'MOUSE : {mouse}')
-        print("--------------")
+    # Loop through each mouse in the subject DataFrame
+    for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+        print("-----------------------------") 
+        print(f'BATCH : {batch}, MOUSE : {mouse}')
+        print("-----------------------------")
         
+        data_path_exp = datapath_exp_dict[batch]
+        pp_path = data_path_exp / 'Preprocessing'
+        behav_path_exp = data_path_exp / 'Behaviour'
+    
         # Create common file prefix for files related to the current mouse and session
         file_prefix = f'{mouse}_{code}'
         
@@ -70,10 +76,10 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         fiberpho_path = pp_path / f'{file_prefix}_dFFfilt.csv'
         
         # Paths for output files to be checked
-        fiberbehav_path = repo_path / f'{file_prefix}_fiberbehav.csv'
-        fiberbehav_notderived_path = repo_path / f'{file_prefix}_fiberbehavnotderived.csv'
-        fiberbehav_plot_pdf_path = repo_path / f'{file_prefix}_fiberbehav.pdf'
-        fiberbehav_plot_png_path = repo_path / f'{file_prefix}_fiberbehav.png'
+        fiberbehav_path = repo_path / f'{batch}_{file_prefix}_fiberbehav.csv'
+        fiberbehav_notderived_path = repo_path / f'{batch}_{file_prefix}_fiberbehavnotderived.csv'
+        fiberbehav_plot_pdf_path = repo_path / f'{batch}_{file_prefix}_fiberbehav.pdf'
+        fiberbehav_plot_png_path = repo_path / f'{batch}_{file_prefix}_fiberbehav.png'
 
         # Determine if we should process this mouse's data
         ready = behav_path.exists()
@@ -159,8 +165,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     diffmeanmaxdFF_list = []
     diffmeanmaxdFF_perbout_list = []
     
-    for mouse in subjects_df['Subject']:
-        file_prefix = f'{mouse}_{code}'
+    for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
+        file_prefix = f'{batch}_{mouse}_{code}'
         
         # Paths to the relevant fiberbehav files
         fiberbehav_path = repo_path / f'{file_prefix}_fiberbehav.csv'
@@ -168,10 +174,9 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         
         # Check if required data exists for this mouse
         if fiberbehav_path.exists():
-            print("--------------")
-            print(f'PROCESSING MOUSE: {mouse}')
-            print("--------------")
-            group = subjects_df.loc[subjects_df['Subject'] == mouse, 'Group'].values[0]
+            print("-------------------")
+            print(f'PROCESSING MOUSE: {mouse} {batch}')
+            print("-------------------")
             
             # 1 Load data from CSV files
             dfiberbehav_df = pd.read_csv(fiberbehav_path, index_col=0)
@@ -233,10 +238,11 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
                                            f'Max dFF before {BOI}', 
                                            f'Max dFF after {BOI}'])
         
-        for mouse in subjects_df['Subject']:
-            print("--------------")
-            print(f'MOUSE: {mouse}')
-            print("--------------")
+        for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
+            file_prefix = f'{batch}_{mouse}_{code}'
+            print("------------------")
+            print(f'MOUSE: {mouse} {batch}')
+            print("------------------")
             
             fiberbehav_file = repo_path / f'{mouse}_{code}_fiberbehav.csv'
             if not fiberbehav_file.exists():
