@@ -194,7 +194,7 @@ def highlight_behavior_areas(ax, df, behavior_name, facecolor='grey', alpha=0.3,
             x_start = 0
             i += 1
 
-def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, session, mouse, THRESH_S, EVENT_TIME_THRESHOLD):
+def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, session, mouse, THRESH_S, EVENT_TIME_THRESHOLD, batch):
     """
     Plots denoised deltaF/F aligned with behaviour (includes baseline)
     """
@@ -253,7 +253,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, session, mouse, THRESH_S
     ax1.set_xlabel('Time(s)')
     ax1.legend(loc='upper left')
     ax1.margins(0.01, 0.03)
-    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {session} {mouse} - interbout {THRESH_S} - cut {EVENT_TIME_THRESHOLD}')
+    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {session} {mouse} {batch}- interbout {THRESH_S} - cut {EVENT_TIME_THRESHOLD}')
     
     return fig2
 

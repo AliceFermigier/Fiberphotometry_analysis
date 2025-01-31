@@ -134,7 +134,8 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
                 session, 
                 mouse, 
                 THRESH_S, 
-                EVENT_TIME_THRESHOLD
+                EVENT_TIME_THRESHOLD,
+                batch
             )
             
             # Save plots in both PDF and PNG formats
@@ -244,7 +245,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
             print(f'MOUSE: {mouse} {batch}')
             print("------------------")
             
-            fiberbehav_file = repo_path / f'{mouse}_{code}_fiberbehav.csv'
+            fiberbehav_file = repo_path / f'{file_prefix}_fiberbehav.csv'
             if not fiberbehav_file.exists():
                 print(f"File not found: {fiberbehav_file}")
                 continue
@@ -293,13 +294,12 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     peth_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
     
     # Loop over each mouse in the subjects DataFrame
-    for mouse in subjects_df['Subject']:
-        group = subjects_df.loc[subjects_df['Subject'] == mouse, 'Group'].values[0]
-        fiberbehav_path = repo_path / f'{mouse}_{code}_fiberbehav.csv'
+    for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
+        fiberbehav_path = repo_path / f'{batch}_{mouse}_{code}_fiberbehav.csv'
 
         if fiberbehav_path.exists():  # Check if fiber behavior file exists for this mouse
             print("--------------")
-            print(f'MOUSE : {mouse}')
+            print(f'MOUSE : {mouse} {batch}')
             print("--------------")
 
             try:
@@ -361,12 +361,12 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     PETH_max_list = []
 
     # Loop over each subject (mouse)
-    for mouse in subjects_df['Subject']:
+    for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
         print("--------------")
-        print(f'MOUSE: {mouse}')
+        print(f'MOUSE: {mouse} {batch}')
         print("--------------")
         
-        fiberbehav_file = repo_path / f'{mouse}_{code}_fiberbehav.csv'
+        fiberbehav_file = repo_path / f'{batch}_{mouse}_{code}_fiberbehav.csv'
         
         if not fiberbehav_file.exists():
             print(f"File not found: {fiberbehav_file}")
@@ -374,7 +374,6 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         
         try:
             fiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
-            group = subjects_df.loc[subjects_df['Subject'] == mouse, 'Group'].values[0]
             sr = pp.samplerate(fiberbehav_df)
             
             if BOI in fiberbehav_df.columns[2:].tolist():

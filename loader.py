@@ -23,7 +23,7 @@ import nomenclature as nom
 #LOADER#
 ########
 
-experiment_path = Path(r'C:\Users\alice\Desktop\Papier Bedding\Data\Data_Fiber\B5-B10')
+experiment_path = Path(r'C:\Users\alice\Desktop\Papier Bedding\Data\Data_Fiber')
 analysis_path = experiment_path / 'Analysis' 
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -49,7 +49,7 @@ CUT_FREQ = 1 #in Hz
 
 #------------------#
 exp = 'Fear'
-batches = ['B5','B10']
+batches = list(set(subjects_df['Batch']))
 #------------------#
 
 #threshold to fuse behaviour if bouts are too close, in secs

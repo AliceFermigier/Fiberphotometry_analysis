@@ -215,7 +215,7 @@ def derive(fibersniff_df):
     
     return derived_df
 
-def plethyfiber_plot_raw(fiberpho_df, plethys_df, mouse):
+def plethyfiber_plot_raw(fiberpho_df, plethys_df, mouse, batch):
     """
     Plots raw whole-body plethysmography (WBP) and fiberphotometry (GCaMP and ISOS) data.
 
@@ -247,7 +247,7 @@ def plethyfiber_plot_raw(fiberpho_df, plethys_df, mouse):
     ax3 = fig.add_subplot(311)
     p1, = ax3.plot('Time(s)', 'AIn-4', linewidth=0.5, color='black', data=plethys_df, label='WBP')
     ax3.set_ylabel('WBP (A.U.)')
-    ax3.set_title(f'Whole Body Plethysmography and Fiberphotometry - {mouse}', fontsize=14)
+    ax3.set_title(f'Whole Body Plethysmography and Fiberphotometry - {mouse} {batch}', fontsize=14)
     ax3.margins(0, 0.1)
     ax3.legend(handles=[p1], loc='upper right', fontsize='small')
     
@@ -270,7 +270,7 @@ def plethyfiber_plot_raw(fiberpho_df, plethys_df, mouse):
     # Return the figure object
     return fig
 
-def plethyfiber_plot_sniffs(dfibersniff_df, sniffs_df, mouse):
+def plethyfiber_plot_sniffs(dfibersniff_df, sniffs_df, mouse, batch):
     """
     Plots whole-body plethysmography (WBP) and fiberphotometry (Denoised dFF) data, highlighting sniff events 
     for different odors (Clean, HC, Novel) and marking stimulus start and end points with vertical lines.
@@ -305,7 +305,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df, sniffs_df, mouse):
     ax8 = fig.add_subplot(211)
     p1, = ax8.plot('Time(s)', 'Plethysmograph', linewidth=0.5, color='black', data=dfibersniff_df, label='WBP')
     ax8.set_ylabel('WBP (A.U.)')
-    ax8.set_title(f'Whole Body Plethysmography and Fiberphotometry - {mouse}', fontsize=14)
+    ax8.set_title(f'Whole Body Plethysmography and Fiberphotometry - {mouse} {batch}', fontsize=14)
     ax8.margins(0, 0.1)
     ax8.legend(handles=[p1], loc='upper right', fontsize='small')
     
@@ -563,7 +563,7 @@ def PETH_stim(dfibersniff_df, odor, event, timewindow, mouse, sr, PRE_EVENT_TIME
     
     return PETH_array
 
-def plot_PETH(PETH_data, odor, event, timewindow, BOI, sr, mouse):
+def plot_PETH(PETH_data, odor, event, timewindow, BOI, sr, mouse, batch):
     """
     Plots the PETH (Peri-Event Time Histogram) as both an average plot and a heatmap.
     
@@ -602,7 +602,7 @@ def plot_PETH(PETH_data, odor, event, timewindow, BOI, sr, mouse):
     
     # Handle case where PETH_data is empty
     if PETH_data.size == 0:
-        print(f"No data available for {odor} {event} for mouse {mouse}. Returning None.")
+        print(f"No data available for {odor} {event} for mouse {mouse} {batch}. Returning None.")
         return None
     
     # Create time vector for the x-axis
@@ -632,7 +632,7 @@ def plot_PETH(PETH_data, odor, event, timewindow, BOI, sr, mouse):
     ax6.set_yticks(np.arange(0.5, len(PETH_data), 2))
     ax6.set_yticklabels(np.arange(0, len(PETH_data), 2))
     ax6.axvline(x=0, linewidth=2, color='black', linestyle='--')
-    ax6.set_title(f'{odor} {event} - Plethysmo {mouse}')
+    ax6.set_title(f'{odor} {event} - Plethysmo {mouse} {batch}')
     
     # Colorbar for the heatmap
     fig.subplots_adjust(right=0.8, hspace=0.1)

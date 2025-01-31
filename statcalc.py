@@ -21,7 +21,7 @@ import preprocess as pp
 #DEFINED FUNCTIONS#
 ###################
 
-def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group):
+def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group, batch):
     """
     Calculates mean dFF during each behavior of interest (BOI).
     Outputs a DataFrame with 'Subject', 'Group', 'Mean dFF', 'Baseline', 'Post_baseline', and mean dFF for each behavior.
@@ -50,6 +50,7 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group):
 
     # Initialize the DataFrame to hold the calculated mean dFFs
     results = {
+        'Batch': batch,
         'Subject': mouse,
         'Group': group
     }
@@ -116,7 +117,7 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group):
     
     return meandFFs_df
 
-def diffmeanmaxdFF_behav(behavprocess_df, list_BOI, mouse, group):
+def diffmeanmaxdFF_behav(behavprocess_df, list_BOI, mouse, group, batch):
     """
     Calculates mean dFF difference between the beginning and end of bouts.
     Also calculates mean mean and max dFF across all bouts (will give a different value than meandFF_behav : here 1 bout = 1 value)
@@ -135,7 +136,13 @@ def diffmeanmaxdFF_behav(behavprocess_df, list_BOI, mouse, group):
     list_behav_analyzed = [behav for behav in list_BOI if behav not in ['Entry in arena', 'Gate opens', 'Shock', 'Tail suspension']]
     
     # Initialize result lists
-    results = {'Subject': [], 'Group': [], 'Behaviour': [], 'Mean dFF': [], 'Max dFF': [], 'Delta dFF': []}
+    results = {'Batch': [],
+               'Subject': [], 
+               'Group': [], 
+               'Behaviour': [], 
+               'Mean dFF': [], 
+               'Max dFF': [], 
+               'Delta dFF': []}
     
     for behav in list_behav_analyzed:
         
@@ -190,6 +197,7 @@ def diffmeanmaxdFF_behav(behavprocess_df, list_BOI, mouse, group):
             mean_maxdFF = np.nan
         
         # Store results for this behavior
+        results['Batch'].append(batch)
         results['Subject'].append(mouse)
         results['Group'].append(group)
         results['Behaviour'].append(behav)
@@ -202,7 +210,7 @@ def diffmeanmaxdFF_behav(behavprocess_df, list_BOI, mouse, group):
     
     return diffdFF_df
 
-def diffmeanmaxdFF_behav_perbout(behavprocess_df, list_BOI, mouse, group):
+def diffmeanmaxdFF_behav_perbout(behavprocess_df, list_BOI, mouse, group, batch):
     """
     Same as diffmeanmaxdFF_behav but with detailed data for each bout
 
@@ -282,6 +290,7 @@ def diffmeanmaxdFF_behav_perbout(behavprocess_df, list_BOI, mouse, group):
 
     # Create DataFrame from collected lists
     diffdFF_df = pd.DataFrame({
+        'Batch': [batch] * len(listind_behav),
         'Subject': [mouse] * len(listind_behav),
         'Group': [group] * len(listind_behav),
         'Behaviour': listind_behav,
@@ -293,7 +302,7 @@ def diffmeanmaxdFF_behav_perbout(behavprocess_df, list_BOI, mouse, group):
     
     return diffdFF_df
 
-def variance_transients_baseline(fiberbehav_df, list_BOI, mouse, group, exp, session):
+def variance_transients_baseline(fiberbehav_df, list_BOI, mouse, group, exp, session, batch):
     """
     Calculates variance, transient frequency, and amplitude during whole trace and before and after baseline
     
@@ -335,6 +344,7 @@ def variance_transients_baseline(fiberbehav_df, list_BOI, mouse, group, exp, ses
 
     # Store the results in a dataframe
     results_df = pd.DataFrame({
+        'Batch': batch,
         'Subject': mouse,
         'Group': group,
         'Variance': variance,
@@ -369,7 +379,7 @@ def process_event(fiberbehav_df, ind_event, TIME_MEANMAX):
         print(f"Error processing event at index {ind_event}: {e}")
         return None, None, None, None
     
-def process_mouse_meanmax_beforeafter(fiberbehav_df, mouse, group, BOI, MAX_BOUTS_NUMBER=None):
+def process_mouse_meanmax_beforeafter(fiberbehav_df, mouse, group, BOI, batch, MAX_BOUTS_NUMBER=None):
     """Process the fiberbehav file for a single mouse, calculating mean and max dFF for events."""
     results = pd.DataFrame(columns=['Subject', 'Group', 'Mean dFF before entry', 
                                     'Mean dFF entry', 'Max dFF before entry', 'Max dFF entry'])
@@ -392,6 +402,7 @@ def process_mouse_meanmax_beforeafter(fiberbehav_df, mouse, group, BOI, MAX_BOUT
             
             if mean_dFF_entry is not None:
                 results = pd.DataFrame({
+                    'Batch': batch,
                     'Subject': mouse,
                     'Group': group,
                     f'Mean dFF before {BOI}': mean_dFF_before_entry,
@@ -405,7 +416,7 @@ def process_mouse_meanmax_beforeafter(fiberbehav_df, mouse, group, BOI, MAX_BOUT
         print(f"Error processing mouse {mouse}: {e}")
         return results
 
-def meandFF_sniffs(fiberbehav_df, exp, session, mouse, group, joined=True):
+def meandFF_sniffs(fiberbehav_df, exp, session, mouse, group, batch, joined=True):
     """
     Calculates mean dFF (delta F/F) during each behavior for a given mouse and session.
 
@@ -460,14 +471,14 @@ def meandFF_sniffs(fiberbehav_df, exp, session, mouse, group, joined=True):
             mean_dFF_list.append(np.nan)  # Handle case where no behavior == 1 occurs
             
     # Create the final output DataFrame
-    dFF_values = [mouse, group] + mean_dFF_list
-    dFF_columns = ['Subject', 'Group'] + list(fiberbehavsnip_df.columns[3:])
+    dFF_values = [batch, mouse, group] + mean_dFF_list
+    dFF_columns = ['Batch', 'Subject', 'Group'] + list(fiberbehavsnip_df.columns[3:])
     
     meandFFs_df = pd.DataFrame(data=[dFF_values], columns=dFF_columns)
     
     return meandFFs_df
 
-def meanmax_dFF_stims(behavprocess_df, list_BOI, mouse, group, TIME_MEANMAX, sr):
+def meanmax_dFF_stims(behavprocess_df, list_BOI, mouse, group, TIME_MEANMAX, sr, batch):
     """
     Calculates the difference in dFF between the beginning and end of behavioral bouts.
     Also calculates the mean and max dFF during each bout.
@@ -537,6 +548,7 @@ def meanmax_dFF_stims(behavprocess_df, list_BOI, mouse, group, TIME_MEANMAX, sr)
     
     # Create a DataFrame to store results
     meanmaxdFF_df = pd.DataFrame({
+        'Batch': [batch] * len(analyzed_behaviors),
         'Subject': [mouse] * len(analyzed_behaviors),
         'Group': [group] * len(analyzed_behaviors),
         'Behaviour': analyzed_behaviors,

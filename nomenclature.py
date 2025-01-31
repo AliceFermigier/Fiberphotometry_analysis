@@ -69,7 +69,7 @@ def get_experiment_data_path(batches, proto_df, data_path, exp):
             
             relative_path = filtered_df['Data_path'].values[0]
             
-            datapathexp_dict[B] = data_path / relative_path
+            datapathexp_dict[B] = data_path / f'{B}' / relative_path
 
         except (KeyError, IndexError):
             raise ValueError(f"Data path not found for experiment '{exp}' in the protocol DataFrame.")

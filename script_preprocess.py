@@ -101,9 +101,9 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
 #%% 1.2 - Open artifacted data and score artifacts
 
 #------------------#
-session = 'Test'
-mouse = 'A2m'
-batch = 'B5'
+session = 'Conditioning'
+mouse = 'mCD2l'
+batch = 'B10'
 filecode = f'{exp}_{session}_{mouse}'
 #------------------#
 
@@ -215,15 +215,12 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     print('##########################################')
     code = gp.session_code(session,exp)
     for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
-        print("-----------------------------") 
-        print(f'BATCH : {batch}, MOUSE : {mouse}')
-        print("-----------------------------")
         pp_path = datapath_exp_dict[batch] / 'Preprocessing'
         if os.path.exists(pp_path/f'{mouse}_{code}_deinterleaved.csv'):
             try:
-                print("--------------")
-                print(f'MOUSE : {mouse}')
-                print("--------------")
+                print("-----------------------------") 
+                print(f'BATCH : {batch}, MOUSE : {mouse}')
+                print("-----------------------------")
                 deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
                 filecode = f'{exp}_{session}_{mouse}'
                 
