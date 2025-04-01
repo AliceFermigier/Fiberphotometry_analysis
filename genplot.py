@@ -22,48 +22,72 @@ import matplotlib.pyplot as plt
 #DEFINED FUNCTIONS#
 ###################
 
-def session_code(session,exp):
+def session_code(session, exp):
     """
-    Generate session code in file name
+    Generate session code in file name.
+    
+    Parameters:
+    session (str): Name of the session (e.g., 'S1', 'Test1', etc.).
+    exp (str): Name of the experiment (e.g., 'NewContext', 'OtherExp').
+    
+    Returns:
+    str: A session code ('0', '1', '2', etc.) based on the session and experiment.
     """
-    if exp=='NewContext':
-        code = '0'
-    else:
-        if session in ['Habituation','Training','S1','Conditioning']:
-            code = '0'
-        elif session in ['S2','Test 1h','Test']:
-            code = '1'
-        elif session in ['S3','Test 24h']:
-            code = '2'
-        
-    return(code)
+    
+    session_codes = {
+        '0': {'Habituation', 'Training', 'S1', 'Conditioning'},
+        '1': {'S2', 'Test 1h', 'Test', 'Test1'},
+        '2': {'S3', 'Test 24h', 'Test2'}
+    }
 
-def plot_rawdata(rawdata_df,exp,session,mouse):
-    """
-    Plots raw isosbestic and GCaMP traces
-    """
+    for code, sessions in session_codes.items():
+        if session in sessions:
+            return code
+        else:
+            print('WARNING : session name unknown. Please give in protocol.xlsx a session name referenced in gp.session_code.')
     
-    fig = plt.figure(figsize=(10,6))
-    ax7 = fig.add_subplot(211)
+    # Default return value if the session does not match any known category
+    return 'Unknown'
 
-    p1, = ax7.plot('Time(s)', '470 Deinterleaved', 
-                   linewidth=1, color='deepskyblue', label='GCaMP', data = rawdata_df[100:]) 
-    p2, = ax7.plot('Time(s)', '405 Deinterleaved', 
-                   linewidth=1, color='blueviolet', label='ISOS', data = rawdata_df[100:])
+def plot_rawdata(rawdata_df, exp, session, mouse):
+    """
+    Plots raw isosbestic (405 nm) and GCaMP (470 nm) traces.
     
-    ax7.set_ylabel('V')
-    ax7.set_xlabel('Time(s)')
-    ax7.legend(handles=[p1,p2], loc='upper right')
-    ax7.margins(0.01,0.3)
-    ax7.set_title(f'GCaMP and Isosbestic raw traces - {exp} {session} {mouse}')
+    Parameters:
+    rawdata_df (pd.DataFrame): DataFrame containing 'Time(s)', '470 Deinterleaved', and '405 Deinterleaved' columns.
+    exp (str): Experiment name.
+    session (str): Session name.
+    mouse (str): Mouse identifier.
     
-    return(fig)
+    Returns:
+    matplotlib.figure.Figure: The generated plot figure.
+    """
+    # Slice data
+    rawdata_subset = rawdata_df.iloc[100:]  # Discard first 100 rows
+    
+    # Create figure and axis
+    fig, ax7 = plt.subplots(figsize=(10, 6))
+    
+    # Plot GCaMP (470) and Isosbestic (405) traces
+    ax7.plot(rawdata_subset['Time(s)'], rawdata_subset['470 Deinterleaved'], 
+             linewidth=1, color='deepskyblue', label='GCaMP')
+    ax7.plot(rawdata_subset['Time(s)'], rawdata_subset['405 Deinterleaved'], 
+             linewidth=1, color='blueviolet', label='ISOS')
+    
+    # Customize axis
+    ax7.set_xlabel('Time (s)')
+    ax7.set_ylabel('Voltage (V)')
+    ax7.set_title(f'GCaMP and Isosbestic Raw Traces - {exp} {session} {mouse}')
+    ax7.legend(loc='upper right')
+    ax7.margins(0.01, 0.3)  # Small margins around the data
+    
+    return fig
 
 def truncate(n, decimals=0):
     multiplier = 10 ** decimals
     return int(n * multiplier) / multiplier
 
-def time_vector(fiberpho, SAMPLERATE) :
+def time_vector(fiberpho, samplerate) :
     """
     Creates timevector on which to plot the data, in pd format
     --> Parameters :
@@ -77,7 +101,7 @@ def time_vector(fiberpho, SAMPLERATE) :
     #--> if better timevector of the exact same lenght as fiberpho data
     
     duration =  math.ceil(fiberpho.at[len(fiberpho)-2,'Time(s)'])
-    return pd.Series(np.linspace(0.0, duration, num = int(duration*SAMPLERATE)+1))
+    return pd.Series(np.linspace(0.0, duration, num = int(duration*samplerate)+1))
 
 def timestamp_camera(rawdata_df) :
     """
@@ -92,7 +116,7 @@ def timestamp_camera(rawdata_df) :
     return (truncate(rawdata_df.at[ind_start, 'Time(s)'], 1),
             truncate(rawdata_df.at[ind_stop, 'Time(s)'], 1))
 
-def plot_fiberpho(fiberbehav_df,exp,session,mouse):
+def plot_fiberpho(fiberbehav_df,exp,session,mouse,method):
     """
     Plots isosbestic and Ca dependent deltaF/F or fitted
     """
@@ -109,6 +133,6 @@ def plot_fiberpho(fiberbehav_df,exp,session,mouse):
     ax0.set_xlabel('Time(s)')
     ax0.legend(handles=[p1,p2], loc='upper right')
     ax0.margins(0.01,0.2)
-    ax0.set_title(f'GCaMP and Isosbestic dFF - {exp} {session} {mouse}')
+    ax0.set_title(f'GCaMP and Isosbestic dFF - {exp} {session} {mouse} - {method}')
     
     return fig1
