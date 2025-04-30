@@ -13,11 +13,11 @@ from pathlib import Path
 import sys
 
 #path to other scripts in sys.path
-path_to_gitrepo=r'C:\Users\alice\Documents\GitHub\Fiberphotometry_analysis'
+path_to_gitrepo=r'C:\Users\afermigier\Documents\GitHub\Fiberphotometry_analysis'
 if path_to_gitrepo not in sys.path:
     sys.path.append(path_to_gitrepo)
     
-import nomenclature as nom
+import modules.nomenclature as nom
 
 ########
 #LOADER#
@@ -41,7 +41,7 @@ nom.create_or_load_artifacts_file(artifact_file, option='create_only')
 #PARAMETERS#
 ############
 
-#time to crop at the beginning of the trial for , in seconds
+#time to crop at the beginning of the trial for, in seconds
 TIME_BEGIN = 60
 #filter characteristics
 ORDER = 4
