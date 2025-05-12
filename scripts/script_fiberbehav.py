@@ -19,14 +19,14 @@ import os
 import warnings 
 
 #import functions
-import preprocess as pp
-import genplot as gp
-import behavplot as bp
-import statcalc as sc
-import transients as tr
-import nomenclature as nom
+import modules.preprocess as pp
+import modules.genplot as gp
+import modules.behavplot as bp
+import modules.statcalc as sc
+import modules.transients as tr
+import modules.nomenclature as nom
 
-from loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, THRESH_S, EVENT_TIME_THRESHOLD, batches
+from scripts.loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, THRESH_S, EVENT_TIME_THRESHOLD, batches
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################

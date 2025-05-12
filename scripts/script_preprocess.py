@@ -27,15 +27,15 @@ if path_to_gitrepo not in sys.path:
     sys.path.append(path_to_gitrepo)
 
 #import functions
-import preprocess as pp
-import genplot as gp
-import nomenclature as nom
-from loader import experiment_path, analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
+import modules.preprocess as pp
+import modules.genplot as gp
+import modules.nomenclature as nom
+from scripts.loader import experiment_path, analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
 
 #%% 1 - PREPROCESSING
 #####################
 
-# Step 1: Get the list of sessions for the experiment for aehc included batch
+# Step 1: Get the list of sessions for the experiment for each included batch
 session_names = nom.get_experiment_sessions(batches, proto_df, exp)
 print(f"Sessions for experiment '{exp}': {session_names}")
 
