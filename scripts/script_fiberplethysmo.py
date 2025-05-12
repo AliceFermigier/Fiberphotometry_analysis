@@ -21,15 +21,15 @@ from dash import Dash, dcc, html, Input, Output, State
 import plotly.express as px
 
 #import functions
-import preprocess as pp
-import genplot as gp
-import behavplot as bp
-import plethyplot as plp
-import statcalc as sc
-import transients as tr
-import nomenclature as nom
+import modules.preprocess as pp
+import modules.genplot as gp
+import modules.behavplot as bp
+import modules.plethyplot as plp
+import modules.statcalc as sc
+import modules.transients as tr
+import modules.nomenclature as nom
 
-from script_preprocess import experiment_path, exp, ORDER, CUT_FREQ
+from scripts.loader import experiment_path, exp, ORDER, CUT_FREQ
 
 #%%LOADER
 ##########
