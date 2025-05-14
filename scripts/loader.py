@@ -30,7 +30,7 @@ os.chdir(experiment_path)
 os.getcwd()
 
 #import ID and groups of all mice
-subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Included')
+subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='All')
 #import tasks in protocol
 proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 #create artifacts file if not existent
@@ -48,7 +48,7 @@ ORDER = 4
 CUT_FREQ = 1 #in Hz
 
 #------------------#
-exp = 'Fear'
+exp = 'EPM'
 batches = list(set(subjects_df['Batch']))
 #------------------#
 
