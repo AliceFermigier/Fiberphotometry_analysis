@@ -23,7 +23,7 @@ import modules.nomenclature as nom
 #LOADER#
 ########
 
-experiment_path = Path(r'C:\Users\alice\Desktop\Papier Bedding\Data\Data_Fiber')
+experiment_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh')
 analysis_path = experiment_path / 'Analysis' 
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -42,7 +42,7 @@ nom.create_or_load_artifacts_file(artifact_file, option='create_only')
 ############
 
 #time to crop at the beginning of the trial for, in seconds
-TIME_BEGIN = 60
+TIME_BEGIN = 4
 #filter characteristics
 ORDER = 4
 CUT_FREQ = 1 #in Hz

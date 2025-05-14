@@ -30,6 +30,8 @@ if path_to_gitrepo not in sys.path:
 import modules.preprocess as pp
 import modules.genplot as gp
 import modules.nomenclature as nom
+import modules.clean_signal as cs
+import modules.doric_to_csv as dtc
 from scripts.loader import experiment_path, analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
 
 #%% 1 - PREPROCESSING
@@ -72,9 +74,14 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         
         # Create preprocessing directory inside the raw data path
         pp_path = nom.setup_preprocessing_directory(data_path_exp)
-        
-        # Paths for input raw data and output deinterleaved and plot files
+
+        # Convert .doric into .csv if not done already
+        raw_doric_data_path = data_path_exp / f'{file_prefix}.doric'
         raw_data_path = data_path_exp / f'{file_prefix}.csv'
+        if not raw_data_path.exists():
+            dtc.doric_to_csv(raw_doric_data_path, raw_data_path)
+        
+        # Paths for output deinterleaved and plot files
         deinterleaved_path = pp_path / f'{file_prefix}_deinterleaved.csv'
         raw_plot_path = pp_path / f'{file_prefix}_rawdata.png'
         
