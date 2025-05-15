@@ -55,7 +55,7 @@ def clean_signal(t, dff, raw_signals, apply_hampel=True, apply_filter=False):
         plt.show()
         dff = dff1
 
-    # --- High-pass Filter --- (not necessary if detrend is sufficient)
+    # --- High-pass Filter --- (not necessary if detrending is sufficient)
     if apply_filter:
         b, a = butter(2, 10 / (raw_signals['sfreq'] / 2), btype='high')
         filt_dff = filtfilt(b, a, dff)

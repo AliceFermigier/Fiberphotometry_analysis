@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Jan 20 18:45:55 2025
-
 Loader
-
 @author: alice
 """
 
@@ -30,7 +28,7 @@ os.chdir(experiment_path)
 os.getcwd()
 
 #import ID and groups of all mice
-subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='All')
+subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Included')
 #import tasks in protocol
 proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 #create artifacts file if not existent

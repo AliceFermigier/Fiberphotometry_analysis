@@ -1,6 +1,5 @@
 import h5py
 import pandas as pd
-import numpy as np
 
 def doric_to_csv(doric_path, csv_path):
 
