@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from ast import literal_eval
 
-import nomenclature as nom
+import modules.nomenclature as nom
 # citing pyabf : 
 # Harden, SW (2020). pyABF 2.2.3. [Online]. Available: https://pypi.org/project/pyabf/
 

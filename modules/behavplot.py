@@ -17,10 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-if 'D:\Profil\Documents\GitHub\Fiberphotometry_analysis' not in sys.path:
-    sys.path.append('D:\Profil\Documents\GitHub\Fiberphotometry_analysis')
-    
-import preprocess as pp
+import modules.preprocess as pp
 
 #%%
 ###################

@@ -17,7 +17,7 @@ import numpy as np
 from scipy import signal
 from ast import literal_eval
 
-import nomenclature as nom
+import modules.nomenclature as nom
 
 
 #%%

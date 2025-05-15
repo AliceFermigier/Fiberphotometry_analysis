@@ -13,8 +13,8 @@ Created on Fri Mar 24 17:16:16 2023
 import pandas as pd
 import numpy as np
 
-import transients as tr
-import preprocess as pp
+import modules.transients as tr
+import modules.preprocess as pp
 
 #%%
 ###################

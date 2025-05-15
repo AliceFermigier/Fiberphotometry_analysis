@@ -11,7 +11,7 @@ from pathlib import Path
 import sys
 
 #path to other scripts in sys.path
-path_to_gitrepo=r'C:\Users\afermigier\Documents\GitHub\Fiberphotometry_analysis'
+path_to_gitrepo=r"C:\Users\afermigier\Documents\GitHub\Fiberphotometry_analysis"
 if path_to_gitrepo not in sys.path:
     sys.path.append(path_to_gitrepo)
     
@@ -46,7 +46,7 @@ ORDER = 4
 CUT_FREQ = 1 #in Hz
 
 #------------------#
-exp = 'EPM'
+exp = 'EPM_1'
 batches = list(set(subjects_df['Batch']))
 #------------------#
 

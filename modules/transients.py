@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt 
 
-import preprocess as pp
+import modules.preprocess as pp
 
 def bandpass_filter(data, lowcut, highcut, sr, order=3):
     nyquist = 0.5 * sr
