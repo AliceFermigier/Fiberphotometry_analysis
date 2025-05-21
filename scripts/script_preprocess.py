@@ -231,7 +231,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             
             # smooth data with butterworth filter or simple moving average (SMA)
             #smoothdFF_df=pp.smoothing_SMA(interpdFFdata_df,win_size=7)
-            smoothdFF_df=pp.butterfilt(interpdFFdata_df, ORDER, CUT_FREQ)
+            smoothdFF_df=interpdFFdata_df #pp.butterfilt(interpdFFdata_df, ORDER, CUT_FREQ)
             smoothdFF_df.to_csv(pp_path/f'{mouse}_dFFfilt.csv')
             
             #plotted GCaMP and isosbestic curves after dFF or fitting
