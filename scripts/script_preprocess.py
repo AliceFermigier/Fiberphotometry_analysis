@@ -20,6 +20,7 @@ from dash import Dash, dcc, html, Input, Output, State
 import plotly.express as px
 import sys  
 import matplotlib.pyplot as plt
+import importlib
 
 #path to other scripts in sys.path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -28,96 +29,88 @@ if project_root not in sys.path:
 
 #import functions
 import modules.preprocess as pp
+importlib.reload(pp)
 import modules.genplot as gp
+importlib.reload(gp)
 import modules.nomenclature as nom
+importlib.reload(nom)
 import modules.clean_signal as cs
-import modules.doric_to_csv as dtc
+importlib.reload(cs)
+
 from scripts.loader import experiment_path, analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
 
-#%% 1 - PREPROCESSING
+#%% 
+# 1 - PREPROCESSING
 #####################
 
-# Step 1: Get the list of sessions for the experiment for each included batch
-session_names = nom.get_experiment_sessions(batches, proto_df, exp)
-print(f"Sessions for experiment '{exp}': {session_names}")
-
-# Step 2: Create main experiment folder and session subfolders
-exp_path = nom.setup_experiment_directory(analysis_path, exp, session_names)
+# Step 1: Create main experiment folder and session subfolders
+exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
 
-# Step 3: Get the path to the raw data folder for the experiment
+# Step 2: Get the path to the raw data folder for the experiment
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 print(f"Raw data paths for experiment '{exp}': {datapath_exp_dict}")
 
-#%% 1.1 - Deinterleave data and save in separate file
-
+#%% 
+# 1.1 - Deinterleave and clean data and save in separate file
 # Loop through each session directory
-for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-    session = session_path.name  # Extract session name
-    print('##########################################')
-    print(f'EXPERIMENT : {exp} - SESSION : {session}')
-    print('##########################################')
-    
-    # Generate session code for the current session
-    code = gp.session_code(session, exp)
-    
-    # Loop through each mouse in the subject DataFrame
-    for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
-        print("-----------------------------") 
-        print(f'BATCH : {batch}, MOUSE : {mouse}')
-        print("-----------------------------")
-        
-        data_path_exp = datapath_exp_dict[batch]
-        
-        # Create a common file prefix
-        file_prefix = f'{mouse}_{code}'
-        
-        # Create preprocessing directory inside the raw data path
-        pp_path = nom.setup_preprocessing_directory(data_path_exp)
+print('######################')
+print(f'EXPERIMENT : {exp}')
+print('######################')
 
-        # Convert .doric into .csv if not done already
-        raw_doric_data_path = data_path_exp / f'{file_prefix}.doric'
-        raw_data_path = data_path_exp / f'{file_prefix}.csv'
-        if not raw_data_path.exists():
-            dtc.doric_to_csv(raw_doric_data_path, raw_data_path)
-        
-        # Paths for output deinterleaved and plot files
-        deinterleaved_path = pp_path / f'{file_prefix}_deinterleaved.csv'
-        raw_plot_path = pp_path / f'{file_prefix}_rawdata.png'
-        
-        # Check if raw data exists and deinterleaved data does not exist
-        if raw_data_path.exists() and not deinterleaved_path.exists():
-            
-            #1 Load raw data (only necessary columns) and deinterleave
-            rawdata_df = pd.read_csv(
-                raw_data_path, 
-                skiprows=1, 
-                usecols=['Time(s)', 'AIn-1', 'DI/O-1', 'DI/O-2'], 
-                encoding="ISO-8859-1"
-            )
-            
-            #2 Deinterleave the data and save to CSV
-            deinterleaved_df = pp.deinterleave(rawdata_df)
-            deinterleaved_df.to_csv(deinterleaved_path, index=False)
-            
-            #3 Plot raw data and save as PNG
-            fig_raw = gp.plot_rawdata(deinterleaved_df, exp, session, mouse)
-            fig_raw.savefig(raw_plot_path)
-            plt.close(fig_raw)
+# Loop through each mouse in the subject DataFrame
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    print("-----------------------------") 
+    print(f'BATCH : {batch}, MOUSE : {mouse}')
+    print("-----------------------------")
+    
+    data_path_exp = datapath_exp_dict[batch]
+    
+    # Create preprocessing directory inside the raw data path
+    pp_path = nom.setup_preprocessing_directory(data_path_exp)
 
-#%% 1.2 - Open artifacted data and score artifacts
+    # Find raw data
+    raw_data_path = data_path_exp / f'{mouse}.doric'
+    
+    # Paths for output deinterleaved and plot files
+    deinterleaved_path = pp_path / f'{mouse}_deinterleaved.csv'
+    cleaned_path = pp_path / f'{mouse}_deinterleaved_cleaned.csv'
+    raw_plot_path = pp_path / f'{mouse}_rawdata.png'
+    cleaned_plot_path = pp_path / f'{mouse}_cleaned.png'
+    
+    # Check if raw data exists and deinterleaved data does not exist
+    if raw_data_path.exists() and not deinterleaved_path.exists():
+        
+        #1 Load deinterleaved raw data and clean data
+        deinterleaved_df = pp.load_deinterleaved_doric(raw_data_path)
+        cleaned_df = cs.clean_signal(deinterleaved_df, detrending=False, apply_hampel=True, apply_filter=False)
+        
+        #2 Save to CSV
+        deinterleaved_df.to_csv(deinterleaved_path, index=False)
+        cleaned_df.to_csv(cleaned_path, index=False)
+        
+        #3 Plot raw data and cleaned data and save as PNG
+        fig_raw = gp.plot_rawdata(deinterleaved_df, exp, mouse)
+        fig_cleaned = gp.plot_rawdata(cleaned_df, exp, mouse)
+        fig_raw.savefig(raw_plot_path)
+        fig_cleaned.savefig(cleaned_plot_path)
+        plt.close(fig_raw)
+        plt.close(fig_cleaned)
+
+#%% 
+# 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
 session = 'Conditioning'
 mouse = 'mCD2l'
 batch = 'B10'
-filecode = f'{exp}_{session}_{mouse}'
+filecode = f'{exp}_{mouse}'
 #------------------#
 
-# in excel 'Filecode', put '{exp}_{session}_{mouse}'
+# in excel 'Filecode', put '{exp}_{mouse}'
 code = gp.session_code(session,exp)
 pp_path = datapath_exp_dict[batch] / 'Preprocessing'
-deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
+deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_deinterleaved.csv')
 
 # Create the Dash app
 app = Dash(__name__)
@@ -209,42 +202,41 @@ if __name__ == '__main__':
 # Dash is running on http://127.0.0.1:8050/
 # You can change port if 8050 already taken (8051, etc)
 
-#%% 1.4 - Artifact correction and dFF calculation
+
+#%% 
+# 1.4 - Artifact correction and dFF calculation
 
 #import artifacts boundaries
 artifacts_df = pd.read_excel(experiment_path / 'artifacts.xlsx')
 method = 'fit'
 
-for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
-    session = str(session_path).split('\\')[-1]
-    print('##########################################')
-    print(f'EXPERIMENT : {exp} - SESSION : {session}')
-    print('##########################################')
-    code = gp.session_code(session,exp)
-    for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
-        pp_path = datapath_exp_dict[batch] / 'Preprocessing'
-        if os.path.exists(pp_path/f'{mouse}_{code}_deinterleaved.csv'):
-            try:
-                print("-----------------------------") 
-                print(f'BATCH : {batch}, MOUSE : {mouse}')
-                print("-----------------------------")
-                deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_{code}_deinterleaved.csv')
-                filecode = f'{exp}_{session}_{mouse}'
-                
-                # calculate dFF with artifacts removal, then interpolate missing data
-                dFFdata_df = pp.dFF(deinterleaved_df,artifacts_df,filecode,method)
-                interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
-                #sometimes 1st timestamps=Nan instead of 0, raises an error
-                interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
-                
-                # smooth data with butterworth filter or simple moving average (SMA)
-                #smoothdFF_df=pp.smoothing_SMA(interpdFFdata_df,win_size=7)
-                smoothdFF_df=pp.butterfilt(interpdFFdata_df, ORDER, CUT_FREQ)
-                smoothdFF_df.to_csv(pp_path/f'{mouse}_{code}_dFFfilt.csv')
-                
-                #plotted GCaMP and isosbestic curves after dFF or fitting
-                fig_dFF = gp.plot_fiberpho(smoothdFF_df,exp,session,mouse,method)
-                fig_dFF.savefig(pp_path/f'{mouse}_{code}_{method}dFF.png')
-                plt.close(fig_dFF) 
-            except Exception as e:
-                    print(f'Problem in processing mouse {mouse} : {e}')
+print('#####################')
+print(f'EXPERIMENT : {exp}')
+print('#####################')
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    pp_path = datapath_exp_dict[batch] / 'Preprocessing'
+    if os.path.exists(pp_path/f'{mouse}_deinterleaved.csv'):
+        try:
+            print("-----------------------------") 
+            print(f'BATCH : {batch}, MOUSE : {mouse}')
+            print("-----------------------------")
+            cleaned_df = pd.read_csv(pp_path/f'{mouse}_deinterleaved_cleaned.csv')
+            filecode = f'{exp}_{mouse}'
+            
+            # calculate dFF with artifacts removal, then interpolate missing data
+            dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method)
+            interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
+            #sometimes 1st timestamps=Nan instead of 0, raises an error
+            interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
+            
+            # smooth data with butterworth filter or simple moving average (SMA)
+            #smoothdFF_df=pp.smoothing_SMA(interpdFFdata_df,win_size=7)
+            smoothdFF_df=pp.butterfilt(interpdFFdata_df, ORDER, CUT_FREQ)
+            smoothdFF_df.to_csv(pp_path/f'{mouse}_dFFfilt.csv')
+            
+            #plotted GCaMP and isosbestic curves after dFF or fitting
+            fig_dFF = gp.plot_fiberpho(smoothdFF_df,exp,mouse,method)
+            fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF.png')
+            plt.close(fig_dFF) 
+        except Exception as e:
+                print(f'Problem in processing mouse {mouse} : {e}')

@@ -43,7 +43,7 @@ def get_experiment_sessions(batches, proto_df, exp):
         except IndexError:
             raise ValueError(f"Sessions not found for experiment '{exp}' in batch '{B}'.")
     
-    return list(set(sessions_list))
+    return sessions_list
 
 def get_experiment_data_path(batches, proto_df, data_path, exp):
     """
@@ -69,7 +69,7 @@ def get_experiment_data_path(batches, proto_df, data_path, exp):
             
             relative_path = filtered_df['Data_path'].values[0]
             
-            datapathexp_dict[B] = data_path / f'{B}' / relative_path
+            datapathexp_dict[B] = data_path / relative_path
 
         except (KeyError, IndexError):
             raise ValueError(f"Data path not found for experiment '{exp}' in the protocol DataFrame.")
@@ -77,24 +77,19 @@ def get_experiment_data_path(batches, proto_df, data_path, exp):
     return datapathexp_dict
 
 
-def setup_experiment_directory(analysis_path, exp, session_names):
+def setup_experiment_directory(analysis_path, exp):
     """
-    Set up the main experiment directory and create subdirectories for each session.
+    Set up the main experiment directory.
     
     Parameters:
     - analysis_path (Path): Base path for analysis storage.
     - exp (str): Name of the experiment.
-    - session_names (list): List of session names for the experiment.
     
     Returns:
     - Path: Full path to the experiment directory.
     """
     exp_path = analysis_path / exp
     create_directory(exp_path)
-    
-    for session_name in session_names:
-        session_path = exp_path / session_name
-        create_directory(session_path)
     
     return exp_path
 

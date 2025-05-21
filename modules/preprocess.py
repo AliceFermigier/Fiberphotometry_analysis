@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 from scipy import signal
 from ast import literal_eval
+import h5py
 
 import modules.nomenclature as nom
 
@@ -82,6 +83,32 @@ def deinterleave(rawdata_df):
         
     return deinterleaved_df
 
+def load_deinterleaved_doric(file_path):
+    with h5py.File(file_path, 'r') as f:
+        base = "DataAcquisition/FPConsole/Signals/Series0001/"
+        
+        t_405 = f[base + "AIN01xDIO01-Deinterleaved/Time"][:]
+        sig_405 = f[base + "AIN01xDIO01-Deinterleaved/Values"][:]
+        
+        t_465 = f[base + "AIN01xDIO02-Deinterleaved/Time"][:]
+        sig_465 = f[base + "AIN01xDIO02-Deinterleaved/Values"][:]
+
+    # Truncate so that all signals have the same length
+    min_len = min(len(sig_465), len(sig_405))
+    sig_465 = sig_465[:min_len]
+    sig_405 = sig_405[:min_len]
+    t_465 = t_465[:min_len]
+    t_405 = t_405[:min_len]
+
+    deinterleaved_df = pd.DataFrame({
+        'Time(s)': t_405,
+        '405 Deinterleaved': sig_405,
+        '465 Deinterleaved': sig_465
+    })
+
+    return deinterleaved_df
+
+
 def samplerate(data_df):
     
     sr = len(data_df)/(data_df['Time(s)'].max()-data_df['Time(s)'].min())
@@ -116,7 +143,17 @@ def update_artifacts_file(file_path, filecode, artifacts):
     df.to_excel(file_path, index=False)
     print(f"Updated Excel file at: {file_path}")
 
-def controlFit(control, signal):
+def linearfit_sklearn(sig_405, sig_465):
+    # Fit 405 to 465 using linear regression
+    from sklearn.linear_model import LinearRegression
+    model = LinearRegression()
+    sig_405 = sig_405.reshape(-1, 1)
+    model.fit(sig_405, sig_465)
+    fitted_405 = model.predict(sig_405)
+
+    return fitted_405
+
+def controlFit(control, signal): # Deprecated
     """
     Fits a linear model to control vs. signal and predicts signal using the fit.
     
@@ -131,7 +168,7 @@ def controlFit(control, signal):
     fitted_signal = (p[0] * control) + p[1]
     return fitted_signal
 
-def remove_artifacts(data_df, artifact_intervals, col, sr, method='mean'):
+def remove_artifacts(data_df, artifact_intervals, col, method='mean'):
     """
     Helper function to remove artifacts from a specific column of the data.
     
@@ -169,8 +206,8 @@ def remove_artifacts(data_df, artifact_intervals, col, sr, method='mean'):
                     print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
             
             elif method == 'fit':
-                dFF_values = controlFit(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
-                                        data_df.iloc[begin+1:end]['470 Deinterleaved'].values)
+                dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
+                                            data_df.iloc[begin+1:end]['465 Deinterleaved'].values)
                 if len(dFF_values) == len(dFF_segment[begin+1:end]):
                     dFF_segment[begin+1:end] = dFF_values
                 else:
@@ -199,15 +236,14 @@ def dFF(data_df, artifacts_df, filecode, method='mean'):
     Returns:
     - dFFdata_df (pd.DataFrame): DataFrame with 'Time(s)', '405 dFF', '470 dFF', and 'Denoised dFF'
     """
-    sr = round(samplerate(data_df))
     dFFdata = np.full([3, len(data_df)], np.nan)  # [405 dFF, 470 dFF, Denoised dFF]
 
     if method == 'mean':
-        for i, col in enumerate(['405 Deinterleaved', '470 Deinterleaved']):
+        for i, col in enumerate(['405 Deinterleaved', '465 Deinterleaved']):
             if filecode in artifacts_df['Filecode'].values:
                 artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
                 artifact_intervals = literal_eval(artifact_intervals[0])
-                dFFdata[i] = remove_artifacts(data_df, artifact_intervals, col, sr, method='mean')
+                dFFdata[i] = remove_artifacts(data_df, artifact_intervals, col, method='mean')
             else:
                 mean_fluorescence = np.nanmean(data_df[col])
                 dFFdata[i] = ((data_df[col] - mean_fluorescence) / mean_fluorescence) * 100
@@ -216,11 +252,11 @@ def dFF(data_df, artifacts_df, filecode, method='mean'):
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', sr, method='fit')
-            dFFdata[1] = data_df['470 Deinterleaved'].to_numpy()
+            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', method='fit')
+            dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
         else:
-            dFFdata[0] = controlFit(data_df['405 Deinterleaved'], data_df['470 Deinterleaved'])
-            dFFdata[1] = data_df['470 Deinterleaved'].to_numpy()
+            dFFdata[0] = controlFit(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
+            dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
 
         # Calculate Denoised dFF
         dFFdata[2] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
@@ -228,7 +264,7 @@ def dFF(data_df, artifacts_df, filecode, method='mean'):
     dFFdata_df = pd.DataFrame({
         'Time(s)': data_df['Time(s)'],
         '405 dFF': dFFdata[0],
-        '470 dFF': dFFdata[1],
+        '465 dFF': dFFdata[1],
         'Denoised dFF': dFFdata[2]
     })
 
