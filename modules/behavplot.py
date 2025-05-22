@@ -191,7 +191,7 @@ def highlight_behavior_areas(ax, df, behavior_name, facecolor='grey', alpha=0.3,
             x_start = 0
             i += 1
 
-def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, session, mouse, THRESH_S, EVENT_TIME_THRESHOLD, batch):
+def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_TIME_THRESHOLD, batch):
     """
     Plots denoised deltaF/F aligned with behaviour (includes baseline)
     """
@@ -230,6 +230,9 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, session, mouse, THRESH_S
         'Exploration right': ('darkturquoise', 0.3),
         'Exploration non social': ('grey', 0.3),
         'Exploration social': ('mediumvioletred', 0.3),
+        'Center': ('mediumvioletred', 0.3),
+        'Open arm': ('red', 0.3),
+        'Closed arm': ('grey', 0.3)
     }
     
     # Highlight all behaviors in the session
