@@ -46,14 +46,11 @@ for batch in batches :
 
 
 print('##########################################')
-print(f'EXPERIMENT : {exp} - SESSION : {session}')
+print(f'EXPERIMENT : {exp}')
 print('##########################################')
 
-# Generate session code for the current session
-code = gp.session_code(session, exp)
-
 # Create repository path where fiberbehav data will be stored
-repo_path = session_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
 repo_path.mkdir(exist_ok=True)  # Create directory if it doesn't exist
 
 # Loop through each mouse in the subject DataFrame
@@ -65,20 +62,17 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     data_path_exp = datapath_exp_dict[batch]
     pp_path = data_path_exp / 'Preprocessing'
     behav_path_exp = data_path_exp / 'Behaviour'
-
-    # Create common file prefix for files related to the current mouse and session
-    file_prefix = f'{mouse}_{code}'
     
     # Define paths for raw, behavioral, and fiberphotometry data
-    rawdata_path = data_path_exp / f'{file_prefix}.csv'
-    behav_path = behav_path_exp / f'behav_{code}_{mouse}.csv'
-    fiberpho_path = pp_path / f'{file_prefix}_dFFfilt.csv'
+    rawdata_path = data_path_exp / f'{mouse}.doric'
+    behav_path = behav_path_exp / f'behav_{mouse}.csv'
+    fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
     
     # Paths for output files to be checked
-    fiberbehav_path = repo_path / f'{batch}_{file_prefix}_fiberbehav.csv'
-    fiberbehav_notderived_path = repo_path / f'{batch}_{file_prefix}_fiberbehavnotderived.csv'
-    fiberbehav_plot_pdf_path = repo_path / f'{batch}_{file_prefix}_fiberbehav.pdf'
-    fiberbehav_plot_png_path = repo_path / f'{batch}_{file_prefix}_fiberbehav.png'
+    fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+    fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+    fiberbehav_plot_pdf_path = repo_path / f'{batch}_{mouse}_fiberbehav.pdf'
+    fiberbehav_plot_png_path = repo_path / f'{batch}_{mouse}_fiberbehav.png'
 
     # Determine if we should process this mouse's data
     ready = behav_path.exists()
@@ -98,16 +92,16 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             usecols=['Time(s)', 'DI/O-3'], 
             encoding="ISO-8859-1"
         )
-        behav10Sps = pd.read_csv(behav_path)
+        behav_df = pd.read_csv(behav_path)
         fiberpho = pd.read_csv(fiberpho_path)
         
         # Get the sampling rate for the fiberphotometry data
         sr = pp.samplerate(fiberpho)
         
-        print(f'Experiment: {exp}, Session: {session}, Mouse: {mouse}')
+        print(f'Experiment: {exp}, Mouse: {mouse}')
         
         # 2 List of behaviors of interest (BOI)
-        list_BOI = behav10Sps.columns[1:].tolist()
+        list_BOI = behav_df.columns[1:].tolist()
         print(f'Behaviours to analyze: {list_BOI}')
             
         # 3 Align behavior and fiberphotometry data
@@ -115,7 +109,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         timestart_camera = gp.timestamp_camera(rawdata_cam_df)[0]
         print(f'Start camera timestamp: {timestart_camera}')
         
-        fiberbehav_df = bp.align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp)
+        fiberbehav_df = bp.align_behav(behav_df, fiberpho, timevector, timestart_camera, exp)
         fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD, sr)
         
         # 4 Save the intermediate "not derived" data

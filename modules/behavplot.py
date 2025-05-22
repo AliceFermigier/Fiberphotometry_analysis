@@ -203,10 +203,9 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     ax1 = fig2.add_subplot(111)
     
     # Plot fiberpho trace for all cases
-    p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=0.6 if session not in ['Test', 'Test 1h', 'Test 24h', 'S3'] else 1, 
-                   color='black', label='_GCaMP', data=behavprocesssnip_df)
+    p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data=behavprocesssnip_df)
     
-    if exp == 'Fear' and session == 'Conditioning':
+    if exp == 'Fear_conditioning':
             x_1 = behavprocess_df.at[int(np.where(behavprocess_df['Shock'] == 1)[0][0]), 'Time(s)']
             x_2 = behavprocess_df.at[int(np.where(behavprocess_df['Shock'] == 1)[0][1]), 'Time(s)']
             ax1.axvline(x_1, color='yellow', ls='-', lw=2, label='Shock')
@@ -253,7 +252,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     ax1.set_xlabel('Time(s)')
     ax1.legend(loc='upper left')
     ax1.margins(0.01, 0.03)
-    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {session} {mouse} {batch}- interbout {THRESH_S} - cut {EVENT_TIME_THRESHOLD}')
+    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {mouse} {batch}- interbout {THRESH_S} - cut {EVENT_TIME_THRESHOLD}')
     
     return fig2
 
