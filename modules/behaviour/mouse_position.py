@@ -14,6 +14,15 @@ def load_video_frame(video_path):
         return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     else:
         raise FileNotFoundError("Video frame could not be read.")
+    
+def compute_speed(x, y, dist_scale=30, frame_rate=20):
+    dx = np.diff(x)
+    dy = np.diff(y)
+    distance = dist_scale * np.sqrt(dx**2 + dy**2)
+    speed = distance / frame_rate
+    speed = savgol_filter(speed, 5, 2)  # smoothing
+    speed[speed > 1] = 1
+    return speed
 
 def classify_position(x, y, x1, x2, y1, y2):
     closed_arm = ((y <= y1) | (y >= y2)) & (x >= x1) & (x <= x2)
@@ -66,7 +75,7 @@ def plot_results(t, dff, closed_arm, open_arm, center, x, y, x1, x2, y1, y2, hea
     plt.tight_layout()
     plt.show()
 
-    def analyze_mouse_position(dff, t, coords, video_path):
+def analyze_mouse_position(dff, t, coords, video_path):
     x = coords[:, 1]
     y = coords[:, 2]
 
