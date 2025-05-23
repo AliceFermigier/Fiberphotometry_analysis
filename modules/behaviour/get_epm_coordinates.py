@@ -61,12 +61,14 @@ def define_epm_boundaries(video_path):
     plt.axis('on')
     plt.show()
 
-    return {
+    epm_coordinates = {
         'x1': x1, 'x2': x2,
         'y1': y1, 'y2': y2,
         'minx': minx, 'maxx': maxx,
         'miny': miny, 'maxy': maxy
     }
+
+    return epm_coordinates
 
 def save_boundaries_to_json(boundaries, output_path):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -74,7 +76,6 @@ def save_boundaries_to_json(boundaries, output_path):
         json.dump(boundaries, f, indent=4)
     print(f"Boundaries saved to {output_path}")
 
-# ---- Main ----
 if __name__ == "__main__":
     video_path = "your_video_file.avi"  # <-- Replace this with your video filename
     output_json = "epm_boundaries.json" # <-- Replace or update path as needed

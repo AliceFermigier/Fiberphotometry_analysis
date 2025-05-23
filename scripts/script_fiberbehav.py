@@ -42,9 +42,8 @@ for batch in batches :
     nom.move_behav_files(data_path_exp, behav_path_exp)
     nom.correction_behav_files(behav_path_exp)
 
-#%% 2.1 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
-
-
+#%% 
+# 2.1 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
 print('##########################################')
 print(f'EXPERIMENT : {exp}')
 print('##########################################')
@@ -65,29 +64,22 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     
     # Define paths for raw, behavioral, and fiberphotometry data
     rawdata_path = data_path_exp / f'{mouse}.doric'
-    behav_path = behav_path_exp / f'behav_{mouse}.csv'
+    coordinates_path = behav_path_exp / f'coordinates_{mouse}.csv'
     fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
     
     # Paths for output files to be checked
     fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+    behav_path = behav_path_exp / f'behav_{mouse}.csv'
     fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
     fiberbehav_plot_pdf_path = repo_path / f'{batch}_{mouse}_fiberbehav.pdf'
     fiberbehav_plot_png_path = repo_path / f'{batch}_{mouse}_fiberbehav.png'
 
-    # Determine if we should process this mouse's data
-    ready = behav_path.exists()
-    done = fiberbehav_path.exists()
-
-    print(f'Ready for analysis? {ready}')
-    print(f'Analysis already done? {done}')
-
-    # Proceed only if behavior data exists and analysis hasn't been done
-    if ready and not done:
-        print(f'Processing behavior alignment for {mouse}...')
+    try:
+        print(f'Behavior and coordinates alignment for {mouse}...')
         
         # 1 Load raw and behavioral data
         camera_df = 
-        behav_df = pd.read_csv(behav_path)
+        coords_df = pd.read_csv(behav_path)
         fiberpho = pd.read_csv(fiberpho_path)
         
         # Get the sampling rate for the fiberphotometry data
@@ -129,7 +121,10 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         fig_fiberbehav.savefig(fiberbehav_plot_pdf_path)
         fig_fiberbehav.savefig(fiberbehav_plot_png_path)
         plt.close(fig_fiberbehav)
-            
+    
+    except Exception as e:
+        print(f'Problem in processing mouse {mouse} : {e}')
+
 print(f'Analysis for {exp} complete. Data saved in {repo_path}')
                         
 #%% 2.2 - Calculate mean, max, and delta dFF within behavioural states (for state behaviours)
