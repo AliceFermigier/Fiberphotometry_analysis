@@ -19,12 +19,12 @@ import os
 import warnings 
 
 #import functions
-import modules.preprocess as pp
-import modules.genplot as gp
-import modules.behavplot as bp
-import modules.statcalc as sc
-import modules.transients as tr
-import modules.nomenclature as nom
+import modules.common.preprocess as pp
+import modules.common.genplot as gp
+import modules.common.behavplot as bp
+import modules.common.statcalc as sc
+import modules.common.transients as tr
+import modules.common.nomenclature as nom
 
 from scripts.loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, THRESH_S, EVENT_TIME_THRESHOLD, batches
 
@@ -86,12 +86,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         print(f'Processing behavior alignment for {mouse}...')
         
         # 1 Load raw and behavioral data
-        rawdata_cam_df = pd.read_csv(
-            rawdata_path, 
-            skiprows=1, 
-            usecols=['Time(s)', 'DI/O-3'], 
-            encoding="ISO-8859-1"
-        )
+        camera_df = 
         behav_df = pd.read_csv(behav_path)
         fiberpho = pd.read_csv(fiberpho_path)
         

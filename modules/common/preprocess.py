@@ -18,7 +18,7 @@ from scipy import signal
 from ast import literal_eval
 import h5py
 
-import modules.nomenclature as nom
+import modules.common.nomenclature as nom
 
 
 #%%
@@ -108,7 +108,6 @@ def load_deinterleaved_doric(file_path):
 
     return deinterleaved_df
 
-
 def samplerate(data_df):
     
     sr = len(data_df)/(data_df['Time(s)'].max()-data_df['Time(s)'].min())
@@ -147,7 +146,13 @@ def linearfit_sklearn(sig_405, sig_465):
     # Fit 405 to 465 using linear regression
     from sklearn.linear_model import LinearRegression
     model = LinearRegression()
-    sig_405 = sig_405.reshape(-1, 1)
+    
+    if isinstance(sig_405, np.ndarray):
+        sig_405 = sig_405.reshape(-1, 1)
+    else:
+        sig_405 = sig_405.to_numpy().reshape(-1, 1)
+        sig_465 = sig_465.to_numpy()
+
     model.fit(sig_405, sig_465)
     fitted_405 = model.predict(sig_405)
 
@@ -255,7 +260,7 @@ def dFF(data_df, artifacts_df, filecode, method='mean'):
             dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
         else:
-            dFFdata[0] = controlFit(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
+            dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
 
         # Calculate Denoised dFF

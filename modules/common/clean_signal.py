@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.signal import butter, filtfilt, detrend
 
-import modules.preprocess as pp
+import modules.common.preprocess as pp
 
 #%%
 ###################

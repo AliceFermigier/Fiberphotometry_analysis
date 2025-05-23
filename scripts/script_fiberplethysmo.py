@@ -21,13 +21,13 @@ from dash import Dash, dcc, html, Input, Output, State
 import plotly.express as px
 
 #import functions
-import modules.preprocess as pp
-import modules.genplot as gp
-import modules.behavplot as bp
-import modules.plethyplot as plp
-import modules.statcalc as sc
-import modules.transients as tr
-import modules.nomenclature as nom
+import modules.common.preprocess as pp
+import modules.common.genplot as gp
+import modules.common.behavplot as bp
+import modules.common.plethyplot as plp
+import modules.common.statcalc as sc
+import modules.common.transients as tr
+import modules.common.nomenclature as nom
 
 from scripts.loader import experiment_path, exp, ORDER, CUT_FREQ
 

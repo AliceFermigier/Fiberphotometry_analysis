@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 #DEFINED FUNCTIONS#
 ###################
 
-def session_code(session):
+def session_code(session): #deprecated
     """
     Generate session code in file name.
     
@@ -103,36 +103,30 @@ def time_vector(fiberpho, samplerate) :
     duration =  math.ceil(fiberpho.at[len(fiberpho)-2,'Time(s)'])
     return pd.Series(np.linspace(0.0, duration, num = int(duration*samplerate)+1))
 
-def timestamp_camera(rawdata_df) :
+def plot_fiberpho(fiberbehav_df, exp, mouse, method):
     """
-    Function to extract the timestamps where the camera starts and stops
-    --> Parameters
-        camera : pd dataframe, camera I/O with sample rate = 12kSps
-    --> Returns
-        (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
+    Plots isosbestic and Ca dependent deltaF/F (dFF) and separate dFF plot
     """
-    ind_list = np.where(rawdata_df['DI/O-3'] == 1)[0].tolist()
-    (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
-    return (truncate(rawdata_df.at[ind_start, 'Time(s)'], 1),
-            truncate(rawdata_df.at[ind_stop, 'Time(s)'], 1))
-
-def plot_fiberpho(fiberbehav_df,exp,mouse,method):
-    """
-    Plots isosbestic and Ca dependent deltaF/F or fitted
-    """
-       
-    fig1 = plt.figure(figsize=(20,6))
-    ax0 = fig1.add_subplot(111)
+    fig = plt.figure(figsize=(20, 10))  # increased height for two plots
     
-    p1, = ax0.plot('Time(s)', '465 dFF', linewidth=1, color='deepskyblue', 
-                   label='GCaMP', data = fiberbehav_df) 
-    p2, = ax0.plot('Time(s)', '405 dFF', linewidth=1, color='blueviolet', 
-                   label='ISOS', data = fiberbehav_df)
-    
+    # First subplot: GCaMP and ISOS
+    ax0 = fig.add_subplot(211)
+    p1, = ax0.plot('Time(s)', '465 dFF', linewidth=1, color='deepskyblue', label='GCaMP', data=fiberbehav_df)
+    p2, = ax0.plot('Time(s)', '405 dFF', linewidth=1, color='blueviolet', label='ISOS', data=fiberbehav_df)
     ax0.set_ylabel(r'$\Delta$F/F')
     ax0.set_xlabel('Time(s)')
-    ax0.legend(handles=[p1,p2], loc='upper right')
-    ax0.margins(0,0.2)
-    ax0.set_title(f'GCaMP and Isosbestic dFF - {exp} {mouse} - {method}')
+    ax0.legend(handles=[p1, p2], loc='upper right')
+    ax0.margins(0, 0.2)
+    ax0.set_title(f'GCaMP and Isosbestic - {exp} {mouse} - {method}')
     
-    return fig1
+    # Second subplot: just 465 dFF (or any other dFF of interest)
+    ax1 = fig.add_subplot(212)
+    p3, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='dFF', data=fiberbehav_df)
+    ax1.set_ylabel(r'$\Delta$F/F')
+    ax1.set_xlabel('Time(s)')
+    ax1.legend(loc='upper right')
+    ax1.margins(0, 0.2)
+    ax1.set_title('dFF')
+    
+    plt.tight_layout()
+    return fig

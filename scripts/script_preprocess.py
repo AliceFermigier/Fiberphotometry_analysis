@@ -28,13 +28,13 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 #import functions
-import modules.preprocess as pp
+import modules.common.preprocess as pp
 importlib.reload(pp)
-import modules.genplot as gp
+import modules.common.genplot as gp
 importlib.reload(gp)
-import modules.nomenclature as nom
+import modules.common.nomenclature as nom
 importlib.reload(nom)
-import modules.clean_signal as cs
+import modules.common.clean_signal as cs
 importlib.reload(cs)
 
 from scripts.loader import experiment_path, analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
@@ -101,14 +101,12 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-session = 'Conditioning'
-mouse = 'mCD2l'
-batch = 'B10'
+mouse = '768'
+batch = 1
 filecode = f'{exp}_{mouse}'
 #------------------#
 
 # in excel 'Filecode', put '{exp}_{mouse}'
-code = gp.session_code(session,exp)
 pp_path = datapath_exp_dict[batch] / 'Preprocessing'
 deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_deinterleaved.csv')
 
@@ -120,7 +118,7 @@ fig = px.line(deinterleaved_df[TIME_BEGIN:], x='Time(s)', y='405 Deinterleaved')
 
 # App layout
 app.layout = html.Div([
-    html.H4(f'{exp} {session} {mouse}'),
+    html.H4(f'{exp} {mouse}'),
     
     dcc.Graph(
         id='plot',
@@ -197,7 +195,7 @@ def save_artifacts_to_excel(n_clicks, artifact_intervals):
 
 # Run the server
 if __name__ == '__main__':
-    app.run_server(debug=False, use_reloader=False)
+    app.run(debug=False, use_reloader=False)
 
 # Dash is running on http://127.0.0.1:8050/
 # You can change port if 8050 already taken (8051, etc)
@@ -240,3 +238,5 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             plt.close(fig_dFF) 
         except Exception as e:
                 print(f'Problem in processing mouse {mouse} : {e}')
+
+# %%

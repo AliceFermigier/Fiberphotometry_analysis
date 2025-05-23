@@ -17,24 +17,34 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-import modules.preprocess as pp
+import modules.common.preprocess as pp
 
 #%%
 ###################
 #DEFINED FUNCTIONS#
 ###################
 
-def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
+def downsample_dlc_tracking(dlc_df, camera_df):
+    """
+    Takes dlc data and downsamples it to match camera flashes + aligns it with timevector
+    """
+
+def ROI_analysis(dlc_df, ROI_coordinates):
+    """
+    Takes dlc data and downsamples it to match camera flashes + aligns it with timevector
+    """
+
+def align_behav(behav_df, fiberpho, timevector, timestart_camera):
     """
     Aligns fiber photometry data with behavioral data from Boris on a time vector.
     
     Parameters 
     ----------
-    behav10Sps : pd.DataFrame
+    behav_df : pd.DataFrame
         Binary behavioral data from Boris, with a sample rate of 10 samples per second (Sps).
         Each column corresponds to a specific behavior.
     fiberpho : pd.DataFrame
-        Pre-processed fiber photometry data, including deltaF/F for 470nm and 405nm channels.
+        Pre-processed fiber photometry data, including deltaF/F for 465nm and 405nm channels.
     timevector : pd.Series or list
         Time vector corresponding to the timestamps of the experiment.
     timestart_camera : float
@@ -45,13 +55,13 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
     Returns
     -------
     pd.DataFrame
-        Dataframe containing aligned time, denoised dFF, 405nm dFF, 470nm dFF, and behavioral event columns.
+        Dataframe containing aligned time, denoised dFF, 405nm dFF, 465nm dFF, and behavioral event columns.
     """
-    if behav10Sps.empty or fiberpho.empty or len(timevector) == 0:
-        raise ValueError("Input data (behav10Sps, fiberpho, or timevector) is empty.")
+    if behav_df.empty or fiberpho.empty or len(timevector) == 0:
+        raise ValueError("Input data (behav_df, fiberpho, or timevector) is empty.")
     
     # Get list of behaviors from Boris
-    list_behav = behav10Sps.columns[1:].tolist()
+    list_behav = behav_df.columns[1:].tolist()
     
     # Identify where the camera starts, handle the case where timestart_camera is not in timevector
     try:
@@ -61,22 +71,22 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
     
     # Align behavior data
     behav_comp = [
-        [0] * indstart + behav10Sps[behav].tolist()
+        [0] * indstart + behav_df[behav].tolist()
         for behav in list_behav
     ]
     
     # Prepare fiber photometry data and time list
     denoised_fiberpho = fiberpho['Denoised dFF'].dropna().tolist()
     dff_405nm_list = fiberpho['405 dFF'].dropna().tolist()
-    dff_470nm_list = fiberpho['470 dFF'].dropna().tolist()
+    dff_465nm_list = fiberpho['465 dFF'].dropna().tolist()
     timelist = timevector.tolist()
     
     # Ensure all lists are of equal length
-    min_length = min(len(timelist), len(denoised_fiberpho), len(behav_comp[0]), len(dff_405nm_list), len(dff_470nm_list))
+    min_length = min(len(timelist), len(denoised_fiberpho), len(behav_comp[0]), len(dff_405nm_list), len(dff_465nm_list))
     timelist = timelist[:min_length]
     denoised_fiberpho = denoised_fiberpho[:min_length]
     dff_405nm_list = dff_405nm_list[:min_length]
-    dff_470nm_list = dff_470nm_list[:min_length]
+    dff_465nm_list = dff_465nm_list[:min_length]
     behav_crop = [behav[:min_length] for behav in behav_comp]
     
     # Create the final DataFrame
@@ -84,7 +94,7 @@ def align_behav(behav10Sps, fiberpho, timevector, timestart_camera, exp):
         'Time(s)': timelist, 
         'Denoised dFF': denoised_fiberpho,
         '405nm dFF': dff_405nm_list, 
-        '470nm dFF': dff_470nm_list
+        '465nm dFF': dff_465nm_list
     })
     
     # Insert behavioral columns
