@@ -16,7 +16,8 @@ import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 import os
-import warnings 
+import warnings
+import json
 
 #import functions
 import modules.common.preprocess as pp
@@ -25,6 +26,9 @@ import modules.common.behavplot as bp
 import modules.common.statcalc as sc
 import modules.common.transients as tr
 import modules.common.nomenclature as nom
+import modules.behaviour.mouse_position as mp
+import modules.behaviour.epm as epm
+import modules.behaviour.camera_processing as cp
 
 from scripts.loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, THRESH_S, EVENT_TIME_THRESHOLD, batches
 
@@ -64,22 +68,38 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     
     # Define paths for raw, behavioral, and fiberphotometry data
     rawdata_path = data_path_exp / f'{mouse}.doric'
-    coordinates_path = behav_path_exp / f'coordinates_{mouse}.csv'
+    dlc_path = behav_path_exp / f'{mouse}_reducedDLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv'
     fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
     
+    # Path to arena boundary
+    try:
+        arena_coordinates_file = [coordinates for coordinates in os.listdir(behav_path_exp) if coordinates.endswith('.json')][0]
+        print(f'Arena boundaries : {arena_coordinates_file}')
+    except:
+        print(f'Arena boundaries not found for mouse {mouse}. Create json file via get_epm_coordinates module.')
+    
     # Paths for output files to be checked
+    coordinates_path = behav_path_exp / f'coordinates_{mouse}.csv'
+    behav_path = behav_path_exp / f'coordinates_{mouse}.csv' 
+
     fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
-    behav_path = behav_path_exp / f'behav_{mouse}.csv'
     fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+
     fiberbehav_plot_pdf_path = repo_path / f'{batch}_{mouse}_fiberbehav.pdf'
     fiberbehav_plot_png_path = repo_path / f'{batch}_{mouse}_fiberbehav.png'
 
     try:
         print(f'Behavior and coordinates alignment for {mouse}...')
+
+        # Get and filter DLC data ; analyse coordinates depending on test
+        with open('arena_coordinates_file', 'r') as file:
+            arena_coordinates = json.load(file)
+        coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.99)
+        if 'EPM' in exp:
+            behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates)
         
-        # 1 Load raw and behavioral data
-        camera_df = 
-        coords_df = pd.read_csv(behav_path)
+        # Load raw and behavioral data
+        camera_df = cp.get_camera_flashes(rawdata_path)
         fiberpho = pd.read_csv(fiberpho_path)
         
         # Get the sampling rate for the fiberphotometry data

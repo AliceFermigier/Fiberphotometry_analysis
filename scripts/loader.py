@@ -11,9 +11,9 @@ from pathlib import Path
 import sys
 
 #path to other scripts in sys.path
-path_to_gitrepo=r"C:\Users\afermigier\Documents\GitHub\Fiberphotometry_analysis"
-if path_to_gitrepo not in sys.path:
-    sys.path.append(path_to_gitrepo)
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
     
 import modules.common.nomenclature as nom
 

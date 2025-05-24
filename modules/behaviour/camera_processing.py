@@ -50,8 +50,9 @@ def load_camera_df_doric(file_path):
 
     return camera_df
 
-def get_camera_flashes(camera_df):
-    camera_diff = camera_df.diff()
+def get_camera_flashes(file_path):
+    camera_df = load_camera_df_doric(file_path)
+    camera_diff = camera_df['Camera flashes'].diff()
     starts = np.where(camera_diff==1)
     stops = np.where(camera_diff==-1)
     timestamps=[]

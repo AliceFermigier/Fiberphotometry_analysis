@@ -77,8 +77,10 @@ def save_boundaries_to_json(boundaries, output_path):
     print(f"Boundaries saved to {output_path}")
 
 if __name__ == "__main__":
-    video_path = "your_video_file.avi"  # <-- Replace this with your video filename
-    output_json = "epm_boundaries.json" # <-- Replace or update path as needed
+    video_folder = r'E:\FiberPhotometry\202504_OptoFluidACh\DLC_Projects\FiberMEC_EPM-Alice-2025-05-14\videos_original'
+    video_name = '765_0_reduced'
+    video_path = f'{video_folder}\{video_name}.avi'
+    output_json = f'{video_name}_epm_boundaries.json'
 
     boundaries = define_epm_boundaries(video_path)
     print("\nEPM Boundaries:")
