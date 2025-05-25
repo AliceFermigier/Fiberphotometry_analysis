@@ -51,7 +51,7 @@ batches = list(set(subjects_df['Batch']))
 #------------------#
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0.5
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 1
+EVENT_TIME_THRESHOLD = 0
 

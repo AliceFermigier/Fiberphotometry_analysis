@@ -53,8 +53,8 @@ def load_camera_df_doric(file_path):
 def get_camera_flashes(file_path):
     camera_df = load_camera_df_doric(file_path)
     camera_diff = camera_df['Camera flashes'].diff()
-    starts = np.where(camera_diff==1)
-    stops = np.where(camera_diff==-1)
+    starts = np.where(camera_diff==1)[0].tolist()
+    stops = np.where(camera_diff==-1)[0].tolist()
     timestamps=[]
     flash_indexes=[]
     for start,stop in zip(starts,stops):
@@ -63,7 +63,19 @@ def get_camera_flashes(file_path):
         timestamps.append(camera_df.loc[flash_index]['Time(s)'])
     
     camera_flashes_df = pd.DataFrame({
-        'Timestamps': timestamps,
+        'Time(s)': timestamps,
     })
 
     return camera_flashes_df
+
+def align_camera_flashes(behav_df, camera_df):
+    if len(behav_df)==len(camera_df['Time(s)']):
+        time_df = camera_df
+    else:
+        [start, stop] = [camera_df['Time(s)'].iloc[0], camera_df['Time(s)'].iloc[-1]]
+        time = np.linspace(start, stop, len(behav_df))
+        time_df = pd.DataFrame({
+            'Time(s)':time
+        })
+
+    return pd.concat([time_df, behav_df], axis=1)

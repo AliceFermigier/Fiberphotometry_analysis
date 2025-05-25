@@ -37,7 +37,7 @@ importlib.reload(nom)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
 
-from scripts.loader import experiment_path, analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
+from scripts.loader import ORDER, CUT_FREQ, experiment_path, analysis_path, data_path, exp, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
 
 #%% 
 # 1 - PREPROCESSING
@@ -226,14 +226,10 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
             #sometimes 1st timestamps=Nan instead of 0, raises an error
             interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
-            
-            # smooth data with butterworth filter or simple moving average (SMA)
-            #smoothdFF_df=pp.smoothing_SMA(interpdFFdata_df,win_size=7)
-            smoothdFF_df=interpdFFdata_df #pp.butterfilt(interpdFFdata_df, ORDER, CUT_FREQ)
-            smoothdFF_df.to_csv(pp_path/f'{mouse}_dFFfilt.csv')
+            interpdFFdata_df.to_csv(pp_path/f'{mouse}_dFFfilt.csv')
             
             #plotted GCaMP and isosbestic curves after dFF or fitting
-            fig_dFF = gp.plot_fiberpho(smoothdFF_df,exp,mouse,method)
+            fig_dFF = gp.plot_fiberpho(interpdFFdata_df,exp,mouse,method)
             fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF.png')
             plt.close(fig_dFF) 
         except Exception as e:

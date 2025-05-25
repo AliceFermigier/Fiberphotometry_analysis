@@ -4,20 +4,25 @@ import matplotlib.pyplot as plt
 
 import modules.behaviour.mouse_position as mp
 
-def plot_pie(coords_byzone_df):
-    fig, axs = plt.subplots(2, 4, figsize=(20, 8))
+def plot_pie(fiberbehav_df):
+
+    open_arm = fiberbehav_df['Open arm'].sum()
+    closed_arm = fiberbehav_df['Closed arm'].sum()
+    center = fiberbehav_df['Center'].sum()
+    all = sum(open_arm, closed_arm, center)
+
+    fig = plt.plots(figsize=(8, 8))
 
     # Time spent pie
-    sizes = [np.mean(open_arm) * 100, np.mean(closed_arm) * 100, np.mean(center) * 100]
-    axs[1, 1].pie(sizes, labels=['Open Arm', 'Closed Arm', 'Center'], colors=['goldenrod', 'gray', 'white'])
-    axs[1, 1].set_title('Time Spent')
+    sizes = [open_arm/all * 100, closed_arm/all * 100, center/all * 100]
+    fig = plt.pie(sizes, labels=['Open Arm', 'Closed Arm', 'Center'], colors=['goldenrod', 'gray', 'white'])
+    fig.set_title('Time Spent')
+
+    return fig
 
 def plot_heatmap(t, dff, closed_arm, open_arm, center, x, y, x1, x2, y1, y2, heatmap):
-
-    # Heatmap
-    im = axs[1, 3].imshow(heatmap, cmap='viridis', interpolation='none')
-    plt.colorbar(im, ax=axs[1, 3])
-    axs[1, 3].set_title('Heatmap')
+     
+    return
     
 def analyze_mouse_position(coords, epm_coordinates, bodypart='head'):
     coords_x = coords[f'{bodypart}_x']
@@ -27,7 +32,7 @@ def analyze_mouse_position(coords, epm_coordinates, bodypart='head'):
     y1, y2 = epm_coordinates['y1'], epm_coordinates['y2']
 
     coords_byzone_df = classify_position(coords_x, coords_y, x1, x2, y1, y2)
-    speed_df = mp.compute_speed(coords_x, coords_y)
+    speed_df = mp.compute_speed(coords)
 
     behav_df = pd.concat([coords, coords_byzone_df, speed_df], axis=1)
 
@@ -37,10 +42,10 @@ def classify_position(coords_x, coords_y, x1, x2, y1, y2):
     closed_arm = np.zeros(len(coords_x))
     open_arm = np.zeros(len(coords_x))
     center = np.zeros(len(coords_x))
-    for i,x,y in enumerate(zip(coords_x, coords_y)): 
-            if ((x<=x1) or (x>=x2)) and (y2>=y>=y1):
+    for i, (x, y) in enumerate(zip(coords_x, coords_y)): 
+            if ((x <= x1) or (x >= x2)) and (y2 >= y >= y1):
                 closed_arm[i]=1
-            elif ((y2>=y>=y1) and (y2>=y>=y1)):
+            elif (x1 < x < x2) and (y1 <= y <= y2):
                 center[i]=1
             else:
                 open_arm[i]=1

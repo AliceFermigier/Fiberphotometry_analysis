@@ -330,10 +330,9 @@ def butterfilt(data_df, order, cut_freq):
     Returns:
     --------
     filtered_df : pd.DataFrame
-        DataFrame containing the filtered data for each column (excluding 'Time(s)').
     """
     # Calculate sampling rate using the first two time points to avoid index issues
-    sampling_rate = 1000 / (data_df['Time(s)'].iloc[1000] - data_df['Time(s)'].iloc[0])
+    sampling_rate = samplerate(data_df)
     
     # Create the Butterworth filter coefficients
     sos = signal.butter(order, cut_freq, btype='low', output='sos', fs=sampling_rate)
@@ -341,10 +340,11 @@ def butterfilt(data_df, order, cut_freq):
     # Create a copy of the DataFrame to avoid modifying the original data
     filtered_df = data_df.copy()
     
-    # Apply filter to all columns except 'Time(s)'
-    data_columns = data_df.columns[1:]  # Exclude 'Time(s)'
-    filtered_df[data_columns] = filtered_df[data_columns].apply(lambda col: signal.sosfilt(sos, col), axis=0)
-    
+    col = 'Denoised dFF'
+    if filtered_df[col].isnull().any():
+        filtered_df[col] = filtered_df[col].interpolate().fillna(method='bfill').fillna(method='ffill')
+    filtered_df[col] = signal.sosfilt(sos, filtered_df[col].values)
+
     return filtered_df
 
 def smoothing_SMA(data_df,win_size):

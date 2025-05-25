@@ -63,13 +63,13 @@ def compute_speed(coordinates_df, dist_scale=0.1322, frame_rate=19, bodypart='he
 
     return speed_df
  
-def create_heatmap(x, y, dff, minx, maxx, miny, maxy):
+def create_heatmap(coords_x, coords_y, dff, minx, maxx, miny, maxy):
     heat_map = np.zeros((101, 101))
     counts = np.zeros((101, 101))
 
-    for i in range(len(x)):
-        col = int((x[i] - minx) * 100 / (maxx - minx))
-        row = int((y[i] - miny) * 100 / (maxy - miny))
+    for i in range(len(coords_x)):
+        col = int((coords_x[i] - minx) * 100 / (maxx - minx))
+        row = int((coords_y[i] - miny) * 100 / (maxy - miny))
         if 0 <= row < 101 and 0 <= col < 101:
             heat_map[row, col] += dff[i]
             counts[row, col] += 1

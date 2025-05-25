@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Jul 30 09:54:44 2024
-
 @author: alice fermigier
 """
 from scipy.signal import find_peaks
@@ -9,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt 
 
-import modules.preprocess as pp
+import modules.common.preprocess as pp
 
 def bandpass_filter(data, lowcut, highcut, sr, order=3):
     nyquist = 0.5 * sr

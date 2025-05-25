@@ -24,86 +24,33 @@ import modules.common.preprocess as pp
 #DEFINED FUNCTIONS#
 ###################
 
-def downsample_dlc_tracking(dlc_df, camera_df):
-    """
-    Takes dlc data and downsamples it to match camera flashes + aligns it with timevector
-    """
-
-def ROI_analysis(dlc_df, ROI_coordinates):
-    """
-    Takes dlc data and downsamples it to match camera flashes + aligns it with timevector
-    """
-
-def align_behav(behav_df, fiberpho, timevector, timestart_camera):
+def align_behav(behav_df, fiberpho, list_BOI):
     """
     Aligns fiber photometry data with behavioral data from Boris on a time vector.
-    
-    Parameters 
-    ----------
-    behav_df : pd.DataFrame
-        Binary behavioral data from Boris, with a sample rate of 10 samples per second (Sps).
-        Each column corresponds to a specific behavior.
-    fiberpho : pd.DataFrame
-        Pre-processed fiber photometry data, including deltaF/F for 465nm and 405nm channels.
-    timevector : pd.Series or list
-        Time vector corresponding to the timestamps of the experiment.
-    timestart_camera : float
-        The time (in seconds) corresponding to when the camera starts relative to the time vector.
-    exp : str
-        Experiment name
-    
-    Returns
-    -------
-    pd.DataFrame
-        Dataframe containing aligned time, denoised dFF, 405nm dFF, 465nm dFF, and behavioral event columns.
     """
-    if behav_df.empty or fiberpho.empty or len(timevector) == 0:
-        raise ValueError("Input data (behav_df, fiberpho, or timevector) is empty.")
-    
-    # Get list of behaviors from Boris
-    list_behav = behav_df.columns[1:].tolist()
-    
-    # Identify where the camera starts, handle the case where timestart_camera is not in timevector
-    try:
-        indstart = np.where(np.round(timevector, 1) == timestart_camera)[0][0]
-    except IndexError:
-        raise ValueError(f"Camera start time ({timestart_camera}s) not found in time vector.")
-    
-    # Align behavior data
-    behav_comp = [
-        [0] * indstart + behav_df[behav].tolist()
-        for behav in list_behav
-    ]
-    
-    # Prepare fiber photometry data and time list
-    denoised_fiberpho = fiberpho['Denoised dFF'].dropna().tolist()
-    dff_405nm_list = fiberpho['405 dFF'].dropna().tolist()
-    dff_465nm_list = fiberpho['465 dFF'].dropna().tolist()
-    timelist = timevector.tolist()
-    
-    # Ensure all lists are of equal length
-    min_length = min(len(timelist), len(denoised_fiberpho), len(behav_comp[0]), len(dff_405nm_list), len(dff_465nm_list))
-    timelist = timelist[:min_length]
-    denoised_fiberpho = denoised_fiberpho[:min_length]
-    dff_405nm_list = dff_405nm_list[:min_length]
-    dff_465nm_list = dff_465nm_list[:min_length]
-    behav_crop = [behav[:min_length] for behav in behav_comp]
-    
-    # Create the final DataFrame
-    fiberbehav_df = pd.DataFrame({
-        'Time(s)': timelist, 
-        'Denoised dFF': denoised_fiberpho,
-        '405nm dFF': dff_405nm_list, 
-        '465nm dFF': dff_465nm_list
-    })
-    
-    # Insert behavioral columns
-    for behav, data in zip(list_behav, behav_crop):
-        fiberbehav_df[behav] = data
-    
-    return fiberbehav_df
 
-def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD, sr):
+    [start,stop]=[behav_df['Time(s)'].values[0],  behav_df['Time(s)'].values[-1]]
+    behav_time = behav_time = fiberpho.loc[(fiberpho['Time(s)'] >= start) & (fiberpho['Time(s)'] <= stop), 'Time(s)']
+
+    pad_begin = np.empty(len(fiberpho.loc[fiberpho['Time(s)'] < start]), dtype=float)
+    pad_end = np.empty(len(fiberpho['Time(s)'])-(len(behav_time)+len(pad_begin)), dtype=float)
+
+    for col in behav_df.columns[1:]:
+        if col in list_BOI:
+            pad_begin.fill(0.0)
+            pad_end.fill(0.0)
+        else:
+            pad_end.fill(np.nan)
+            pad_begin.fill(np.nan)
+        fiberpho[col] = np.concatenate(
+            [pad_begin,
+            np.interp(behav_time.values, behav_df['Time(s)'].values, behav_df[col].values),
+            pad_end]
+            )
+    
+    return fiberpho
+
+def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
     """
     Processes behavioral events in the fiber photometry dataframe.
 
@@ -118,8 +65,6 @@ def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD, sr):
         to consider them as part of the same event.
     EVENT_TIME_THRESHOLD : float
         Minimum required duration (in seconds) for an event to be valid. Shorter events are removed.
-    sr : float or int
-        Sampling rate (in Hz) of the data.
 
     Returns
     -------
@@ -128,17 +73,11 @@ def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD, sr):
     """
     
     # Input validation
-    if not isinstance(fiberbehav_df, pd.DataFrame):
-        raise TypeError("fiberbehav_df must be a Pandas DataFrame.")
-    if not isinstance(list_BOI, list) or not all(isinstance(boi, str) for boi in list_BOI):
-        raise TypeError("list_BOI must be a list of strings.")
     if not all(boi in fiberbehav_df.columns for boi in list_BOI):
         missing_cols = [boi for boi in list_BOI if boi not in fiberbehav_df.columns]
         raise ValueError(f"The following behaviors of interest (BOI) are not in the DataFrame: {missing_cols}")
-    if fiberbehav_df.empty:
-        return fiberbehav_df
 
-    sr = round(sr)  # Round sampling rate to ensure it is an integer
+    sr = pp.samplerate(fiberbehav_df)  # Round sampling rate to ensure it is an integer
     
     for BOI in list_BOI:
         # 1. Fuse exploration events that are too close
@@ -169,15 +108,19 @@ def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD, sr):
 
     return fiberbehav_df
 
-def derive(fiberbehav_df):
+def derive(fiberbehav_df, list_BOI):
     """
-    calculate the derivative of behav of interest and put in new df
-    that way, it will show 1 when behaviour starts and -1 when it stops
+    Calculate the derivative of behaviors of interest and store in the same DataFrame.
+    The result will show 1 when behavior starts and -1 when it stops.
     """
-    for col in fiberbehav_df.columns[4:]:
-        fiberbehav_df[col] = fiberbehav_df[col].diff()
+    for col in list_BOI:
+        # Ensure values are only 0 or 1
+        fiberbehav_df[col] = fiberbehav_df[col].apply(lambda x: 1 if x == 1 else 0)
+        
+        # Compute difference to detect transitions
+        fiberbehav_df[col] = fiberbehav_df[col].diff().fillna(0)
 
-    return fiberbehav_df 
+    return fiberbehav_df
 
 def highlight_behavior_areas(ax, df, behavior_name, facecolor='grey', alpha=0.3, label_prefix=''):
     """
@@ -240,8 +183,8 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         'Exploration non social': ('grey', 0.3),
         'Exploration social': ('mediumvioletred', 0.3),
         'Center': ('mediumvioletred', 0.3),
-        'Open arm': ('red', 0.3),
-        'Closed arm': ('grey', 0.3)
+        'Open arm': ('purple', 0.3),
+        'Closed arm': ('grey', 0.01)
     }
     
     # Highlight all behaviors in the session
@@ -553,10 +496,10 @@ def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, session, group,
     
     ## ----------------- Axis Labels and Limits ----------------- ##
     ax.set_xlabel('Seconds')
-    ax.set_ylabel('z-scored $\Delta$F/F')
+    ax.set_ylabel(r'z-scored $\Delta$F/F')
     ax.legend(loc='upper left', fontsize='small')
     ax.set_ylim(-2, 4)
     ax.margins(0, 0.1)
-    ax.set_title(f'{BOI} - {exp} {session} {group}')
+    ax.set_title(f'{BOI} - {exp} {group}')
     
     return fig
