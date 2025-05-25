@@ -168,7 +168,7 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     groupanalysis_path = repo_path / 'Group_analysis'
     groupanalysis_path.mkdir(exist_ok=True)  # Create directory if it doesn't exist
     
-    # Create lists to store data for export
+    # Create lists to store data for export 
     mean_dFFs_list = []
     diffmeanmaxdFF_list = []
     diffmeanmaxdFF_perbout_list = []
