@@ -15,6 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.signal import butter, filtfilt, detrend
+from scipy.optimize import curve_fit
 
 import modules.common.preprocess as pp
 
@@ -22,6 +23,13 @@ import modules.common.preprocess as pp
 ###################
 #DEFINED FUNCTIONS#
 ###################
+
+def exp_func(x, a, b, c):
+    return a * np.exp(-b * x) + c
+
+x = np.arange(len(signal))
+popt, _ = curve_fit(exp_func, x, signal)
+detrended_signal = signal - exp_func(x, *popt)
 
 def hampel_filter(data, window_size, n_sigmas=5):
     k = 1.4826  # scaling factor for Gaussian distribution
