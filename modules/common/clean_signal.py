@@ -24,18 +24,23 @@ import modules.common.preprocess as pp
 ###################
 
 def hampel_filter(data, window_size, n_sigmas=5):
-    new_series = data.copy()
     k = 1.4826  # scaling factor for Gaussian distribution
 
-    for i in range(window_size, len(data) - window_size):
-        window = data.iloc[i - window_size:i + window_size + 1]
+    # Determine if input is a pandas Series or numpy array
+    is_series = isinstance(data, pd.Series)
+    original_data = data.values if is_series else data
+    new_data = original_data.copy()
+
+    for i in range(window_size, len(original_data) - window_size):
+        window = original_data[i - window_size:i + window_size + 1]
         median = np.nanmedian(window)
         mad = k * np.nanmedian(np.abs(window - median))
-        
-        if np.abs(data.iloc[i] - median) > n_sigmas * mad:
-            new_series.iloc[i] = median
 
-    return new_series
+        if np.abs(original_data[i] - median) > n_sigmas * mad:
+            new_data[i] = median
+
+    # Return result in the same format as input
+    return pd.Series(new_data, index=data.index) if is_series else new_data
 
 def clean_signal(rawdata_df, crop=[50,-10], detrending=False, apply_hampel=True, apply_filter=False):
 

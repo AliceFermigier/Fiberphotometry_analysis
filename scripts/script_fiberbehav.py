@@ -39,6 +39,8 @@ import modules.behaviour.epm as epm
 importlib.reload(epm)
 import modules.behaviour.camera_processing as cp
 importlib.reload(cp)
+import modules.common.clean_signal as cs
+importlib.reload(cs)
 
 from scripts.loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, THRESH_S, EVENT_TIME_THRESHOLD, batches
 
@@ -49,9 +51,9 @@ exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
 # 2.1 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
-print('##########################################')
+print('###################')
 print(f'EXPERIMENT : {exp}')
-print('##########################################')
+print('###################')
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
@@ -109,7 +111,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print(f'Analyze mouse position for {exp}')
     if 'EPM' in exp:
         list_BOI = ['Open arm', 'Closed arm', 'Center']
-        behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, bodypart='head')
+        behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, bodypart='nose')
     
     else:
         list_BOI = []
@@ -156,9 +158,9 @@ print(f'Analysis for {exp} complete. Data saved in {repo_path}')
 
 for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     session = session_path.name  # Extract session name
-    print('##########################################')
-    print(f'EXPERIMENT: {exp} - SESSION: {session}')
-    print('##########################################')
+    print('###################')
+    print(f'EXPERIMENT: {exp}')
+    print('###################')
     
     # Generate session code
     code = gp.session_code(session, exp)

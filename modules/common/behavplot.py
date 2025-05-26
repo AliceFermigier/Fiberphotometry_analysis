@@ -144,16 +144,15 @@ def highlight_behavior_areas(ax, df, behavior_name, facecolor='grey', alpha=0.3,
             x_start = 0
             i += 1
 
-def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_TIME_THRESHOLD, batch):
+def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_TIME_THRESHOLD, batch, scaled=True):
     """
     Plots denoised deltaF/F aligned with behaviour (includes baseline)
     """
-    
     # Adapt to crop plot to your liking
     behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 0]
     
-    fig2 = plt.figure(figsize=(20,5))
-    ax1 = fig2.add_subplot(111)
+    fig2 = plt.figure(figsize=(20, 10))
+    ax1 = fig2.add_subplot(211)
     
     # Plot fiberpho trace for all cases
     p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data=behavprocesssnip_df)
@@ -182,8 +181,8 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         'Exploration right': ('darkturquoise', 0.3),
         'Exploration non social': ('grey', 0.3),
         'Exploration social': ('mediumvioletred', 0.3),
-        'Center': ('mediumvioletred', 0.3),
-        'Open arm': ('purple', 0.3),
+        'Center': ('yellow', 0.3),
+        'Open arm': ('cornflowerblue', 0.3),
         'Closed arm': ('grey', 0.01)
     }
     
@@ -201,11 +200,28 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         x_entry = behavprocess_df.at[int(np.where(behavprocess_df['Entry in arena'] == 1)[0][0]), 'Time(s)']
         ax1.axvline(x_entry, color='slategrey', ls='--', label='Entry in arena')
 
-    ax1.set_ylabel(r'$\Delta$F/F')
-    ax1.set_xlabel('Time(s)')
-    ax1.legend(loc='upper left')
-    ax1.margins(0.01, 0.03)
-    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {mouse} {batch}- interbout {THRESH_S} - cut {EVENT_TIME_THRESHOLD}')
+    fs_mult = 4
+    
+    ax1.set_ylabel(r'$\Delta$F/F', fontsize=5 * fs_mult)
+    ax1.set_xlabel('Time(s)', fontsize=5 * fs_mult)
+    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {mouse} {batch}- interbout {THRESH_S} - cut {EVENT_TIME_THRESHOLD}',
+                fontsize=5 * fs_mult)
+    ax1.tick_params(axis='both', labelsize=4 * fs_mult)
+    ax1.legend(loc='upper right', fontsize=4 * fs_mult)
+    ax1.margins(0, 0.2)
+    if scaled:    
+        ax1.set_ylim([-0.17, 0.55])
+
+    ax2 = fig2.add_subplot(212)
+    p3, = ax2.plot('Time(s)', 'Speed', linewidth=1, color='black', label='Speed', data=behavprocesssnip_df)
+    ax2.set_ylabel('Speed(cm/s)', fontsize=5 * fs_mult)
+    ax2.set_xlabel('Time(s)', fontsize=5 * fs_mult)
+    ax2.tick_params(axis='both', labelsize=4 * fs_mult)
+    ax2.margins(0, 0.2)
+    if scaled:    
+        ax2.set_ylim([-1, 50])
+    
+    plt.tight_layout()
     
     return fig2
 

@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 import cv2
 from scipy.ndimage import gaussian_filter
 from scipy.signal import savgol_filter
+import importlib
+
+import modules.common.clean_signal as cs
+importlib.reload(cs)
 
 def get_dlc_data(data_path, threshold=0.99, interpolate=True):
     '''
@@ -55,6 +59,7 @@ def compute_speed(coordinates_df, dist_scale=0.1322, frame_rate=19, bodypart='he
     dy = np.diff(coordinates_df[f'{bodypart}_y'])
     distance = dist_scale * np.sqrt(dx**2 + dy**2)
     speed = distance * frame_rate
+    speed = cs.hampel_filter(speed, window_size=5) # remove big artifacts
     speed = savgol_filter(speed, 5, 2)  # smoothing
 
     speed_df = pd.DataFrame({
