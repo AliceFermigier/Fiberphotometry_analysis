@@ -27,9 +27,9 @@ import modules.common.preprocess as pp
 def exp_func(x, a, b, c):
     return a * np.exp(-b * x) + c
 
-x = np.arange(len(signal))
-popt, _ = curve_fit(exp_func, x, signal)
-detrended_signal = signal - exp_func(x, *popt)
+#x = np.arange(len(signal))
+#popt, _ = curve_fit(exp_func, x, signal)
+#detrended_signal = signal - exp_func(x, *popt)
 
 def hampel_filter(data, window_size, n_sigmas=5):
     k = 1.4826  # scaling factor for Gaussian distribution

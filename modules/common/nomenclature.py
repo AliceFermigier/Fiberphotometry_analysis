@@ -65,7 +65,7 @@ def get_experiment_data_path(batches, proto_df, data_path, exp):
             filtered_df = proto_df[(proto_df['Task'] == exp) & (proto_df['Batch'] == B)]
             
             if filtered_df.empty:
-                raise ValueError(f"No sessions found for experiment '{exp}' in batch '{B}'.")
+                raise ValueError(f"No path found for experiment '{exp}' in batch '{B}'.")
             
             relative_path = filtered_df['Data_path'].values[0]
             

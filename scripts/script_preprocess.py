@@ -43,6 +43,7 @@ from scripts.loader import ORDER, CUT_FREQ, experiment_path, analysis_path, data
 # 1 - PREPROCESSING
 #####################
 
+exp = 'Screening_3'
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
@@ -101,7 +102,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = '768'
+mouse = '767'
 batch = 1
 filecode = f'{exp}_{mouse}'
 #------------------#

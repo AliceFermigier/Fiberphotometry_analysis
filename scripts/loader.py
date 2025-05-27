@@ -46,7 +46,7 @@ ORDER = 4
 CUT_FREQ = 1 #in Hz
 
 #------------------#
-exp = 'EPM_1'
+exp = 'OF_1uL_Ctrl'
 batches = list(set(subjects_df['Batch']))
 #------------------#
 

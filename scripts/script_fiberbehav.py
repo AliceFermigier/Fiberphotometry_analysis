@@ -162,9 +162,6 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     print(f'EXPERIMENT: {exp}')
     print('###################')
     
-    # Generate session code
-    code = gp.session_code(session, exp)
-    
     # Create necessary paths
     repo_path = session_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
     groupanalysis_path = repo_path / 'Group_analysis'
@@ -176,16 +173,15 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
     diffmeanmaxdFF_perbout_list = []
     
     for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
-        file_prefix = f'{batch}_{mouse}_{code}'
         
         # Paths to the relevant fiberbehav files
-        fiberbehav_path = repo_path / f'{file_prefix}_fiberbehav.csv'
-        fiberbehav_notderived_path = repo_path / f'{file_prefix}_fiberbehavnotderived.csv'
+        fiberbehav_path = repo_path / f'{mouse}_fiberbehav.csv'
+        fiberbehav_notderived_path = repo_path / f'{mouse}_fiberbehavnotderived.csv'
         
         # Check if required data exists for this mouse
         if fiberbehav_path.exists():
             print("-------------------")
-            print(f'PROCESSING MOUSE: {mouse} {batch}')
+            print(f'PROCESSING MOUSE: {mouse} batch {batch}')
             print("-------------------")
             
             # 1 Load data from CSV files
