@@ -86,15 +86,24 @@ def deinterleave(rawdata_df):
 def load_deinterleaved_doric(file_path):
     with h5py.File(file_path, 'r') as f:
         base = "DataAcquisition/FPConsole/Signals/Series0001/"
-        
-        t_405 = f[base + "AIN01xDIO01-Deinterleaved/Time"][:]
-        sig_405 = f[base + "AIN01xDIO01-Deinterleaved/Values"][:]
-        
-        t_465 = f[base + "AIN01xDIO02-Deinterleaved/Time"][:]
-        sig_465 = f[base + "AIN01xDIO02-Deinterleaved/Values"][:]
 
-    # Truncate so that all signals have the same length
-    min_len = min(len(sig_465), len(sig_405))
+        try:
+            # Data structure with laptop (Julien's stup)
+            t_405 = f[base + "DeinterleavedDIO01/Time"][:]
+            sig_405 = f[base + "DeinterleavedDIO01/AIN01"][:]
+
+            t_465 = f[base + "DeinterleavedDIO02/Time"][:]
+            sig_465 = f[base + "DeinterleavedDIO02/AIN01"][:]
+        except KeyError:
+            # Data structure in ephys room
+            t_405 = f[base + "AIN01xDIO01-Deinterleaved/Time"][:]
+            sig_405 = f[base + "AIN01xDIO01-Deinterleaved/Values"][:]
+
+            t_465 = f[base + "AIN01xDIO02-Deinterleaved/Time"][:]
+            sig_465 = f[base + "AIN01xDIO02-Deinterleaved/Values"][:]
+
+    # Ensure all signals have same length
+    min_len = min(len(sig_465), len(sig_405), len(t_465), len(t_405))
     sig_465 = sig_465[:min_len]
     sig_405 = sig_405[:min_len]
     t_465 = t_465[:min_len]
