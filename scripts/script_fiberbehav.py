@@ -125,10 +125,18 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             print(f'Behaviour file exported to {behav_path}')
         
         elif boris:
-            behav_df = pd.read_csv(behav_path)
-            deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-            list_BOI = [col for col in behav_df.columns if col not in ['time']]
-            behav_df = bp.correct_time_behav(deinterleaved_df, behav_df)
+            try :
+                behav_df = pd.read_csv(behav_path)
+                deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+                list_BOI = [col for col in behav_df.columns if col not in ['time']]
+                behav_df = bp.correct_time_behav(deinterleaved_df, behav_df)
+            except :
+                list_BOI = ['Decoy']
+                deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+                behav_df = pd.DataFrame({'Time(s)': np.arange(deinterleaved_df['Time(s)'].values[0], 
+                                                            deinterleaved_df['Time(s)'].values[-1], 
+                                                            0.01)})
+                behav_df['Decoy'] = np.zeros(len(behav_df))
 
         # Load fiberphotometry data
         fiberpho = pd.read_csv(fiberpho_path)
@@ -441,9 +449,10 @@ for group in included_groups:
 #%% 2.6 - Compute variance and transients on whole trace and pre/post baseline
 # ----------------------------- #
 # Parameters
-exp = 'EPM_3'
+exp = 'OF_1uL_2'
 if 'EPM' in exp:
     list_BOI = ['Open arm', 'Closed arm', 'Center']
+list_BOI = []
 lowcut = 0.1  # Lowcut frequency for bandpass filter (Hz)
 highcut = 3.0    # Highcut frequency for bandpass filter (Hz)
 # ----------------------------- #
@@ -457,34 +466,36 @@ var_transients_list = []
 
 # Loop over each subject (mouse)
 for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
-    print("--------------")
-    print(f'MOUSE: {mouse}, BATCH: {batch}')
-    print("--------------")
-    
-    # Set file path for the fiber behavior CSV
-    fiber_file = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
-    
-    # Check if the file exists
-    if not fiber_file.exists():
-        print(f"File not found: {fiber_file}")
-        continue
+    try :
+        print("--------------")
+        print(f'MOUSE: {mouse}, BATCH: {batch}')
+        print("--------------")
+        
+        # Set file path for the fiber behavior CSV
+        fiber_file = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+        
+        # Check if the file exists
+        if not fiber_file.exists():
+            print(f"File not found: {fiber_file}")
+            continue
 
-    # Load data
-    dfiber_df = pd.read_csv(fiber_file)
-    
-    # Apply bandpass filter to the dFF signal
-    dfiber_df['Filtered dFF'] = tr.bandpass_filter(dfiber_df, lowcut, highcut)
-    
-    # Plot signal and spectrum
-    tr.plot_signal_and_spectrum(dfiber_df)
-    
-    # Retrieve group information
-    group = subjects_df.loc[subjects_df['Subject'] == mouse, 'Group'].values[0]
-    
-    #Calculate variance and transients characteristics
-    mouse_df = sc.variance_transients(dfiber_df, list_BOI, mouse, group, exp, batch)
-    var_transients_list.append(mouse_df)
-
+        # Load data
+        dfiber_df = pd.read_csv(fiber_file)
+        
+        # Apply bandpass filter to the dFF signal
+        dfiber_df['Filtered dFF'] = tr.bandpass_filter(dfiber_df, lowcut, highcut)
+        
+        # Plot signal and spectrum
+        tr.plot_signal_and_spectrum(dfiber_df)
+        
+        # Retrieve group information
+        group = subjects_df.loc[subjects_df['Subject'] == mouse, 'Group'].values[0]
+        
+        #Calculate variance and transients characteristics
+        mouse_df = sc.variance_transients(dfiber_df, list_BOI, mouse, group, exp, batch)
+        var_transients_list.append(mouse_df)
+    except Exception as e:
+        print(f'Error while processing mouse {mouse} : {e}')
     
 # Concatenate results and export to Excel
 variability_df = pd.concat(var_transients_list, ignore_index=True)
