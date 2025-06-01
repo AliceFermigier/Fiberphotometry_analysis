@@ -74,7 +74,7 @@ def highpass_filter_with_padding(signal, sr, cutoff=0.01, order=3, pad_seconds=5
 
     return filtered[pad_len:-pad_len]
 
-def clean_signal(rawdata_df, crop=[50,-10], detrending=False, apply_hampel=True, apply_filter=False):
+def clean_signal(rawdata_df, crop=[10,-10], detrending=False, apply_hampel=True, apply_filter=False):
 
     time = rawdata_df['Time(s)'][crop[0]:crop[1]]
     detrended_405 = rawdata_df['405 Deinterleaved'][crop[0]:crop[1]]

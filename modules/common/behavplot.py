@@ -24,13 +24,19 @@ import modules.common.preprocess as pp
 #DEFINED FUNCTIONS#
 ###################
 
+def correct_time_behav(fiberpho_raw, behav_df):
+    first_timestamp = fiberpho_raw['Time(s)'][0]
+    behav_df['Time(s)']=(behav_df['time'].values)+first_timestamp
+
+    return behav_df
+
 def align_behav(behav_df, fiberpho, list_BOI):
     """
     Aligns fiber photometry data with behavioral data from Boris on a time vector.
     """
 
     [start,stop]=[behav_df['Time(s)'].values[0],  behav_df['Time(s)'].values[-1]]
-    behav_time = behav_time = fiberpho.loc[(fiberpho['Time(s)'] >= start) & (fiberpho['Time(s)'] <= stop), 'Time(s)']
+    behav_time = fiberpho.loc[(fiberpho['Time(s)'] >= start) & (fiberpho['Time(s)'] <= stop), 'Time(s)']
 
     pad_begin = np.empty(len(fiberpho.loc[fiberpho['Time(s)'] < start]), dtype=float)
     pad_end = np.empty(len(fiberpho['Time(s)'])-(len(behav_time)+len(pad_begin)), dtype=float)
@@ -146,23 +152,32 @@ def highlight_behavior_areas(ax, df, behavior_name, facecolor='grey', alpha=0.3,
 
 def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_TIME_THRESHOLD, batch, scaled=True):
     """
-    Plots denoised deltaF/F aligned with behaviour (includes baseline)
+    Plots denoised deltaF/F aligned with behaviour (includes baseline). Adds Speed subplot only if present.
     """
-    # Adapt to crop plot to your liking
+    import matplotlib.pyplot as plt
+    import numpy as np
+
     behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 0]
-    
-    fig2 = plt.figure(figsize=(20, 10))
-    ax1 = fig2.add_subplot(211)
-    
-    # Plot fiberpho trace for all cases
-    p1, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data=behavprocesssnip_df)
-    
+    has_speed = 'Speed' in behavprocesssnip_df.columns
+
+    if has_speed:
+        fig = plt.figure(figsize=(20, 10))
+        ax1 = fig.add_subplot(211)
+
+    else:
+        fig = plt.figure(figsize=(20, 5))
+        ax1 = fig.add_subplot(111)       
+
+    # Plot dFF trace
+    ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data=behavprocesssnip_df)
+
     if exp == 'Fear_conditioning':
-            x_1 = behavprocess_df.at[int(np.where(behavprocess_df['Shock'] == 1)[0][0]), 'Time(s)']
-            x_2 = behavprocess_df.at[int(np.where(behavprocess_df['Shock'] == 1)[0][1]), 'Time(s)']
-            ax1.axvline(x_1, color='yellow', ls='-', lw=2, label='Shock')
-            ax1.axvline(x_2, color='yellow', ls='-', lw=2, label='Shock')
-    
+        shock_times = np.where(behavprocess_df['Shock'] == 1)[0]
+        for idx in shock_times[:2]:
+            x = behavprocess_df.at[int(idx), 'Time(s)']
+            ax1.axvline(x, color='yellow', ls='-', lw=2, label='Shock')
+
+    # Define behavior colors and transparencies
     behaviors_to_plot = {
         'Water consumption': ('cornflowerblue', 0.5),
         'Water ?': ('cornflowerblue', 0.3),
@@ -183,47 +198,52 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         'Exploration social': ('mediumvioletred', 0.3),
         'Center': ('yellow', 0.3),
         'Open arm': ('cornflowerblue', 0.3),
-        'Closed arm': ('grey', 0.01)
+        'Closed arm': ('grey', 0.01),
+        'Neutral': ('grey', 0.5),
+        'Rosemary': ('seagreen', 0.5),
+        'Citrus': ('lime', 0.5),
+        'Ethanol': ('purple', 0.5)
     }
-    
-    # Highlight all behaviors in the session
+
+    # Highlight behaviors
     for behavior, (color, alpha) in behaviors_to_plot.items():
         if behavior in list_BOI and behavior in behavprocesssnip_df.columns:
-            highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha) 
+            highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
 
-    # Vertical lines for specific events
-    if 'Gate opens' in list_BOI and 'Gate opens' in behavprocesssnip_df.columns:
-        x_entry = behavprocess_df.at[int(np.where(behavprocess_df['Gate opens'] == 1)[0][0]), 'Time(s)']
-        ax1.axvline(x_entry, color='lightsteelblue', ls='--', label='Gate opens')
-            
-    if 'Entry in arena' in list_BOI and 'Entry in arena' in behavprocesssnip_df.columns:
-        x_entry = behavprocess_df.at[int(np.where(behavprocess_df['Entry in arena'] == 1)[0][0]), 'Time(s)']
-        ax1.axvline(x_entry, color='slategrey', ls='--', label='Entry in arena')
+    # Add event lines
+    for event, color, label in [('Gate opens', 'lightsteelblue', 'Gate opens'),
+                                ('Entry in arena', 'slategrey', 'Entry in arena')]:
+        if event in list_BOI and event in behavprocesssnip_df.columns:
+            event_times = np.where(behavprocess_df[event] == 1)[0]
+            if len(event_times):
+                x = behavprocess_df.at[int(event_times[0]), 'Time(s)']
+                ax1.axvline(x, color=color, ls='--', label=label)
 
+    # Labels and formatting
     fs_mult = 4
-    
     ax1.set_ylabel(r'$\Delta$F/F', fontsize=5 * fs_mult)
     ax1.set_xlabel('Time(s)', fontsize=5 * fs_mult)
-    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {mouse} {batch}- interbout {THRESH_S} - cut {EVENT_TIME_THRESHOLD}',
-                fontsize=5 * fs_mult)
+    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {mouse} {batch} - interbout {THRESH_S} - cut {EVENT_TIME_THRESHOLD}',
+                  fontsize=5 * fs_mult)
     ax1.tick_params(axis='both', labelsize=4 * fs_mult)
     ax1.legend(loc='upper right', fontsize=4 * fs_mult)
     ax1.margins(0, 0.2)
-    if scaled:    
+    if scaled:
         ax1.set_ylim([-0.17, 0.55])
 
-    ax2 = fig2.add_subplot(212)
-    p3, = ax2.plot('Time(s)', 'Speed', linewidth=1, color='black', label='Speed', data=behavprocesssnip_df)
-    ax2.set_ylabel('Speed(cm/s)', fontsize=5 * fs_mult)
-    ax2.set_xlabel('Time(s)', fontsize=5 * fs_mult)
-    ax2.tick_params(axis='both', labelsize=4 * fs_mult)
-    ax2.margins(0, 0.2)
-    if scaled:    
-        ax2.set_ylim([-1, 50])
-    
+    # Plot speed if available
+    if has_speed:
+        ax2 = fig.add_subplot(212)
+        ax2.plot('Time(s)', 'Speed', linewidth=1, color='black', label='Speed', data=behavprocesssnip_df)
+        ax2.set_ylabel('Speed (cm/s)', fontsize=5 * fs_mult)
+        ax2.set_xlabel('Time(s)', fontsize=5 * fs_mult)
+        ax2.tick_params(axis='both', labelsize=4 * fs_mult)
+        ax2.margins(0, 0.2)
+        if scaled:
+            ax2.set_ylim([-1, 50])
+
     plt.tight_layout()
-    
-    return fig2
+    return fig
 
 def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVENT_TIME=0, maxboutsnumber=None, baselinewindow=False):
     """

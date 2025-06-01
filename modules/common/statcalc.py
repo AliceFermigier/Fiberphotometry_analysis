@@ -325,36 +325,37 @@ def variance_transients(fiberbehav_df, list_BOI, mouse, group, exp, batch):
         'Transients Frequency': peak_frequency,
         'Transients Amplitude': peak_amplitude,
     }, index=[0])
-    
-    for behavior in list_BOI:
-        if behavior not in fiberbehav_df.columns:
-            print(f"Warning: Behavior '{behavior}' not found in DataFrame.")
-            continue
 
-        # Find rows where behavior is active
-        behavior_mask = fiberbehav_df[behavior] == 1
+    if list_BOI != []:
+        for behavior in list_BOI:
+            if behavior not in fiberbehav_df.columns:
+                print(f"Warning: Behavior '{behavior}' not found in DataFrame.")
+                continue
 
-        # Peaks during that behavior
-        behavior_peaks = peaks_df[(peaks_df['Peaks'] == 1) & behavior_mask]
+            # Find rows where behavior is active
+            behavior_mask = fiberbehav_df[behavior] == 1
 
-        # Duration of behavior period in seconds
-        behavior_time = fiberbehav_df.loc[behavior_mask, 'Time(s)']
-        if behavior_time.empty:
-            duration = np.nan
-        else:
-            duration = behavior_time.iloc[-1] - behavior_time.iloc[0]
+            # Peaks during that behavior
+            behavior_peaks = peaks_df[(peaks_df['Peaks'] == 1) & behavior_mask]
 
-        # Calculate frequency and mean amplitude during behavior
-        if duration and len(behavior_peaks) > 0:
-            freq = len(behavior_peaks) / duration
-            amp = behavior_peaks['Filtered dFF'].mean()
-        else:
-            freq = np.nan
-            amp = np.nan
+            # Duration of behavior period in seconds
+            behavior_time = fiberbehav_df.loc[behavior_mask, 'Time(s)']
+            if behavior_time.empty:
+                duration = np.nan
+            else:
+                duration = behavior_time.iloc[-1] - behavior_time.iloc[0]
 
-        # Add to results
-        results_df[f'{behavior} Transients Frequency'] = freq
-        results_df[f'{behavior} Transients Amplitude'] = amp
+            # Calculate frequency and mean amplitude during behavior
+            if duration and len(behavior_peaks) > 0:
+                freq = len(behavior_peaks) / duration
+                amp = behavior_peaks['Filtered dFF'].mean()
+            else:
+                freq = np.nan
+                amp = np.nan
+
+            # Add to results
+            results_df[f'{behavior} Transients Frequency'] = freq
+            results_df[f'{behavior} Transients Amplitude'] = amp
     
     return results_df
 

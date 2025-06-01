@@ -46,7 +46,12 @@ from scripts.loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-exp = 'EPM_2'
+automated_alignment = True
+arena_analysis = False
+dlc_data = False
+boris = True
+
+exp = 'OF_1uL_Ctrl_2'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -64,93 +69,101 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print("-----------------------------") 
     print(f'BATCH : {batch}, MOUSE : {mouse}')
     print("-----------------------------")
-    
-    data_path_exp = datapath_exp_dict[batch]
-    pp_path = data_path_exp / 'Preprocessing'
-    behav_path_exp = data_path_exp / 'Behaviour'
-    
-    # Define paths for raw, behavioral, and fiberphotometry data
-    rawdata_path = data_path_exp / f'{mouse}.doric'
-    dlc_path = behav_path_exp / f'{mouse}_reducedDLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv'
-    fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
-    
-    # Path to arena boundary
     try:
-        arena_coordinates_file = [coordinates for coordinates in os.listdir(behav_path_exp) if coordinates.endswith('.json')][0]
-        print(f'Arena boundaries : {arena_coordinates_file}')
-        arena_coordinates_path = behav_path_exp / arena_coordinates_file
-    except:
-        print(f'Arena boundaries not found for mouse {mouse}. Create json file via get_epm_coordinates module.')
-    
-    # Paths for output files to be checked
-    behav_path = behav_path_exp / f'behav_{mouse}.csv' 
-
-    fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
-    fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
-
-    fiberbehav_plot_pdf_path = repo_path / f'{batch}_{mouse}_fiberbehav.pdf'
-    fiberbehav_plot_png_path = repo_path / f'{batch}_{mouse}_fiberbehav.png'
-
-
-    print(f'Behavior and coordinates alignment for {mouse}...')
-
-    # Get and filter DLC data ; analyse coordinates depending on test
-    print('Open json file')
-    with open(arena_coordinates_path, 'r') as file:
-        arena_coordinates = json.load(file)
-
-    print('Get dlc data')
-    coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.99)
-
-    print('Get camera flashes')
-    camera_df = cp.get_camera_flashes(rawdata_path)
-
-    print('Aligning time with coordinates')
-    coordinates_df = cp.align_camera_flashes(coordinates_df, camera_df)
-
-    print(f'Analyze mouse position for {exp}')
-    if 'EPM' in exp:
-        list_BOI = ['Open arm', 'Closed arm', 'Center']
-        behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, bodypart='nose')
-    
-    else:
-        list_BOI = []
-        behav_df = coordinates_df
-
-    behav_df.to_csv(behav_path)
-    print(f'Behaviour file exported to {behav_path}')
-    
-    # Load fiberphotometry data
-    fiberpho = pd.read_csv(fiberpho_path)
-    fiberpho = pp.butterfilt(fiberpho, ORDER, CUT_FREQ)
+        data_path_exp = datapath_exp_dict[batch]
+        pp_path = data_path_exp / 'Preprocessing'
+        behav_path_exp = data_path_exp / 'Behaviour'
         
-    # Align behavior and fiberphotometry data
-    print('Aligning fiberphotometry and behaviour data')
-    fiberbehav_df = bp.align_behav(behav_df, fiberpho, list_BOI)
-    fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
-    
-    # 4 Save the intermediate "not derived" data
-    fiberbehav_df.to_csv(fiberbehav_notderived_path, index=False)
-    
-    # 5 Derive and save final processed data
-    dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
-    dfiberbehav_df.to_csv(fiberbehav_path, index=False)
-    
-    # 6 Plot fiberphotometry data with behavior
-    fig_fiberbehav = bp.plot_fiberpho_behav(
-        dfiberbehav_df, 
-        list_BOI, 
-        exp, 
-        mouse, 
-        THRESH_S, 
-        EVENT_TIME_THRESHOLD,
-        batch
-    )
-    
-    # Save plots in both PDF and PNG formats
-    fig_fiberbehav.savefig(fiberbehav_plot_pdf_path)
-    fig_fiberbehav.savefig(fiberbehav_plot_png_path)
-    plt.close(fig_fiberbehav)
+        # Define paths for raw, behavioral, and fiberphotometry data
+        rawdata_path = data_path_exp / f'{mouse}.doric'
+        deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
+        dlc_path = behav_path_exp / f'{mouse}_reducedDLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv'
+        fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
+        
+        # Path to arena boundary
+        try:
+            arena_coordinates_file = [coordinates for coordinates in os.listdir(behav_path_exp) if coordinates.endswith('.json')][0]
+            print(f'Arena boundaries : {arena_coordinates_file}')
+            arena_coordinates_path = behav_path_exp / arena_coordinates_file
+        except:
+            print(f'Arena boundaries not found for mouse {mouse}. Create json file via get_epm_coordinates module.')
+        
+        # Paths for output files to be checked
+        behav_path = behav_path_exp / f'behav_{mouse}.csv' 
+
+        fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+        fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+
+        fiberbehav_plot_pdf_path = repo_path / f'{batch}_{mouse}_fiberbehav.pdf'
+        fiberbehav_plot_png_path = repo_path / f'{batch}_{mouse}_fiberbehav.png'
+
+
+        print(f'Behavior and coordinates alignment for {mouse}...')
+
+        # Get and filter DLC data ; analyse coordinates depending on test
+        if arena_analysis:
+            print('Open json file')
+            with open(arena_coordinates_path, 'r') as file:
+                arena_coordinates = json.load(file)
+
+        if dlc_data:
+            print('Get dlc data')
+            coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.99)
+
+        if not automated_alignment:
+            print('Get camera flashes')
+            camera_df = cp.get_camera_flashes(rawdata_path)
+
+            print('Aligning time with coordinates')
+            coordinates_df = cp.align_camera_flashes(coordinates_df, camera_df)
+
+        print(f'Analyze mouse position for {exp}')
+        if 'EPM' in exp:
+            list_BOI = ['Open arm', 'Closed arm', 'Center']
+            behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, bodypart='nose')
+            behav_df.to_csv(behav_path)
+            print(f'Behaviour file exported to {behav_path}')
+        
+        elif boris:
+            behav_df = pd.read_csv(behav_path)
+            deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+            list_BOI = [col for col in behav_df.columns if col not in ['time']]
+            behav_df = bp.correct_time_behav(deinterleaved_df, behav_df)
+
+        # Load fiberphotometry data
+        fiberpho = pd.read_csv(fiberpho_path)
+        fiberpho = pp.butterfilt(fiberpho, ORDER, CUT_FREQ)
+            
+        # Align behavior and fiberphotometry data
+        print('Aligning fiberphotometry and behaviour data')
+        fiberbehav_df = bp.align_behav(behav_df, fiberpho, list_BOI)
+        fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
+        
+        # 4 Save the intermediate "not derived" data
+        fiberbehav_df.to_csv(fiberbehav_notderived_path, index=False)
+        
+        # 5 Derive and save final processed data
+        dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
+        dfiberbehav_df.to_csv(fiberbehav_path, index=False)
+        
+        # 6 Plot fiberphotometry data with behavior
+        fig_fiberbehav = bp.plot_fiberpho_behav(
+            dfiberbehav_df, 
+            list_BOI, 
+            exp, 
+            mouse, 
+            THRESH_S, 
+            EVENT_TIME_THRESHOLD,
+            batch
+        )
+        
+        # Save plots in both PDF and PNG formats
+        fig_fiberbehav.savefig(fiberbehav_plot_pdf_path)
+        fig_fiberbehav.savefig(fiberbehav_plot_png_path)
+        plt.close(fig_fiberbehav)
+
+    except Exception as e:
+        print(f'Error while processing mouse {mouse} : {e}')
 
 print(f'Analysis for {exp} complete. Data saved in {repo_path}')
                         
