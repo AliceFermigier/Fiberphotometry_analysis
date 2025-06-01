@@ -302,45 +302,19 @@ def diffmeanmaxdFF_behav_perbout(behavprocess_df, list_BOI, mouse, group, batch)
     
     return diffdFF_df
 
-def variance_transients_baseline(fiberbehav_df, list_BOI, mouse, group, exp, session, batch):
+def variance_transients(fiberbehav_df, list_BOI, mouse, group, exp, batch):
     """
-    Calculates variance, transient frequency, and amplitude during whole trace and before and after baseline
+    Calculates variance, transient frequency, and amplitude during whole trace and during behaviours
     
     Output:
     - A dataframe with variance, transient frequency and amplitude.
     """
     
-    # Filter the DataFrame to ignore the first 15 seconds
-    fiberbehavsnip_df = fiberbehav_df[fiberbehav_df['Time(s)'] > 15]
-    
-    # Get the index of when the trial begins (gate opens or equivalent)
-    try:
-        if exp == 'Fear':
-            ind_start_trial = fiberbehavsnip_df.index[fiberbehavsnip_df['Shock'] == 1].tolist()[0]
-        else:
-            ind_start_trial = fiberbehavsnip_df.index[fiberbehavsnip_df['Entry in arena'] == 1].tolist()[0]
-    except IndexError:
-        print(f"Warning: Start trial not found for Mouse {mouse} in Experiment {exp} - Session {session}. Defaulting to 0.")
-        ind_start_trial = 0
-    
-    # Extract data before and after the baseline period
-    # Time before behavior (baseline period)
-    baseline_end = ind_start_trial
-    baseline_data = fiberbehavsnip_df.iloc[:baseline_end]
-    
-    # Time after behavior (post-baseline period)
-    postbaseline_start = ind_start_trial
-    postbaseline_data = fiberbehavsnip_df.iloc[postbaseline_start:]
-    
     # Calculate variance during whole trace, baseline and post-baseline periods
-    variance = np.var(fiberbehavsnip_df['Denoised dFF'])
-    baseline_variance = np.var(baseline_data['Denoised dFF'])
-    postbaseline_variance = np.var(postbaseline_data['Denoised dFF'])
+    variance = np.var(fiberbehav_df['Denoised dFF'])
     
     # Calculate transients for whole trace, baseline and post-baseline periods
-    peaks_df, peak_frequency, peak_amplitude = tr.transients(fiberbehavsnip_df)
-    baseline_peaks_df, baseline_peak_frequency, baseline_peak_amplitude = tr.transients(baseline_data)
-    postbaseline_peaks_df, postbaseline_peak_frequency, postbaseline_peak_amplitude = tr.transients(postbaseline_data)
+    peaks_df, peak_frequency, peak_amplitude = tr.transients(fiberbehav_df)
 
     # Store the results in a dataframe
     results_df = pd.DataFrame({
@@ -348,15 +322,39 @@ def variance_transients_baseline(fiberbehav_df, list_BOI, mouse, group, exp, ses
         'Subject': mouse,
         'Group': group,
         'Variance': variance,
-        'Baseline Variance': baseline_variance,
-        'Post Baseline Variance': postbaseline_variance,
         'Transients Frequency': peak_frequency,
-        'Baseline Transients Frequency': baseline_peak_frequency,
-        'Post Baseline Transients Frequency': postbaseline_peak_frequency,
         'Transients Amplitude': peak_amplitude,
-        'Baseline Transients Amplitude': baseline_peak_amplitude,
-        'Post Baseline Transients Amplitude': postbaseline_peak_amplitude
-            })
+    }, index=[0])
+    
+    for behavior in list_BOI:
+        if behavior not in fiberbehav_df.columns:
+            print(f"Warning: Behavior '{behavior}' not found in DataFrame.")
+            continue
+
+        # Find rows where behavior is active
+        behavior_mask = fiberbehav_df[behavior] == 1
+
+        # Peaks during that behavior
+        behavior_peaks = peaks_df[(peaks_df['Peaks'] == 1) & behavior_mask]
+
+        # Duration of behavior period in seconds
+        behavior_time = fiberbehav_df.loc[behavior_mask, 'Time(s)']
+        if behavior_time.empty:
+            duration = np.nan
+        else:
+            duration = behavior_time.iloc[-1] - behavior_time.iloc[0]
+
+        # Calculate frequency and mean amplitude during behavior
+        if duration and len(behavior_peaks) > 0:
+            freq = len(behavior_peaks) / duration
+            amp = behavior_peaks['Filtered dFF'].mean()
+        else:
+            freq = np.nan
+            amp = np.nan
+
+        # Add to results
+        results_df[f'{behavior} Transients Frequency'] = freq
+        results_df[f'{behavior} Transients Amplitude'] = amp
     
     return results_df
 

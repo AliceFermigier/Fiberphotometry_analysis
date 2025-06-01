@@ -10,34 +10,44 @@ from scipy.signal import butter, filtfilt
 
 import modules.common.preprocess as pp
 
-def bandpass_filter(data, lowcut, highcut, sr, order=3):
+def bandpass_filter(data, lowcut, highcut, order=3):
+    sr = pp.samplerate(data)
+    print('samplerate:', sr)
+    print('lowcut:', lowcut)
+    print('highcut:', highcut)
+    signal = data['Denoised dFF'].values
+    print('signal:', signal)
     nyquist = 0.5 * sr
     low = lowcut/nyquist
     high = highcut/nyquist
     b, a = butter(order, [low, high], btype='band')
-    print("Coefficients du filtre (b):", b)
-    print("Coefficients du filtre (a):", a)
-    y = filtfilt(b, a, data)
+    print("b:", b)
+    print("a:", a)
+    y = filtfilt(b, a, signal)
     return y
     
-def plot_signal_and_spectrum(time, signal, filtered_signal, fs):
+def plot_signal_and_spectrum(dfiber_df):
     plt.figure(figsize=(20, 5))
+    time = dfiber_df['Time(s)']
+    signal = dfiber_df['Denoised dFF']
+    filtered_signal = dfiber_df['Filtered dFF']
+    sr = pp.samplerate(dfiber_df)
 
     # Plot du signal original et filtré
     plt.subplot(1, 2, 1)
-    plt.plot(time, signal, label='Signal Original', color='grey')
-    plt.plot(time, filtered_signal, label='Signal Filtré', color='black')
-    plt.xlabel('Temps (s)')
+    plt.plot(time, signal, label='Original Signal', color='grey')
+    plt.plot(time, filtered_signal, label='Filtered Signal', color='black')
+    plt.xlabel('Time(s)')
     plt.ylabel('Amplitude')
-    plt.title('Filtrage Passe-bande du Signal de Photométrie')
+    plt.title('Band-Pass Filtering')
     plt.legend()
 
     # Spectre de fréquence
     plt.subplot(1, 2, 2)
-    freqs, psd = plt.psd(signal, Fs=fs, NFFT=1024, color='grey', label='Signal Original')
-    plt.psd(filtered_signal, Fs=fs, NFFT=1024, color='black', label='Signal Filtré')
-    plt.xlabel('Fréquence (Hz)')
-    plt.ylabel('Puissance Spectrale')
+    freqs, psd = plt.psd(signal, Fs=sr, NFFT=1024, color='grey', label='Original Signal')
+    plt.psd(filtered_signal, Fs=sr, NFFT=1024, color='black', label='Filtered Signal')
+    plt.xlabel('Frequency(Hz)')
+    plt.ylabel('Spectral Power')
     plt.legend()
 
     plt.tight_layout()
