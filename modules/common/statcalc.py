@@ -302,7 +302,7 @@ def diffmeanmaxdFF_behav_perbout(behavprocess_df, list_BOI, mouse, group, batch)
     
     return diffdFF_df
 
-def variance_transients(fiberbehav_df, list_BOI, mouse, group, exp, batch):
+def variance_transients(fiberbehav_df, list_BOI, mouse, group, exp, batch, threshold):
     """
     Calculates variance, transient frequency, and amplitude during whole trace and during behaviours
     
@@ -314,7 +314,7 @@ def variance_transients(fiberbehav_df, list_BOI, mouse, group, exp, batch):
     variance = np.var(fiberbehav_df['Denoised dFF'])
     
     # Calculate transients for whole trace, baseline and post-baseline periods
-    peaks_df, peak_frequency, peak_amplitude = tr.transients(fiberbehav_df)
+    peaks_df, peak_frequency, peak_amplitude, transients_fig = tr.transients(fiberbehav_df, threshold)
 
     # Store the results in a dataframe
     results_df = pd.DataFrame({
@@ -357,7 +357,7 @@ def variance_transients(fiberbehav_df, list_BOI, mouse, group, exp, batch):
             results_df[f'{behavior} Transients Frequency'] = freq
             results_df[f'{behavior} Transients Amplitude'] = amp
     
-    return results_df
+    return results_df, transients_fig
 
 def process_event(fiberbehav_df, ind_event, TIME_MEANMAX):
     """Calculate mean and max dFF before and after a behavioral event."""

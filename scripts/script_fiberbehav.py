@@ -449,12 +449,14 @@ for group in included_groups:
 #%% 2.6 - Compute variance and transients on whole trace and pre/post baseline
 # ----------------------------- #
 # Parameters
-exp = 'OF_1uL_2'
+exp = 'EPM_1'
 if 'EPM' in exp:
     list_BOI = ['Open arm', 'Closed arm', 'Center']
-list_BOI = []
+else :
+    list_BOI = []
 lowcut = 0.1  # Lowcut frequency for bandpass filter (Hz)
 highcut = 3.0    # Highcut frequency for bandpass filter (Hz)
+threshold = 'two_MAD'
 # ----------------------------- #
 
 exp_path = analysis_path / exp
@@ -492,14 +494,15 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         group = subjects_df.loc[subjects_df['Subject'] == mouse, 'Group'].values[0]
         
         #Calculate variance and transients characteristics
-        mouse_df = sc.variance_transients(dfiber_df, list_BOI, mouse, group, exp, batch)
+        mouse_df, transients_fig = sc.variance_transients(dfiber_df, list_BOI, mouse, group, exp, batch, threshold)
         var_transients_list.append(mouse_df)
+        transients_fig.savefig(groupanalysis_path / f'{mouse}_1o{ORDER}f{lowcut}_{highcut}_{threshold}.png')
     except Exception as e:
         print(f'Error while processing mouse {mouse} : {e}')
     
 # Concatenate results and export to Excel
 variability_df = pd.concat(var_transients_list, ignore_index=True)
-output_file = groupanalysis_path / f'Variability_1o{ORDER}f{lowcut}_{highcut}.xlsx'
+output_file = groupanalysis_path / f'Variability_1o{ORDER}f{lowcut}_{highcut}_{threshold}.xlsx'
 variability_df.to_excel(output_file, index=False)
 
 print(f"Variability data saved to {output_file}")

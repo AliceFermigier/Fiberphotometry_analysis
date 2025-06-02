@@ -6,6 +6,8 @@ Created on Tue Jul 30 09:54:44 2024
 from scipy.signal import find_peaks
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from matplotlib.colors import Normalize
 from scipy.signal import butter, filtfilt 
 
 import modules.common.preprocess as pp
@@ -49,7 +51,6 @@ def plot_signal_and_spectrum(dfiber_df):
     plt.xlabel('Frequency(Hz)')
     plt.ylabel('Spectral Power')
     plt.legend()
-
     plt.tight_layout()
     plt.show()
 
@@ -72,19 +73,43 @@ def transients(fiberpho_df, threshold='one_MAD'):
     fiberpeaks_df.loc[peaks, 'Peaks'] = 1
     
     # Amplitudes des pics
-    mean_peak_amplitudes = np.mean(properties['peak_heights'])
+    peak_amplitudes = properties['peak_heights']
+    mean_peak_amplitudes = np.mean(peak_amplitudes)
     
     # Fréquence des pics (nombre de pics par unité de temps)
     peak_frequency = len(peaks) / (fiberpeaks_df['Time(s)'].iloc[-1] - fiberpeaks_df['Time(s)'].iloc[0])
-    
-    #Plot transients
-    plt.figure(figsize=(15, 5))
-    plt.plot(fiberpeaks_df['Time(s)'], filtered_sig, label='Signal Filtré')
-    plt.plot(fiberpeaks_df['Time(s)'].iloc[peaks],filtered_sig.iloc[peaks], 'ro', label='Pics')
-    plt.xlabel('Temps (s)')
-    plt.ylabel('Signal')
-    plt.title('Détection des Pics dans le Signal de Photométrie')
-    plt.legend()
+
+    # Normalize amplitudes for colormap
+    norm = Normalize(vmin=np.min(peak_amplitudes), vmax=np.max(peak_amplitudes))
+    colors = cm.viridis(norm(peak_amplitudes))
+
+    # Create figure and axis
+    fig, ax = plt.subplots(figsize=(20, 5))
+
+    # Plot main signal
+    ax.plot(fiberpeaks_df['Time(s)'], filtered_sig, color='black', linewidth=.6, label='Filtered Signal')
+
+    # Scatter peaks with color mapping
+    sc = ax.scatter(
+        fiberpeaks_df['Time(s)'].iloc[peaks],
+        filtered_sig.iloc[peaks],
+        c=colors,
+        s=40,
+        label='Peaks'
+    )
+
+    # Add colorbar and attach it to the axis
+    cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap='viridis'), ax=ax)
+    cbar.set_label('Peak Amplitude')
+
+    # Add labels and legend
+    ax.set_xlabel('Time(s)')
+    ax.set_ylabel('dFF')
+    ax.set_title(f'Peaks in Photometry Signal - {threshold}')
+    ax.legend()
+    ax.margins(x=0.005)
+    fig.subplots_adjust(right=0.3)
+    plt.tight_layout()
     plt.show()
     
-    return(fiberpeaks_df, peak_frequency, mean_peak_amplitudes)
+    return(fiberpeaks_df, peak_frequency, mean_peak_amplitudes, fig)
