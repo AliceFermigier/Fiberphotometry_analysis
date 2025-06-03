@@ -202,7 +202,13 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         'Neutral': ('grey', 0.5),
         'Rosemary': ('seagreen', 0.5),
         'Citrus': ('lime', 0.5),
-        'Ethanol': ('purple', 0.5)
+        'Ethanol': ('purple', 0.5),
+        'Hand': ('gold', 0.3),
+        'Hand (standing)': ('gold', 0.7),
+        'Ano-genital sniffing': ('seagreen', 0.5),
+        'Nose-to-nose': ('cornflowerblue', 0.3),
+        'Nose-to-body': ('yellow', 0.3),
+        'Chasing': ('red', 0.3)
     }
 
     # Highlight behaviors
