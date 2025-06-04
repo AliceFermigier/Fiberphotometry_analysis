@@ -44,9 +44,9 @@ TIME_BEGIN = 4
 #filter characteristics
 ORDER = 4
 CUT_FREQ = 1 #in Hz
-
+ 
 #------------------#
-exp = 'OF_1uL_Ctrl_2'
+exp = 'Social_Interaction'
 batches = list(set(subjects_df['Batch']))
 #------------------#
 

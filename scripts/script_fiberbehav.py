@@ -51,7 +51,7 @@ arena_analysis = False
 dlc_data = False
 boris = True
 
-exp = 'OF_1uL_Ctrl_2'
+exp = 'Social_Interaction'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 

@@ -235,7 +235,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     ax1.legend(loc='upper right', fontsize=4 * fs_mult)
     ax1.margins(0, 0.2)
     if scaled:
-        ax1.set_ylim([-0.17, 0.55])
+        ax1.set_ylim([-0.27, 0.75])
 
     # Plot speed if available
     if has_speed:
