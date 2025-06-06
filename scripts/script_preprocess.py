@@ -43,7 +43,7 @@ from scripts.loader import ORDER, CUT_FREQ, experiment_path, analysis_path, data
 # 1 - PREPROCESSING
 #####################
 
-exp = 'Social_Interaction'
+exp = 'Screening_2'
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")

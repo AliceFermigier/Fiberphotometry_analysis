@@ -46,12 +46,12 @@ from scripts.loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-automated_alignment = True
+automated_alignment = False
 arena_analysis = False
 dlc_data = False
 boris = True
 
-exp = 'Social_Interaction'
+exp = 'Screening_2'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
