@@ -46,12 +46,12 @@ from scripts.loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-automated_alignment = False
+automated_alignment = True
 arena_analysis = False
 dlc_data = False
 boris = True
 
-exp = 'Screening_2'
+exp = 'OF_1uL_Ctrl_3'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -119,7 +119,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             try :
                 boris_df = pd.read_csv(boris_path)
                 list_BOI = [col for col in boris_df.columns if col not in ['time']]
-            except :
+            except Exception as e:
+                print(f'No Boris file found : {e}')
                 list_BOI = ['Decoy']
                 deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
                 boris_df = pd.DataFrame({'Time(s)': np.arange(deinterleaved_df['Time(s)'].values[0], 
@@ -142,7 +143,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
         else:
             print('Automated alignment')
-            behav_df = boris_df
+            deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+            behav_df = bp.correct_time_behav(deinterleaved_df, boris_df)
 
         print(f'Analyze mouse position for {exp}')
         if 'EPM' in exp:
