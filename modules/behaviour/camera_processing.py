@@ -15,6 +15,7 @@ Functions for preprocessing fiberphotometry data
 import pandas as pd
 import numpy as np
 import h5py
+import matplotlib.pyplot as plt
 
 import modules.common.genplot as gp
 
@@ -36,37 +37,60 @@ def timestamp_camera(rawdata_df) : #deprecated
     return (gp.truncate(rawdata_df.at[ind_start, 'Time(s)'], 1),
             gp.truncate(rawdata_df.at[ind_stop, 'Time(s)'], 1))
 
-def load_camera_df_doric(file_path):
+def load_camera_df_doric(file_path, plot=False):
     with h5py.File(file_path, 'r') as f:
         base = "DataAcquisition/FPConsole/Signals/Series0001/"
-        
-        camera = f[base + "DigitalIO/DIO03"][:]
-        time = f[base + "DigitalIO/Time"][:]
-        
+        dio_path = base + "DigitalIO/DIO03"
+        time_path = base + "DigitalIO/Time"
+
+        if dio_path not in f or time_path not in f:
+            print(f"Missing DIO03 or Time path in {file_path}")
+            return pd.DataFrame(columns=['Time(s)', 'Camera flashes'])
+
+        camera = f[dio_path][:]
+        time = f[time_path][:]
+
+    if len(camera) == 0 or len(time) == 0:
+        print(f"Empty camera or time array in {file_path}")
+        return pd.DataFrame(columns=['Time(s)', 'Camera flashes'])
+
     camera_df = pd.DataFrame({
         'Time(s)': time,
         'Camera flashes': camera,
     })
 
+    if plot:
+        plt.figure(figsize=(12, 4))
+        plt.plot(camera_df['Time(s)'], camera_df['Camera flashes'], drawstyle='steps-post')
+        plt.title(f'Camera Flashes - {file_path.split("/")[-1]}')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Flash Signal')
+        plt.tight_layout()
+        plt.grid(True)
+        plt.show()
+
     return camera_df
 
 def get_camera_flashes(file_path):
     camera_df = load_camera_df_doric(file_path)
-    camera_diff = camera_df['Camera flashes'].diff()
-    starts = np.where(camera_diff==1)[0].tolist()
-    stops = np.where(camera_diff==-1)[0].tolist()
-    timestamps=[]
-    flash_indexes=[]
-    for start,stop in zip(starts,stops):
-        flash_index = round((start+stop)/2)
-        flash_indexes.append(round(flash_index))
-        timestamps.append(camera_df.loc[flash_index]['Time(s)'])
-    
-    camera_flashes_df = pd.DataFrame({
-        'Time(s)': timestamps,
-    })
+    if camera_df.empty:
+        print(f"Camera dataframe is empty for file: {file_path}")
+        return pd.DataFrame(columns=['Time(s)'])
 
-    return camera_flashes_df
+    camera_diff = camera_df['Camera flashes'].diff()
+    starts = np.where(camera_diff == 1)[0].tolist()
+    stops = np.where(camera_diff == -1)[0].tolist()
+
+    if not starts or not stops:
+        print(f"No flash events detected in {file_path}")
+        return pd.DataFrame(columns=['Time(s)'])
+
+    timestamps = []
+    for start, stop in zip(starts, stops):
+        flash_index = round((start + stop) / 2)
+        timestamps.append(camera_df.loc[flash_index]['Time(s)'])
+
+    return pd.DataFrame({'Time(s)': timestamps})
 
 def align_camera_flashes(behav_df, camera_df):
     if len(behav_df)==len(camera_df['Time(s)']):

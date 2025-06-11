@@ -79,6 +79,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
         dlc_path = behav_path_exp / f'{mouse}_reducedDLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv'
         fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
+        boris_path = behav_path_exp / f'behav_boris_{mouse}.csv' 
         
         # Path to arena boundary
         try:
@@ -110,12 +111,38 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             print('Get dlc data')
             coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.99)
 
+        else:
+            coordinates_df = None
+
+        if boris:
+            print('Get boris data')
+            try :
+                boris_df = pd.read_csv(boris_path)
+                list_BOI = [col for col in boris_df.columns if col not in ['time']]
+            except :
+                list_BOI = ['Decoy']
+                deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+                boris_df = pd.DataFrame({'Time(s)': np.arange(deinterleaved_df['Time(s)'].values[0], 
+                                                            deinterleaved_df['Time(s)'].values[-1], 
+                                                            0.01)})
+                boris_df['Decoy'] = np.zeros(len(boris_df))
+
         if not automated_alignment:
             print('Get camera flashes')
             camera_df = cp.get_camera_flashes(rawdata_path)
+            print(camera_df)
 
-            print('Aligning time with coordinates')
-            coordinates_df = cp.align_camera_flashes(coordinates_df, camera_df)
+            if coordinates_df != None:
+                print('Aligning time with coordinates')
+                coordinates_df = cp.align_camera_flashes(coordinates_df, camera_df)
+
+            else:
+                print('Aligning time with boris scoring')
+                behav_df = cp.align_camera_flashes(boris_df, camera_df)
+
+        else:
+            print('Automated alignment')
+            behav_df = boris_df
 
         print(f'Analyze mouse position for {exp}')
         if 'EPM' in exp:
@@ -123,20 +150,10 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, bodypart='nose')
             behav_df.to_csv(behav_path)
             print(f'Behaviour file exported to {behav_path}')
-        
-        elif boris:
-            try :
-                behav_df = pd.read_csv(behav_path)
-                deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-                list_BOI = [col for col in behav_df.columns if col not in ['time']]
-                behav_df = bp.correct_time_behav(deinterleaved_df, behav_df)
-            except :
-                list_BOI = ['Decoy']
-                deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-                behav_df = pd.DataFrame({'Time(s)': np.arange(deinterleaved_df['Time(s)'].values[0], 
-                                                            deinterleaved_df['Time(s)'].values[-1], 
-                                                            0.01)})
-                behav_df['Decoy'] = np.zeros(len(behav_df))
+
+        else:
+            behav_df.to_csv(behav_path)
+            print(f'Aligned behaviour file exported to {behav_path}')
 
         # Load fiberphotometry data
         fiberpho = pd.read_csv(fiberpho_path)
