@@ -46,12 +46,12 @@ from scripts.loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-automated_alignment = True
+automated_alignment = False
 arena_analysis = False
 dlc_data = False
 boris = True
 
-exp = 'OF_1uL_Ctrl_3'
+exp = 'EPM_1'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -147,15 +147,16 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             behav_df = bp.correct_time_behav(deinterleaved_df, boris_df)
 
         print(f'Analyze mouse position for {exp}')
+        '''
         if 'EPM' in exp:
             list_BOI = ['Open arm', 'Closed arm', 'Center']
             behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, bodypart='nose')
             behav_df.to_csv(behav_path)
             print(f'Behaviour file exported to {behav_path}')
+        '''
 
-        else:
-            behav_df.to_csv(behav_path)
-            print(f'Aligned behaviour file exported to {behav_path}')
+        behav_df.to_csv(behav_path)
+        print(f'Aligned behaviour file exported to {behav_path}')
 
         # Load fiberphotometry data
         fiberpho = pd.read_csv(fiberpho_path)
