@@ -46,12 +46,12 @@ from scripts.loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-automated_alignment = False
+automated_alignment = True
 arena_analysis = False
 dlc_data = False
 boris = True
 
-exp = 'EPM_1'
+exp = 'OF_1uL3'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -318,61 +318,75 @@ for session_path in [Path(f.path) for f in os.scandir(exp_path) if f.is_dir()]:
         except Exception as e:
             print(f"Error exporting data to {output_file}: {e}")
 
-#%% 2.4 - Plot PETH for each mouse
+#%% 2.4 - Plot PETH for each mouse 
 
 # PETH parameters 
-EVENT_LIST = ['onset']  # Event triggers, e.g., onset, withdrawal
-TIME_WINDOWS = [[5, 30]]  # Time window for PETH calculation (pre, post)
+baseline = False
+if baseline:
+    tag = "windowedbaseline"
+else:
+    tag = "wholetrace"
+for exp in [f.name for f in analysis_path.iterdir() if f.is_dir()]:
+    exp_path = analysis_path / exp
+    datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
-# Loop over each session folder in the experiment path
-print('##########################################')
-print(f'EXPERIMENT : {exp}')
-print('##########################################')
+    EVENT_LIST = ['onset']  # Event triggers, e.g., onset, withdrawal
+    TIME_WINDOWS = [[5, 10]]  # Time window for PETH calculation (pre, post)
 
-# Create the repository and PETH paths
-repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
-peth_path = repo_path / 'PETH'
-peth_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
+    # Loop over each session folder in the experiment path
+    print('##########################################')
+    print(f'EXPERIMENT : {exp}')
+    print('##########################################')
 
-# Loop over each mouse in the subjects DataFrame
-for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
-    fiberbehav_path = repo_path / f'{batch}_{mouse}_{code}_fiberbehav.csv'
+    # Create the repository and PETH paths
+    repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+    peth_path = repo_path / f'PETH_{tag}'
+    peth_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
 
-    if fiberbehav_path.exists():  # Check if fiber behavior file exists for this mouse
-        print("--------------")
-        print(f'MOUSE : {mouse} {batch}')
-        print("--------------")
+    # Loop over each mouse in the subjects DataFrame
+    for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
+        fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
 
-        try:
-            # Read the fiber behavior file
-            dfiberbehav_df = pd.read_csv(fiberbehav_path, index_col=0)
-        except Exception as e:
-            warnings.warn(f"Failed to read file {fiberbehav_path}: {e}")
-            continue
+        if fiberbehav_path.exists():  # Check if fiber behavior file exists for this mouse
+            print("--------------")
+            print(f'MOUSE : {mouse} {batch}')
+            print("--------------")
 
-        # List all behaviors of interest (BOI) by excluding specific behaviors
-        behaviors_of_interest = [col for col in dfiberbehav_df.columns[4:] 
-                                    if col not in ['Entry in arena', 'Gate opens', 'Tail suspension']]
-        
-        for behavior in behaviors_of_interest:
-            for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
-                try:
-                    # Generate the PETH data for the current behavior, event, and time window
-                    peth_data = bp.PETH(dfiberbehav_df, behavior, event, time_window, EVENT_TIME_THRESHOLD)
+            try:
+                # Read the fiber behavior file
+                dfiberbehav_df = pd.read_csv(fiberbehav_path, index_col=0)
+            except Exception as e:
+                warnings.warn(f"Failed to read file {fiberbehav_path}: {e}")
+                continue
+
+            # List all behaviors of interest (BOI) by excluding specific behaviors
+            behaviors_of_interest = [col for col in dfiberbehav_df.columns[4:] 
+                                        if col not in ['time','Entry in arena', 'Gate opens', 'Tail suspension']]
+            
+            for behavior in behaviors_of_interest:
+                for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
+                    try:
+                        # Generate the PETH data for the current behavior, event, and time window
+                        peth_data = bp.PETH(dfiberbehav_df, behavior, event, time_window, EVENT_TIME_THRESHOLD, baselinewindow = baseline)
+                        
+                        # Create a DataFrame from the PETH data
+                        sr = round(pp.samplerate(dfiberbehav_df))
+                        PRE_TIME, POST_TIME = time_window
+                        n_timepoints = (PRE_TIME + POST_TIME) * sr + 1
+                        time_index = np.linspace(-PRE_TIME, POST_TIME, n_timepoints)
+
+                        peth_df = pd.DataFrame(np.transpose(peth_data), index=time_index)
+                        
+                        # Plot the PETH and save the figure 
+                        peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, exp, mouse, group)
+                        plot_filename = f'{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.png'
+                        peth_plot_path = peth_path / plot_filename
+                        peth_plot.savefig(peth_plot_path)
+                        plt.close(peth_plot)
                     
-                    # Create a DataFrame from the PETH data
-                    time_index = np.arange(-time_window[0], time_window[1] + 0.1, 0.1)
-                    peth_df = pd.DataFrame(np.transpose(peth_data), index=time_index)
+                    except Exception as e:
+                        print(f'Error computing PETH for {behavior}, {mouse}')
                     
-                    # Plot the PETH and save the figure 
-                    peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, exp, session, mouse, group)
-                    plot_filename = f'{mouse}_{code}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.png'
-                    peth_plot_path = peth_path / plot_filename
-                    peth_plot.savefig(peth_plot_path)
-                    peth_plot.close()
-                    
-                except Exception as e:
-                    warnings.warn(f"Error while processing PETH for {mouse}, {behavior}, {event}: {e}")
                         
 #%% 2.5 Plot PETH for each group and extract mean and max Z-scored data
 
@@ -404,42 +418,38 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     print(f'MOUSE: {mouse} {batch}')
     print("--------------")
     
-    fiberbehav_file = repo_path / f'{batch}_{mouse}_{code}_fiberbehav.csv'
+    fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
     
     if not fiberbehav_file.exists():
         print(f"File not found: {fiberbehav_file}")
         continue
     
-    try:
-        fiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
-        sr = pp.samplerate(fiberbehav_df)
-        
-        if BOI in fiberbehav_df.columns[2:].tolist():
-            subject_list.append(mouse)
-            group_list.append(group)
-            print(f'PETH {BOI} for {mouse}')
-            
-            # Calculate PETH for the current mouse
-            PETH_mouse = bp.PETH(fiberbehav_df, BOI, 'onset', TIME_WINDOW, EVENT_TIME_THRESHOLD, maxboutsnumber=MAXBOUTSNUMBER)
-            
-            if PETH_array is None:
-                PETH_array = PETH_mouse
-                print('Initialized PETH_array successfully')
-            else:
-                PETH_array = np.concatenate((PETH_array, PETH_mouse))  # Stack new data
-            
-            # Calculate mean and max dFF before and after the event (PETH)
-            mean_before = np.mean(PETH_mouse[:TIME_WINDOW[0]])  # Mean before event
-            mean_after = np.mean(PETH_mouse[TIME_WINDOW[0]:])   # Mean after event
-            max_before = np.max(PETH_mouse[:TIME_WINDOW[0]])    # Max before event
-            max_after = np.max(PETH_mouse[TIME_WINDOW[0]:])     # Max after event
-            
-            PETH_mean_list.append((mean_before, mean_after))
-            PETH_max_list.append((max_before, max_after))
 
-    except Exception as e:
-        print(f"Error processing {fiberbehav_file}: {e}")
-        continue
+    fiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
+    sr = pp.samplerate(fiberbehav_df)
+    
+    if BOI in fiberbehav_df.columns[2:].tolist():
+        subject_list.append(mouse)
+        group_list.append(group)
+        print(f'PETH {BOI} for {mouse}')
+        
+        # Calculate PETH for the current mouse
+        PETH_mouse = bp.PETH(fiberbehav_df, BOI, 'onset', TIME_WINDOW, EVENT_TIME_THRESHOLD, maxboutsnumber=MAXBOUTSNUMBER)
+        
+        if PETH_array is None:
+            PETH_array = PETH_mouse
+            print('Initialized PETH_array successfully')
+        else:
+            PETH_array = np.concatenate((PETH_array, PETH_mouse))  # Stack new data
+        
+        # Calculate mean and max dFF before and after the event (PETH)
+        mean_before = np.mean(PETH_mouse[:TIME_WINDOW[0]])  # Mean before event
+        mean_after = np.mean(PETH_mouse[TIME_WINDOW[0]:])   # Mean after event
+        max_before = np.max(PETH_mouse[:TIME_WINDOW[0]])    # Max before event
+        max_after = np.max(PETH_mouse[TIME_WINDOW[0]:])     # Max after event
+        
+        PETH_mean_list.append((mean_before, mean_after))
+        PETH_max_list.append((max_before, max_after))
 
 # Export mean/max PETH data to Excel
 meanmaxPETH_df = pd.DataFrame({

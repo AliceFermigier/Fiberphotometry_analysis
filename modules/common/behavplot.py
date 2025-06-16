@@ -177,12 +177,6 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         for idx in shock_times[:2]:
             x = behavprocess_df.at[int(idx), 'Time(s)']
             ax1.axvline(x, color='yellow', ls='-', lw=2, label='Shock')
-    
-    # Load behavior colors and transparencies
-    behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
-    with open(behavior_colors_path, "r") as f:
-        behaviors_to_plot = json.load(f)
-
     # Highlight behaviors
     for behavior, (color, alpha) in behaviors_to_plot.items():
         if behavior in list_BOI and behavior in behavprocesssnip_df.columns:
@@ -296,7 +290,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
         try: 
             if baselinewindow:
                 # Calculate baseline mean (F0) and standard deviation (std0) for the time window before the event
-                dFF_baseline = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event - PRE_EVENT_TIME * sr, 'Denoised dFF']
+                dFF_baseline = behavprocess_df.loc[ind_event - 6 * sr : ind_event - PRE_EVENT_TIME * sr, 'Denoised dFF']
                 F0 = dFF_baseline.mean() 
                 std0 = dFF_baseline.std()
 
@@ -311,110 +305,93 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
 
     return PETH_array
 
-def plot_PETH(PETH_data, BOI, event, timewindow, exp, session, mouse, group, 
+def plot_PETH(PETH_data, BOI, event, timewindow, exp, mouse, group, 
               trace_color='black', fill_alpha=0.2, trace_linewidth=2, heatmap_cmap='magma'):
-    """
-    Plots PETH average and heatmap.
-    
-    --> Parameters:
-        PETH_data : np.ndarray 
-            Array of z-scored dFF data centered on events (shape: num_bouts x timepoints).
-        BOI : str 
-            Behavior of interest.
-        event : str 
-            Event type ('onset' or 'withdrawal').
-        timewindow : list 
-            Time window relative to event [PRE_TIME, POST_TIME].
-        exp : str 
-            Experiment identifier.
-        session : str 
-            Session identifier.
-        mouse : str 
-            Mouse identifier.
-        group : str 
-            Group identifier.
-        trace_color : str (default: 'green') 
-            Color for mean response line and fill.
-        fill_alpha : float (default: 0.2) 
-            Alpha (opacity) for the standard error fill.
-        trace_linewidth : float (default: 2) 
-            Line width for the mean response line.
-        heatmap_cmap : str (default: 'magma') 
-            Color map for the heatmap.
-    
-    --> Returns:
-        fig : matplotlib.figure.Figure 
-            The figure containing the plots.
-    """
-    
+    import matplotlib.pyplot as plt
+    import numpy as np
+
     # Unpack time window
     PRE_TIME, POST_TIME = timewindow
-    
+
     # Check if PETH_data is valid
     if PETH_data is None or len(PETH_data) == 0:
         raise ValueError("PETH_data is empty or None. Please provide valid PETH data.")
-    
+
+    # Text size multiplier
+    text_size = 20  # 4x typical 12 pt font
+
     # Create figure and axes
     fig, (ax_heatmap, ax_trace) = plt.subplots(2, 1, figsize=(15, 10), gridspec_kw={'height_ratios': [1, 2]})
-    
+
     # Create time vector for the x-axis
-    peri_time = np.arange(-PRE_TIME, POST_TIME + 0.1, 0.1)
-    
+    peri_time = np.linspace(-PRE_TIME, POST_TIME, PETH_data.shape[1])
+
     # Calculate mean and standard error of the z-scored ΔF/F traces
     mean_dFF_snips = np.mean(PETH_data, axis=0)
     std_dFF_snips = np.std(PETH_data, axis=0) / np.sqrt(len(PETH_data))
-    
+
     ## ----------------- Heatmap Plot ----------------- ##
+    vmin = np.min(PETH_data)
+    vmax = np.max(PETH_data)
     im = ax_heatmap.imshow(
-        PETH_data, 
-        cmap=heatmap_cmap, 
-        aspect='auto', 
-        interpolation='none', 
+        PETH_data,
+        cmap=heatmap_cmap,
+        aspect='auto',
+        interpolation='none',
         extent=[-PRE_TIME, POST_TIME, len(PETH_data), 0],
-        vmin=-3, 
-        vmax=4
+        vmin=vmin ,
+        vmax=vmax
     )
     ax_heatmap.axvline(x=0, linewidth=2, color='black', linestyle='--', label=f'{event.capitalize()} event')
-    ax_heatmap.set_ylabel('Bout Number')
+    ax_heatmap.set_ylabel('Bout Number', fontsize=text_size)
     ax_heatmap.set_yticks(np.arange(0.5, len(PETH_data), 2))
-    ax_heatmap.set_yticklabels(np.arange(0, len(PETH_data), 2))
-    ax_heatmap.set_title(f'{BOI} {event.capitalize()} - {exp}, {session}, Mouse: {mouse}, Group: {group}')
-    
+    ax_heatmap.set_yticklabels(np.arange(0, len(PETH_data), 2), fontsize=text_size * 0.8)
+    ax_heatmap.set_title(f'{BOI} {event.capitalize()} - {exp}, Mouse: {mouse}, Group: {group}', fontsize=text_size)
+    ax_heatmap.set_xticks([])
+    ax_heatmap.set_xticklabels([])
+    ax_heatmap.set_xlabel('')
+
     # Add colorbar
     cbar_ax = fig.add_axes([0.85, 0.54, 0.02, 0.34])  # Custom position for colorbar
-    fig.colorbar(im, cax=cbar_ax, label='Z-scored ΔF/F')
-    
+    cbar = fig.colorbar(im, cax=cbar_ax)
+    cbar.set_label('Z-scored ΔF/F', fontsize=text_size)
+    cbar.ax.tick_params(labelsize=text_size * 0.8)
+
     ## ----------------- Trace Plot ----------------- ##
     for trial_snip in PETH_data:
-        ax_trace.plot(peri_time, trial_snip, linewidth=0.5, color=[0.7, 0.7, 0.7], label='Individual trials')
+        ax_trace.plot(peri_time, trial_snip, linewidth=0.5, color=[0.7, 0.7, 0.7])
     
+    # Add single legend entry for individual trials
+    ax_trace.plot([], [], linewidth=0.5, color=[0.7, 0.7, 0.7], label='Individual trials')
+
     ax_trace.plot(
-        peri_time, 
-        mean_dFF_snips, 
-        linewidth=trace_linewidth, 
-        color=trace_color, 
+        peri_time,
+        mean_dFF_snips,
+        linewidth=trace_linewidth,
+        color=trace_color,
         label='Mean response'
     )
-    
+
     ax_trace.fill_between(
-        peri_time, 
-        mean_dFF_snips + std_dFF_snips, 
-        mean_dFF_snips - std_dFF_snips, 
-        facecolor=trace_color, 
-        alpha=fill_alpha, 
+        peri_time,
+        mean_dFF_snips + std_dFF_snips,
+        mean_dFF_snips - std_dFF_snips,
+        facecolor=trace_color,
+        alpha=fill_alpha,
         label='Standard error'
     )
-    
+
     ax_trace.axvline(x=0, linewidth=2, color='slategray', linestyle='--', label=f'{event.capitalize()} event')
-    
-    ax_trace.set_xlabel('Time (s)')
-    ax_trace.set_ylabel('Z-scored ΔF/F')
-    ax_trace.legend(loc='upper left', fontsize='small')
+
+    ax_trace.set_xlabel('Time (s)', fontsize=text_size)
+    ax_trace.set_ylabel('Z-scored ΔF/F', fontsize=text_size)
+    ax_trace.tick_params(labelsize=text_size * 0.8)
+    ax_trace.legend(loc='upper left', fontsize=text_size * 0.6)
     ax_trace.margins(0, 0.01)
-    
+
     # Finalize layout
     fig.subplots_adjust(right=0.8, hspace=0.1)
-    
+
     return fig
 
 def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, session, group, 
