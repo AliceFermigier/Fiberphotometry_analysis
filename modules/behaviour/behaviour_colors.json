@@ -1,0 +1,126 @@
+{
+    "Water consumption": [
+        "cornflowerblue",
+        0.5
+    ],
+    "Water ?": [
+        "cornflowerblue",
+        0.3
+    ],
+    "Saccharine consumption": [
+        "gold",
+        0.5
+    ],
+    "Saccharine ?": [
+        "gold",
+        0.3
+    ],
+    "Ethanol sniffing": [
+        "purple",
+        0.3
+    ],
+    "Tail suspension": [
+        "red",
+        0.3
+    ],
+    "Homecage": [
+        "gold",
+        0.3
+    ],
+    "Fear cage": [
+        "blue",
+        0.3
+    ],
+    "New context": [
+        "darkturquoise",
+        0.3
+    ],
+    "Exploration fam": [
+        "gold",
+        0.3
+    ],
+    "Exploration new": [
+        "purple",
+        0.3
+    ],
+    "Climbing": [
+        "cornflowerblue",
+        0.3
+    ],
+    "Rearing": [
+        "mediumpurple",
+        0.3
+    ],
+    "Exploration left": [
+        "orange",
+        0.3
+    ],
+    "Exploration right": [
+        "darkturquoise",
+        0.3
+    ],
+    "Exploration non social": [
+        "grey",
+        0.3
+    ],
+    "Exploration social": [
+        "mediumvioletred",
+        0.3
+    ],
+    "Center": [
+        "yellow",
+        0.5
+    ],
+    "Open arm": [
+        "cornflowerblue",
+        0.5
+    ],
+    "Closed arm": [
+        "grey",
+        0.1
+    ],
+    "Neutral": [
+        "grey",
+        0.5
+    ],
+    "Rosemary": [
+        "seagreen",
+        0.5
+    ],
+    "Citrus": [
+        "lime",
+        0.5
+    ],
+    "Ethanol": [
+        "purple",
+        0.5
+    ],
+    "Hand": [
+        "gold",
+        0.3
+    ],
+    "Hand (standing)": [
+        "gold",
+        0.7
+    ],
+    "Ano-genital sniffing": [
+        "seagreen",
+        0.5
+    ],
+    "Nose-to-nose": [
+        "cornflowerblue",
+        0.3
+    ],
+    "Nose-to-body": [
+        "yellow",
+        0.3
+    ],
+    "Chasing": [
+        "red",
+        0.3
+    ],
+    "Head dipping": [
+        "red",
+        0.3
+    ]
+}

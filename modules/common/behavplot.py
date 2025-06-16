@@ -15,9 +15,13 @@ Functions for plotting with behavioural data
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 import sys
+import json
 
 import modules.common.preprocess as pp
+
+from scripts.loader import project_root
 
 #%%
 ###################
@@ -154,9 +158,6 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     """
     Plots denoised deltaF/F aligned with behaviour (includes baseline). Adds Speed subplot only if present.
     """
-    import matplotlib.pyplot as plt
-    import numpy as np
-
     behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 0]
     has_speed = 'Speed' in behavprocesssnip_df.columns
 
@@ -176,41 +177,11 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         for idx in shock_times[:2]:
             x = behavprocess_df.at[int(idx), 'Time(s)']
             ax1.axvline(x, color='yellow', ls='-', lw=2, label='Shock')
-
-    # Define behavior colors and transparencies
-    behaviors_to_plot = {
-        'Water consumption': ('cornflowerblue', 0.5),
-        'Water ?': ('cornflowerblue', 0.3),
-        'Saccharine consumption': ('gold', 0.5),
-        'Saccharine ?': ('gold', 0.3),
-        'Ethanol sniffing': ('purple', 0.3),
-        'Tail suspension': ('red', 0.3),
-        'Homecage': ('gold', 0.3),
-        'Fear cage': ('blue', 0.3),
-        'New context': ('darkturquoise', 0.3),
-        'Exploration fam': ('gold', 0.3),
-        'Exploration new': ('purple', 0.3),
-        'Climbing': ('cornflowerblue', 0.3),
-        'Rearing': ('mediumpurple', 0.3),
-        'Exploration left': ('orange', 0.3),
-        'Exploration right': ('darkturquoise', 0.3),
-        'Exploration non social': ('grey', 0.3),
-        'Exploration social': ('mediumvioletred', 0.3),
-        'Center': ('yellow', 0.3),
-        'Open arm': ('cornflowerblue', 0.3),
-        'Closed arm': ('grey', 0.01),
-        'Neutral': ('grey', 0.5),
-        'Rosemary': ('seagreen', 0.5),
-        'Citrus': ('lime', 0.5),
-        'Ethanol': ('purple', 0.5),
-        'Hand': ('gold', 0.3),
-        'Hand (standing)': ('gold', 0.7),
-        'Ano-genital sniffing': ('seagreen', 0.5),
-        'Nose-to-nose': ('cornflowerblue', 0.3),
-        'Nose-to-body': ('yellow', 0.3),
-        'Chasing': ('red', 0.3),
-        'Head dipping': ('red', 0.3)
-    }
+    
+    # Load behavior colors and transparencies
+    behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
+    with open(behavior_colors_path, "r") as f:
+        behaviors_to_plot = json.load(f)
 
     # Highlight behaviors
     for behavior, (color, alpha) in behaviors_to_plot.items():
