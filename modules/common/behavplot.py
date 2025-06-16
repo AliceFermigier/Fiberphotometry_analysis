@@ -177,9 +177,15 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         for idx in shock_times[:2]:
             x = behavprocess_df.at[int(idx), 'Time(s)']
             ax1.axvline(x, color='yellow', ls='-', lw=2, label='Shock')
+
     # Highlight behaviors
-    for behavior, (color, alpha) in behaviors_to_plot.items():
-        if behavior in list_BOI and behavior in behavprocesssnip_df.columns:
+    behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
+    with open(behavior_colors_path, "r") as f:
+        behaviors_to_plot = json.load(f)
+    
+    for behavior in list_BOI:
+        if behavior in behavprocesssnip_df.columns:
+            color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
             highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
 
     # Add event lines
