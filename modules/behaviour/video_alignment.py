@@ -1,12 +1,14 @@
-
+#%%
 import cv2
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from pathlib import Path
-from PIL import Image
 import importlib
 import json
+import math
+from tqdm import tqdm
 
 import modules.common.preprocess as pp
 importlib.reload(pp)
@@ -14,12 +16,14 @@ import modules.behaviour.camera_processing as cp
 
 from scripts.loader import project_root
 
-def create_overlay_frame(timepoint, fiberbehav_df, window, figsize=(10, 4)):
+#%%
+
+def create_overlay_frame(index, fiberbehav_df, window, figsize=(10, 4)):
     """
     Generates a matplotlib plot as image for a specific time window.
     """
     sr = len(fiberbehav_df) / (fiberbehav_df['Time(s)'].max() - fiberbehav_df['Time(s)'].min())
-    idx_center = np.argmin(np.abs(fiberbehav_df['Time(s)'] - timepoint))
+    idx_center = index
     half_window = int(window * sr / 2)
     idx_start = max(0, idx_center - half_window)
     idx_end = min(len(fiberbehav_df), idx_center + half_window)
@@ -40,6 +44,7 @@ def create_overlay_frame(timepoint, fiberbehav_df, window, figsize=(10, 4)):
     # Plot fiber signal
     axs[0].plot(t, window_df['Denoised dFF'], color='black')
     axs[0].set_ylabel('Denoised dFF')
+    axs[0].axvline(window_df['Time(s)'].iloc[idx_center - idx_start], color='red', linestyle='--')
 
     # Plot behaviors
     behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
@@ -65,7 +70,7 @@ def create_overlay_frame(timepoint, fiberbehav_df, window, figsize=(10, 4)):
         axs[-1].set_ylabel('Speed')
     
     axs[-1].set_xlabel('Time (s)')
-    axs[0].set_title(f'Time: {timepoint:.2f}s')
+    axs[0].set_title(f'Time: {index:.2f}s')
 
     # Convert to image
     canvas = FigureCanvas(fig)
@@ -75,7 +80,7 @@ def create_overlay_frame(timepoint, fiberbehav_df, window, figsize=(10, 4)):
     plt.close(fig)
     return img
 
-def get_video_start(video_path, file_path):
+def get_video_time(video_path, file_path):
     '''
     Get timestamps of video frames, in seconds
     '''
@@ -94,18 +99,31 @@ def get_video_start(video_path, file_path):
 
     return video_time
 
-def align_video_to_fiber(fiber_df, video_time):
+def align_fiber_to_video(fiber_df, video_time):
+    """
+    For each video frame timestamp, find the closest fiberphotometry time index.
+    
+    --> Parameters:
+        fiber_df : pd.DataFrame
+            Must contain a 'Time(s)' column.
+        video_time : np.ndarray
+            Array of timestamps for each video frame.
+    
+    --> Returns:
+        fiber_indices : np.ndarray
+            Array of indices into fiber_df for each video frame.
+    """
     fiber_time = fiber_df['Time(s)'].values
 
-    # Get frame numbers corresponding to fiber time points
-    frame_indices = np.interp(fiber_time, video_time, np.arange(len(video_time)))
+    # Interpolate: video_time → index of closest fiber_time
+    fiber_indices = np.interp(video_time, fiber_time, np.arange(len(fiber_time)))
 
-    # Round to nearest frame
-    frame_indices = np.clip(np.round(frame_indices).astype(int), 0, len(video_time) - 1)
+    # Round and clip to valid indices
+    fiber_indices = np.clip(np.round(fiber_indices).astype(int), 0, len(fiber_time) - 1)
 
-    return frame_indices
+    return fiber_indices
 
-def make_combined_video(video_path, fiberbehav_df, output_path, frame_indices=None, window=10):
+def make_combined_video(video_path, fiberbehav_df, output_path, fiber_indices=None, window=10, verbose=True):
     """
     Function to align video with fiberphotometry signal and behavior
 
@@ -140,20 +158,26 @@ def make_combined_video(video_path, fiberbehav_df, output_path, frame_indices=No
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height + 300))  # Add space for overlay
+    out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height + 300))
+    
+    if verbose:
+        print(f"[INFO] Processing video: {video_path}")
+        print(f"[INFO] Total frames: {n_frames}, FPS: {fps}")
+        print(f"[INFO] Output video will be saved to: {output_path}\n")
 
-    for i in range(n_frames):
+    for i in tqdm(range(n_frames), desc="Rendering frames", unit="frame"):
         ret, frame = cap.read()
         if not ret:
-            break
+            print(f"[WARNING] Failed to read frame {i}. Skipping.")
+            continue
         
         # Get corresponding fiber_df row
-        if frame_indices is not None and i < len(frame_indices):
-            data_idx = frame_indices[i]
+        if fiber_indices is not None and i < len(fiber_indices):
+            data_idx = fiber_indices[i]
         else:
-            data_idx = min(i, len(fiber_df) - 1)
+            data_idx = min(i, len(fiberbehav_df) - 1)
 
-        time_sec = i / fps
+        time_val = fiberbehav_df['Time(s)'].iloc[data_idx]
         overlay_img = create_overlay_frame(data_idx, fiberbehav_df, window=window)
 
         # Resize overlay to match width
@@ -162,8 +186,25 @@ def make_combined_video(video_path, fiberbehav_df, output_path, frame_indices=No
 
         out.write(combined_frame)
 
+        if verbose and i % int(fps) == 0:  # Every ~1 second
+            print(f"  ⏱ Frame {i}/{n_frames} → Time {time_val:.2f}s → Data idx {data_idx}")
+
     cap.release()
     out.release()
-    print(f"Video saved to {output_path}")
+    print(f"\n✅ Combined video saved to {output_path}")
+
+exp_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Data\20250510_EPM')
+analysis_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Analysis\EPM_1\length0_interbout0_o4f1')
+video_path = exp_path / '768.AVI'
+raw_file_path = exp_path / '768.doric'
+fiberbehav_df = pd.read_csv(analysis_path / '1_768_fiberbehavnotderived.csv')
+output_path = exp_path / '768_combined.doric'
+
+#%%
+video_time = get_video_time(video_path, raw_file_path)
+#%%
+fiber_indices = align_fiber_to_video(fiberbehav_df, video_time)
+#%%
+make_combined_video(video_path, fiberbehav_df, output_path, fiber_indices=None, window=10, verbose=True)
 
 

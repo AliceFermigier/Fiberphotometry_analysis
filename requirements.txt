@@ -8,3 +8,4 @@ h5py
 scikit-learn
 opencv-python
 openpyxl
+tqdm
