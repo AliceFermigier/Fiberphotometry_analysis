@@ -46,12 +46,12 @@ from scripts.loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-automated_alignment = True
-arena_analysis = False
-dlc_data = False
-boris = True
+automated_alignment = False
+arena_analysis = True
+dlc_data = True
+boris = False
 
-exp = 'OF_1uL3'
+exp = 'EPM_1'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -62,7 +62,7 @@ print('###################')
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
-repo_path.mkdir(exist_ok=True)  # Create directory if it doesn't exist
+repo_path.mkdir(exist_ok=True)
 
 # Loop through each mouse in the subject DataFrame
 for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
@@ -81,119 +81,116 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
         boris_path = behav_path_exp / f'behav_boris_{mouse}.csv' 
         
-        # Path to arena boundary
+        # Arena boundaries
         try:
-            arena_coordinates_file = [coordinates for coordinates in os.listdir(behav_path_exp) if coordinates.endswith('.json')][0]
+            arena_coordinates_file = [f for f in os.listdir(behav_path_exp) if f.endswith('.json')][0]
             print(f'Arena boundaries : {arena_coordinates_file}')
             arena_coordinates_path = behav_path_exp / arena_coordinates_file
-        except:
-            print(f'Arena boundaries not found for mouse {mouse}. Create json file via get_epm_coordinates module.')
-        
-        # Paths for output files to be checked
-        behav_path = behav_path_exp / f'behav_{mouse}.csv' 
+            with open(arena_coordinates_path, 'r') as f:
+                arena_coordinates = json.load(f)
+        except Exception as e:
+            print(f'[!] Arena boundary file missing or invalid for {mouse}: {e}')
+            arena_coordinates = {}
 
-        fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
-        fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
-
-        fiberbehav_plot_pdf_path = repo_path / f'{batch}_{mouse}_fiberbehav.pdf'
-        fiberbehav_plot_png_path = repo_path / f'{batch}_{mouse}_fiberbehav.png'
-
-
-        print(f'Behavior and coordinates alignment for {mouse}...')
-
-        # Get and filter DLC data ; analyse coordinates depending on test
-        if arena_analysis:
-            print('Open json file')
-            with open(arena_coordinates_path, 'r') as file:
-                arena_coordinates = json.load(file)
-
-        if dlc_data:
-            print('Get dlc data')
-            coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.99)
-
-        else:
-            coordinates_df = None
-
-        if boris:
-            print('Get boris data')
-            try :
-                boris_df = pd.read_csv(boris_path)
-                list_BOI = [col for col in boris_df.columns if col not in ['time']]
+        # DLC data
+        coordinates_df = None
+        if arena_analysis and dlc_data:
+            try:
+                print('Get DLC data')
+                coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.99)
             except Exception as e:
-                print(f'No Boris file found : {e}')
-                list_BOI = ['Decoy']
-                deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-                boris_df = pd.DataFrame({'Time(s)': np.arange(deinterleaved_df['Time(s)'].values[0], 
-                                                            deinterleaved_df['Time(s)'].values[-1], 
-                                                            0.01)})
-                boris_df['Decoy'] = np.zeros(len(boris_df))
+                print(f'[!] DLC file error for {mouse}: {e}')
 
+        # BORIS data
+        boris_df = None
+        list_BOI = ['Decoy']
+        if boris:
+            print('Get BORIS data')
+            try:
+                boris_df = pd.read_csv(boris_path)
+                list_BOI = [col for col in boris_df.columns if col != 'time']
+            except Exception as e:
+                print(f'[!] BORIS file not found, creating decoy for {mouse}: {e}')
+                deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+                boris_df = pd.DataFrame({
+                    'Time(s)': np.arange(deinterleaved_df['Time(s)'].iloc[0],
+                                         deinterleaved_df['Time(s)'].iloc[-1],
+                                         0.01),
+                    'Decoy': 0
+                })
+        
+        # Time alignment
+        behav_df = None
         if not automated_alignment:
             print('Get camera flashes')
             camera_df = cp.get_camera_flashes(rawdata_path)
             print(camera_df)
 
-            if coordinates_df != None:
-                print('Aligning time with coordinates')
-                coordinates_df = cp.align_camera_flashes(coordinates_df, camera_df)
-
+            if not camera_df.empty:
+                if coordinates_df is not None:
+                    print('Aligning time with coordinates')
+                    coordinates_df = cp.align_camera_flashes(coordinates_df, camera_df)
+                elif boris_df is not None:
+                    print('Aligning time with BORIS scoring')
+                    behav_df = cp.align_camera_flashes(boris_df, camera_df)
+                else:
+                    raise ValueError("No valid data to align with camera.")
             else:
-                print('Aligning time with boris scoring')
-                behav_df = cp.align_camera_flashes(boris_df, camera_df)
+                print('[!] No camera flashes found, falling back to automated alignment.')
+                automated_alignment = True
 
-        else:
+        if automated_alignment:
             print('Automated alignment')
             deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-            behav_df = bp.correct_time_behav(deinterleaved_df, boris_df)
+            if boris_df is not None:
+                behav_df = bp.correct_time_behav(deinterleaved_df, boris_df)
+            else:
+                raise ValueError("BORIS data required for automated alignment.")
 
-        print(f'Analyze mouse position for {exp}')
-        '''
-        if 'EPM' in exp:
+        # Analyze EPM position
+        if 'EPM' in exp and coordinates_df is not None:
+            print(f'Analyzing mouse position for {mouse}')
             list_BOI = ['Open arm', 'Closed arm', 'Center']
             behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, bodypart='nose')
-            behav_df.to_csv(behav_path)
-            print(f'Behaviour file exported to {behav_path}')
-        '''
 
+        if behav_df is None:
+            raise ValueError("Behavior dataframe is missing or invalid.")
+
+        behav_path = behav_path_exp / f'behav_{mouse}.csv'
         behav_df.to_csv(behav_path)
-        print(f'Aligned behaviour file exported to {behav_path}')
+        print(f'Behaviour file exported to {behav_path}')
 
-        # Load fiberphotometry data
+        
+        # Fiber photometry
         fiberpho = pd.read_csv(fiberpho_path)
         fiberpho = pp.butterfilt(fiberpho, ORDER, CUT_FREQ)
-            
-        # Align behavior and fiberphotometry data
+
+        # Align behavior and fiber data
         print('Aligning fiberphotometry and behaviour data')
         fiberbehav_df = bp.align_behav(behav_df, fiberpho, list_BOI)
         fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
-        
-        # 4 Save the intermediate "not derived" data
+
+        # Save outputs
+        fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+        fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
         fiberbehav_df.to_csv(fiberbehav_notderived_path, index=False)
-        
-        # 5 Derive and save final processed data
+
         dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
         dfiberbehav_df.to_csv(fiberbehav_path, index=False)
-        
-        # 6 Plot fiberphotometry data with behavior
-        fig_fiberbehav = bp.plot_fiberpho_behav(
-            dfiberbehav_df, 
-            list_BOI, 
-            exp, 
-            mouse, 
-            THRESH_S, 
-            EVENT_TIME_THRESHOLD,
-            batch
+
+        # Plotting
+        fig = bp.plot_fiberpho_behav(
+            dfiberbehav_df, list_BOI, exp, mouse,
+            THRESH_S, EVENT_TIME_THRESHOLD, batch
         )
-        
-        # Save plots in both PDF and PNG formats
-        fig_fiberbehav.savefig(fiberbehav_plot_pdf_path)
-        fig_fiberbehav.savefig(fiberbehav_plot_png_path)
-        plt.close(fig_fiberbehav)
+        fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.pdf')
+        fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
+        plt.close(fig)
 
     except Exception as e:
-        print(f'Error while processing mouse {mouse} : {e}')
+        print(f'[!] Error while processing mouse {mouse}: {e}')
 
-print(f'Analysis for {exp} complete. Data saved in {repo_path}')
+print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
                         
  #%% 2.2 - Calculate mean, max, and delta dFF within behavioural states (for state behaviours)
 

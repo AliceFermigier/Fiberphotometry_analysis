@@ -81,7 +81,7 @@ def get_camera_flashes(file_path):
     starts = np.where(camera_diff == 1)[0].tolist()
     stops = np.where(camera_diff == -1)[0].tolist()
 
-    if not starts or not stops:
+    if len(starts) == 0 or len(stops) == 0:
         print(f"No flash events detected in {file_path}")
         return pd.DataFrame(columns=['Time(s)'])
 
@@ -93,13 +93,14 @@ def get_camera_flashes(file_path):
     return pd.DataFrame({'Time(s)': timestamps})
 
 def align_camera_flashes(behav_df, camera_df):
-    if len(behav_df)==len(camera_df['Time(s)']):
+    if camera_df.empty or 'Time(s)' not in camera_df:
+        raise ValueError("camera_df is empty or invalid — cannot align.")
+
+    if len(behav_df) == len(camera_df['Time(s)']):
         time_df = camera_df
     else:
-        [start, stop] = [camera_df['Time(s)'].iloc[0], camera_df['Time(s)'].iloc[-1]]
+        start, stop = camera_df['Time(s)'].iloc[0], camera_df['Time(s)'].iloc[-1]
         time = np.linspace(start, stop, len(behav_df))
-        time_df = pd.DataFrame({
-            'Time(s)':time
-        })
+        time_df = pd.DataFrame({'Time(s)': time})
 
     return pd.concat([time_df, behav_df], axis=1)

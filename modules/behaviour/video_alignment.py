@@ -33,6 +33,7 @@ def create_overlay_frame(index, fiberbehav_df, window, figsize=(10, 4)):
     has_speed = 'Speed' in window_df.columns
     behavior_cols = [col for col in window_df.columns if set(window_df[col].dropna().unique()).issubset({0,1})]
     fig_height = 1.5 + len(behavior_cols) + (1 if has_speed else 0)
+    fig_height = math.ceil(fig_height)  
     
     fig, axs = plt.subplots(fig_height, 1, figsize=figsize, sharex=True)
     fig.subplots_adjust(hspace=0.2)
@@ -208,3 +209,5 @@ fiber_indices = align_fiber_to_video(fiberbehav_df, video_time)
 make_combined_video(video_path, fiberbehav_df, output_path, fiber_indices=None, window=10, verbose=True)
 
 
+
+# %%
