@@ -1,5 +1,6 @@
 #%%
 import cv2
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,7 +9,7 @@ from pathlib import Path
 import importlib
 import json
 import math
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 
 import modules.common.preprocess as pp
 importlib.reload(pp)
@@ -71,13 +72,13 @@ def create_overlay_frame(index, fiberbehav_df, window, figsize=(10, 4)):
         axs[-1].set_ylabel('Speed')
     
     axs[-1].set_xlabel('Time (s)')
-    axs[0].set_title(f'Time: {index:.2f}s')
 
     # Convert to image
     canvas = FigureCanvas(fig)
     canvas.draw()
-    img = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
-    img = img.reshape(canvas.get_width_height()[::-1] + (3,))
+    img = np.frombuffer(canvas.buffer_rgba(), dtype='uint8')  
+    img = img.reshape(canvas.get_width_height()[::-1] + (4,))  
+    img = cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)  
     plt.close(fig)
     return img
 
@@ -124,7 +125,7 @@ def align_fiber_to_video(fiber_df, video_time):
 
     return fiber_indices
 
-def make_combined_video(video_path, fiberbehav_df, output_path, fiber_indices=None, window=10, verbose=True):
+def make_combined_video(video_path, fiberbehav_df, output_path, fiber_indices=None, window=10, verbose=True, test=True):
     """
     Function to align video with fiberphotometry signal and behavior
 
@@ -152,9 +153,29 @@ def make_combined_video(video_path, fiberbehav_df, output_path, fiber_indices=No
         output_path : Path to save the combined video (mp4)
         window : Time window in seconds for trace and gantt display (default: 10 seconds)
     """
+    # Check if the video file exists
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"Video file not found: {video_path}")
+    
+    # Check if the DataFrame is empty or None
+    if fiberbehav_df is None or fiberbehav_df.empty:
+        raise ValueError("Provided fiberbehav_df is empty or None.")
+    
+    # Check output file extension
+    valid_extensions = ['.mp4', '.avi', '.mov', '.mkv']
+    _, ext = os.path.splitext(output_path)
+    if ext.lower() not in valid_extensions:
+        raise ValueError(f"Unsupported video extension '{ext}'. Must be one of: {valid_extensions}")
+    
+    if verbose:
+        print("All input validations passed. Proceeding with video generation...")
+
     cap = cv2.VideoCapture(str(video_path))
     fps = cap.get(cv2.CAP_PROP_FPS)
-    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if test:
+        n_frames = int(30 * fps)
+    else:
+        n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -166,7 +187,7 @@ def make_combined_video(video_path, fiberbehav_df, output_path, fiber_indices=No
         print(f"[INFO] Total frames: {n_frames}, FPS: {fps}")
         print(f"[INFO] Output video will be saved to: {output_path}\n")
 
-    for i in tqdm(range(n_frames), desc="Rendering frames", unit="frame"):
+    for i in tqdm(range(n_frames), desc="Rendering frames", unit="frame", leave=False):
         ret, frame = cap.read()
         if not ret:
             print(f"[WARNING] Failed to read frame {i}. Skipping.")
@@ -194,20 +215,20 @@ def make_combined_video(video_path, fiberbehav_df, output_path, fiber_indices=No
     out.release()
     print(f"\n✅ Combined video saved to {output_path}")
 
-exp_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Data\20250510_EPM')
-analysis_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Analysis\EPM_1\length0_interbout0_o4f1')
-video_path = exp_path / '768.AVI'
+#%%
+exp_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Data\20250512_EPM')
+analysis_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Analysis\EPM_2\length0_interbout0_o4f1')
+video_path = exp_path / '768.avi'
 raw_file_path = exp_path / '768.doric'
 fiberbehav_df = pd.read_csv(analysis_path / '1_768_fiberbehavnotderived.csv')
-output_path = exp_path / '768_combined.doric'
+output_path = exp_path / '768_combined.mp4'
 
 #%%
 video_time = get_video_time(video_path, raw_file_path)
+print(video_time)
 #%%
 fiber_indices = align_fiber_to_video(fiberbehav_df, video_time)
+print(fiber_indices)
 #%%
 make_combined_video(video_path, fiberbehav_df, output_path, fiber_indices=None, window=10, verbose=True)
-
-
-
 # %%
