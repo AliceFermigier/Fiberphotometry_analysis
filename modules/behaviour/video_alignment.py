@@ -9,7 +9,7 @@ from pathlib import Path
 import importlib
 import json
 import math
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 import modules.common.preprocess as pp
 importlib.reload(pp)
@@ -19,7 +19,7 @@ from scripts.loader import project_root
 
 #%%
 
-def create_overlay_frame(index, fiberbehav_df, window, figsize=(10, 4)):
+def create_overlay_frame(index, fiberbehav_df, behavior_cols, window, figsize=(10, 4)):
     """
     Generates a matplotlib plot as image for a specific time window.
     """
@@ -31,14 +31,21 @@ def create_overlay_frame(index, fiberbehav_df, window, figsize=(10, 4)):
     window_df = fiberbehav_df.iloc[idx_start:idx_end]
     
     # Setup figure
-    has_speed = 'Speed' in window_df.columns
-    behavior_cols = [col for col in window_df.columns if set(window_df[col].dropna().unique()).issubset({0,1})]
-    fig_height = 1.5 + len(behavior_cols) + (1 if has_speed else 0)
-    fig_height = math.ceil(fig_height)  
+    n_behavior = len(behavior_cols)
+    has_speed = 'Speed' in fiberbehav_df.columns
+    height_ratios = [5] + [1]*n_behavior
+    if has_speed:
+        height_ratios += [2]
     
-    fig, axs = plt.subplots(fig_height, 1, figsize=figsize, sharex=True)
+    fig, axs = plt.subplots(
+        len(height_ratios),
+        1,
+        figsize=figsize,
+        sharex=True,
+        gridspec_kw={'height_ratios': height_ratios}
+    )
     fig.subplots_adjust(hspace=0.2)
-    if fig_height == 1:
+    if len(height_ratios) == 1:
         axs = [axs]  # ensure list
 
     t = window_df['Time(s)']
@@ -47,6 +54,7 @@ def create_overlay_frame(index, fiberbehav_df, window, figsize=(10, 4)):
     axs[0].plot(t, window_df['Denoised dFF'], color='black')
     axs[0].set_ylabel('Denoised dFF')
     axs[0].axvline(window_df['Time(s)'].iloc[idx_center - idx_start], color='red', linestyle='--')
+    axs[0].set_ylim(fiberbehav_df['Denoised dFF'].min(),window_df['Denoised dFF'].max())
 
     # Plot behaviors
     behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
@@ -70,6 +78,17 @@ def create_overlay_frame(index, fiberbehav_df, window, figsize=(10, 4)):
     if has_speed:
         axs[-1].plot(t, window_df['Speed'], color='black')
         axs[-1].set_ylabel('Speed')
+        axs[-1].set_ylim(fiberbehav_df['Speed'].min(),window_df['Speed'].max())
+
+    # Hide x-axis labels and bottom spines for all but the last axis
+    for ax in axs:
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(True)
+
+    for ax in axs[:-1]:
+        ax.tick_params(labelbottom=False)
+        ax.spines['bottom'].set_visible(False)
     
     axs[-1].set_xlabel('Time (s)')
 
@@ -170,6 +189,14 @@ def make_combined_video(video_path, fiberbehav_df, output_path, fiber_indices=No
     if verbose:
         print("All input validations passed. Proceeding with video generation...")
 
+    # Extract list of behaviors
+    behavior_cols = [
+        col for col in fiberbehav_df.columns
+        if set(fiberbehav_df[col].dropna().unique()).issubset({0, 1})
+    ]
+    if verbose:
+        print(f"Behaviors : {behavior_cols}")
+
     cap = cv2.VideoCapture(str(video_path))
     fps = cap.get(cv2.CAP_PROP_FPS)
     if test:
@@ -200,7 +227,7 @@ def make_combined_video(video_path, fiberbehav_df, output_path, fiber_indices=No
             data_idx = min(i, len(fiberbehav_df) - 1)
 
         time_val = fiberbehav_df['Time(s)'].iloc[data_idx]
-        overlay_img = create_overlay_frame(data_idx, fiberbehav_df, window=window)
+        overlay_img = create_overlay_frame(data_idx, fiberbehav_df, behavior_cols, window=window)
 
         # Resize overlay to match width
         overlay_img = cv2.resize(overlay_img, (width, 300))

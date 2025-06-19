@@ -90,6 +90,9 @@ def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
     sr = pp.samplerate(fiberbehav_df)  # Round sampling rate to ensure it is an integer
     
     for BOI in list_BOI:
+        # Ensure values are only 0 or 1
+        fiberbehav_df[BOI] = fiberbehav_df[BOI].round()
+
         # 1. Fuse exploration events that are too close
         previous_state = 0
         consecutive_count = 0
