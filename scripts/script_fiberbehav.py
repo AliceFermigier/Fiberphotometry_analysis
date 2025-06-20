@@ -42,7 +42,7 @@ importlib.reload(cp)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
 
-from scripts.loader import analysis_path, data_path, exp, ORDER, CUT_FREQ, proto_df, subjects_df, THRESH_S, EVENT_TIME_THRESHOLD, batches
+from scripts.loader import analysis_path, data_path, exp, proto_df, subjects_df, THRESH_S, EVENT_TIME_THRESHOLD, batches
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
@@ -50,6 +50,10 @@ automated_alignment = False
 arena_analysis = True
 dlc_data = True
 boris = False
+
+#filter characteristics
+ORDER = 4
+CUT_FREQ = 3 #in Hz
 
 exp = 'EPM_1'
 exp_path = analysis_path / exp

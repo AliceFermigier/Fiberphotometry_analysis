@@ -41,10 +41,6 @@ nom.create_or_load_artifacts_file(artifact_file, option='create_only')
 
 #time to crop at the beginning of the trial for, in seconds
 TIME_BEGIN = 4
-#filter characteristics
-ORDER = 4
-CUT_FREQ = 3 #in Hz
-  
 #------------------#
 exp = 'EPM_1'
 batches = list(set(subjects_df['Batch']))
