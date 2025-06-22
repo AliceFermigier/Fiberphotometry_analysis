@@ -1,19 +1,22 @@
 #%%
 import cv2
+import sys
 import os
 import numpy as np
 import pandas as pd
 import gc
 import subprocess
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.rcParams['text.antialiased'] = True
 plt.rcParams['lines.antialiased'] = True
 plt.rcParams.update({
-    'font.size': 30,   
-    'axes.titlesize': 32,
-    'axes.labelsize': 30,
-    'xtick.labelsize': 24,
-    'ytick.labelsize': 24
+    'font.size': 15,   
+    'axes.titlesize': 15,
+    'axes.labelsize': 15,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12
 })
 plt.rcParams['font.family'] = 'Arial'
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
@@ -22,12 +25,14 @@ import importlib
 import json
 from tqdm import tqdm
 
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import modules.common.preprocess as pp
 importlib.reload(pp)
 import modules.behaviour.camera_processing as cp
 importlib.reload(cp)
-
-from scripts.loader import project_root
 
 #%%
 
@@ -56,10 +61,9 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
         len(height_ratios),
         1,
         dpi=72,
-        figsize=(15, 6),
+        figsize=(10, 6),
         sharex=True,
         gridspec_kw={'height_ratios': height_ratios},
-        constrained_layout=True
     )
 
     if len(height_ratios) == 1:
@@ -75,7 +79,7 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
                    alpha=.7,  
                    linestyle='-',
                    linewidth=2)
-    axs[0].set_ylim(max(-0.4, window_df['Denoised dFF'].min()), min(0.8, window_df['Denoised dFF'].max()))
+    axs[0].set_ylim(max(-0.4, fiberbehav_df['Denoised dFF'].min()), min(0.8, fiberbehav_df['Denoised dFF'].max()))
 
     # Plot behaviors
     behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
@@ -248,6 +252,7 @@ def make_combined_video(video_path,
 
     cap = cv2.VideoCapture(str(video_path))
     fps = cap.get(cv2.CAP_PROP_FPS)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     n_frames = int(30 * fps) if test else total_frames
@@ -336,11 +341,7 @@ def make_combined_video(video_path,
 
             combined = np.vstack([resized_frame, overlay_img])
             combined = cv2.resize(combined, (final_w, final_h))
-
-        out.write(combined)
-
-        if i % 300 == 0:
-            gc.collect()
+ 
 
         if verbose and i % int(fps) == 0:
             print(f"🕐 Frame {i}/{n_frames} - Time {fiberbehav_df['Time(s)'].iloc[data_idx]:.2f}s")
@@ -355,8 +356,8 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 
     Parameters:
     - video_parts_dir: Path where chunked videos are stored.
-    - base_name: Common prefix of chunked video files (e.g., "768_combined_part").
-    - output_path: Full path to the final output video (e.g., "768_combined_full.mp4").
+    - base_name: Common prefix of chunked video files
+    - output_path: Full path to the final output video
     - delete_temp: If True, deletes intermediate part files after concatenation.
     """
     # Find matching files
@@ -396,17 +397,22 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
             part.unlink()
 
 #%%
+mouse = '767'
+exp='EPM_1'
+data_path_exp='20250510_EPM'
+video_name = f'{mouse}_0_reduced.avi'
+
 if __name__ == "__main__":
-    exp_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Data\20250602_SocialInteraction')
-    analysis_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Analysis\Social_Interaction\length0_interbout0_o4f3')
-    video_path = exp_path / r'Videos\768.avi'
-    raw_file_path = exp_path / '768.doric'
+    exp_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Data') / f'{data_path_exp}'
+    analysis_path = Path(f'E:\FiberPhotometry\202504_OptoFluidACh\Analysis') / f'{exp}' / 'length0_interbout0_o4f3'
+    video_path = exp_path / 'Videos' / f'{video_name[:-4]}'
+    raw_file_path = exp_path / f'{mouse}.doric'
     fiberbehav_df = pd.read_csv(analysis_path / '1_768_fiberbehavnotderived.csv')
-    output_path = exp_path / r'Videos\768_combined'
+    output_path = exp_path / 'Videos' / f'{video_name[:-4]}_combined'
 
     video_time = get_video_time(video_path, 
                                 raw_file_path, 
-                                automated_alignment=True)
+                                automated_alignment=False)
 
     # Drop frames with no corresponding fiber signal
     fiber_start_time = fiberbehav_df['Time(s)'].iloc[0]
@@ -417,14 +423,14 @@ if __name__ == "__main__":
     # Align fiber data to trimmed video timestamps
     fiber_indices = align_fiber_to_video(fiberbehav_df, video_time_trimmed)
 
-    chunk_size = int(20 * 30)  # 20 seconds * 30 FPS
+    chunk_size = int(60 * 30)  # 60 seconds * 30 FPS
     total_frames = int(cv2.VideoCapture(str(video_path)).get(cv2.CAP_PROP_FRAME_COUNT))
 
     for start in range(0, total_frames, chunk_size):
         end = min(start + chunk_size, total_frames)
         print(f"Processing frames {start} to {end}...")
         
-        chunk_output = output_path.parent / f"{output_path.stem}_part{start//chunk_size}.mp4"
+        chunk_output = output_path.parent / f"{output_path.stem}_part{start//chunk_size}"
         
         make_combined_video(
             video_path=video_path,
@@ -438,11 +444,11 @@ if __name__ == "__main__":
             start_frame=start,
             end_frame=end
         )
+
+    # Concatenate videos 
+    video_parts_dir = exp_path / 'Videos'
+    base_name = "_combined_part"
+    output_path = video_parts_dir / "767_combined_full.mp4"
     
-    # Concatenate videos
-    video_parts_dir = Path(r"E:\FiberPhotometry\202504_OptoFluidACh\Data\20250602_SocialInteraction\Videos")
-    base_name = "768_combined_part"  # Your chunk file prefix
-    output_path = video_parts_dir / "768_combined_full.mp4"
-    
-    concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=True)
+    concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=False)
 # %%
