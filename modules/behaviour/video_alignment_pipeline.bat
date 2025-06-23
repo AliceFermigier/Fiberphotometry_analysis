@@ -1,14 +1,14 @@
 @echo off
-REM Activate your virtual environment
-call C:\Users\alice\Documents\GitHub\Fiberphotometry_analysis\.venv\Scripts\activate.bat
+echo === Activating venv ===
+call c:\Users\afermigier\Documents\GitHub\Fiberphotometry_analysis\.venv\Scripts\activate.bat
 
-REM Go to the project root
-cd /d C:\Users\alice\Documents\GitHub\Fiberphotometry_analysis
+echo === Go to the project root ===
+cd /d c:\Users\afermigier\Documents\GitHub\Fiberphotometry_analysis
 
-REM (Optional) Run loader.py if needed
+echo === Running loader.py ===
 python scripts\loader.py
 
-REM Run your target script
+echo === Running video_alignment.py ===
 python modules\behaviour\video_alignment.py
 
 pause

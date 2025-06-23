@@ -147,14 +147,24 @@ def get_video_time(video_path, file_path, automated_alignment=False):
     '''
     Get timestamps of video frames, in seconds
     '''
+    print("🔍 Checking video path:", video_path)
+    if not os.path.exists(video_path):
+        print(f"❌ Video path does not exist: {video_path}")
+        return None, None
+    
     cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        print(f"❌ Failed to open video: {video_path}")
+        return None, None
+    
     n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    print('n_frames', n_frames)
     cap.release()
 
     if not automated_alignment:
         camera_df = cp.get_camera_flashes(file_path)
         camera_times = camera_df['Time(s)'].values
-            # camera_times is expected to be a list or array of camera flash timestamps (length == n_frames)
+        # camera_times is expected to be a list or array of camera flash timestamps (length == n_frames)
         # If not the same length, interpolate linearly
         if len(camera_times) != n_frames:
             video_time = np.linspace(camera_times[0], camera_times[-1], n_frames)
@@ -263,7 +273,9 @@ def make_combined_video(video_path,
         raise ValueError("fiber_indices must be provided and non-empty.")
     
     if fast:
-        output_path=str(output_path)+'.mp4'
+        output_path = str(output_path)
+        if not output_path.endswith('.mp4'):
+            output_path += '.mp4'
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -277,7 +289,7 @@ def make_combined_video(video_path,
             print(f"🎞️ Video initialized (fast). Size: {width}x{height}, FPS: {fps}, Frames: {n_frames}")
 
     else:
-        output_path=output_path+'.avi'
+        output_path = str(output_path)+'.avi'
         ret, frame = cap.read()
         if not ret:
             raise RuntimeError("Could not read the first frame.")
@@ -342,7 +354,7 @@ def make_combined_video(video_path,
             combined = np.vstack([resized_frame, overlay_img])
             combined = cv2.resize(combined, (final_w, final_h))
  
-
+        out.write(combined)
         if verbose and i % int(fps) == 0:
             print(f"🕐 Frame {i}/{n_frames} - Time {fiberbehav_df['Time(s)'].iloc[data_idx]:.2f}s")
 
@@ -404,28 +416,26 @@ video_name = f'{mouse}_0_reduced.avi'
 
 if __name__ == "__main__":
     exp_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Data') / f'{data_path_exp}'
-    analysis_path = Path(f'E:\FiberPhotometry\202504_OptoFluidACh\Analysis') / f'{exp}' / 'length0_interbout0_o4f3'
-    video_path = exp_path / 'Videos' / f'{video_name[:-4]}'
+    analysis_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Analysis') / f'{exp}' / 'length0_interbout0_o4fNone'
+    video_path = exp_path / 'Videos' / f'{video_name}'
     raw_file_path = exp_path / f'{mouse}.doric'
-    fiberbehav_df = pd.read_csv(analysis_path / '1_768_fiberbehavnotderived.csv')
+    fiberbehav_df = pd.read_csv(analysis_path / f'1_{mouse}_fiberbehavnotderived.csv')
     output_path = exp_path / 'Videos' / f'{video_name[:-4]}_combined'
 
-    video_time = get_video_time(video_path, 
-                                raw_file_path, 
-                                automated_alignment=False)
+    video_time = get_video_time(video_path,
+                                raw_file_path)
 
     # Drop frames with no corresponding fiber signal
     fiber_start_time = fiberbehav_df['Time(s)'].iloc[0]
     valid_frame_indices = np.where(video_time >= fiber_start_time)[0]
     video_time_trimmed = video_time[valid_frame_indices]
-    fiber_indices = align_fiber_to_video(fiberbehav_df, video_time_trimmed)
 
     # Align fiber data to trimmed video timestamps
     fiber_indices = align_fiber_to_video(fiberbehav_df, video_time_trimmed)
 
     chunk_size = int(60 * 30)  # 60 seconds * 30 FPS
-    total_frames = int(cv2.VideoCapture(str(video_path)).get(cv2.CAP_PROP_FRAME_COUNT))
-
+    total_frames = len(video_time_trimmed)
+    
     for start in range(0, total_frames, chunk_size):
         end = min(start + chunk_size, total_frames)
         print(f"Processing frames {start} to {end}...")
@@ -447,8 +457,8 @@ if __name__ == "__main__":
 
     # Concatenate videos 
     video_parts_dir = exp_path / 'Videos'
-    base_name = "_combined_part"
-    output_path = video_parts_dir / "767_combined_full.mp4"
+    base_name = "_0_reduced_combined_part"
+    output_path = video_parts_dir / f"{mouse}_combined_full.mp4"
     
     concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=False)
 # %%
