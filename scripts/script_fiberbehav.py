@@ -46,16 +46,16 @@ from scripts.loader import analysis_path, data_path, exp, proto_df, subjects_df,
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-automated_alignment = True
-arena_analysis = False
-dlc_data = False
-boris = True
+automated_alignment = False
+arena_analysis = True
+dlc_data = True
+boris = False
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = 3 #in Hz
+CUT_FREQ = None #in Hz
 
-exp = 'Social_Interaction'
+exp = 'EPM_1'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -167,7 +167,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         
         # Fiber photometry
         fiberpho = pd.read_csv(fiberpho_path)
-        fiberpho = pp.butterfilt(fiberpho, ORDER, CUT_FREQ)
+        if CUT_FREQ is not None:
+            fiberpho = pp.butterfilt(fiberpho, ORDER, CUT_FREQ)
 
         # Align behavior and fiber data
         print('Aligning fiberphotometry and behaviour data')
