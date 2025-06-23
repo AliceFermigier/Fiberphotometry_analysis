@@ -55,7 +55,7 @@ boris = False
 ORDER = 4
 CUT_FREQ = None #in Hz
 
-exp = 'EPM_1'
+exp = 'EPM_3'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 

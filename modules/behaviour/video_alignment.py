@@ -44,10 +44,10 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     Generates a matplotlib plot as image for a specific time window.
     """
     sr = len(fiberbehav_df) / (fiberbehav_df['Time(s)'].max() - fiberbehav_df['Time(s)'].min())
+    quarter_window = int(window * sr / 4)
     idx_center = index
-    half_window = int(window * sr / 2)
-    idx_start = max(0, idx_center - half_window)
-    idx_end = min(len(fiberbehav_df), idx_center + half_window)
+    idx_start = max(0, idx_center - (3*quarter_window))
+    idx_end = min(len(fiberbehav_df), idx_center + quarter_window)
     window_df = fiberbehav_df.iloc[idx_start:idx_end]
     
     # Setup figure
@@ -56,12 +56,19 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     height_ratios = [8] + [1]*n_behavior
     if has_speed:
         height_ratios += [3]
+    center_time = window_df['Time(s)'].iloc[idx_center - idx_start]
+    end_time = window_df['Time(s)'].iloc[-1]
+
+    if has_speed:
+        size=(15, 6)
+    else:
+        size=(10, 6)
     
     fig, axs = plt.subplots(
         len(height_ratios),
         1,
         dpi=72,
-        figsize=(10, 6),
+        figsize=size,
         sharex=True,
         gridspec_kw={'height_ratios': height_ratios},
     )
@@ -74,13 +81,9 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     # Plot fiber signal
     axs[0].plot(t, window_df['Denoised dFF'], color='black')
     axs[0].set_ylabel('Denoised dFF')
-    axs[0].axvline(window_df['Time(s)'].iloc[idx_center - idx_start], 
-                   color='red', 
-                   alpha=.7,  
-                   linestyle='-',
-                   linewidth=2)
     axs[0].set_ylim(max(-0.4, fiberbehav_df['Denoised dFF'].min()), min(0.8, fiberbehav_df['Denoised dFF'].max()))
-
+    axs[0].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
+    
     # Plot behaviors
     behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
     with open(behavior_colors_path, "r") as f:
@@ -100,13 +103,9 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
             )
         axs[i + 1].set_yticks([])
         axs[i + 1].set_ylabel(behavior, rotation=0, labelpad=35, va='center', ha='right')
-        axs[i + 1].axvline(window_df['Time(s)'].iloc[idx_center - idx_start], 
-                           color='red', 
-                           alpha=.7, 
-                           linestyle='-', 
-                           linewidth=2)
         axs[i + 1].spines['left'].set_visible(False)
         axs[i + 1].set_ylim(0.1, 1.1)
+        axs[i + 1].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
 
     # Optional: plot speed
     if has_speed:
@@ -114,13 +113,9 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
         global_max = fiberbehav_df['Speed'].dropna().max()
         axs[-1].set_ylim(global_min, global_max)
         axs[-1].plot(t, window_df['Speed'], color='black')
-        axs[-1].axvline(window_df['Time(s)'].iloc[idx_center - idx_start], 
-                        color='red', 
-                        alpha=.7, 
-                        linestyle='-',
-                        linewidth=2)
         axs[-1].set_ylabel('Speed')
-
+        axs[-1].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
+        
     # Hide x-axis labels and bottom spines for all but the last axis
     for ax in axs:
         ax.spines['top'].set_visible(False)
@@ -158,7 +153,7 @@ def get_video_time(video_path, file_path, automated_alignment=False):
         return None, None
     
     n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print('n_frames', n_frames)
+    print(f'{n_frames} frames to process')
     cap.release()
 
     if not automated_alignment:
@@ -360,7 +355,7 @@ def make_combined_video(video_path,
 
     cap.release()
     out.release()
-    print(f"\n✅ Combined video saved to: {output_path}")
+    print(f"✅ Combined video saved to: {output_path}")
 
 def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path, delete_temp=False):
     """
@@ -410,9 +405,9 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 
 #%%
 mouse = '767'
-exp='EPM_1'
-data_path_exp='20250510_EPM'
-video_name = f'{mouse}_0_reduced.avi'
+exp='EPM_2'
+data_path_exp='20250512_EPM'
+video_name = f'{mouse}.avi'
 
 if __name__ == "__main__":
     exp_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Data') / f'{data_path_exp}'
@@ -455,10 +450,10 @@ if __name__ == "__main__":
             end_frame=end
         )
 
-    # Concatenate videos 
-    video_parts_dir = exp_path / 'Videos'
-    base_name = "_0_reduced_combined_part"
-    output_path = video_parts_dir / f"{mouse}_combined_full.mp4"
-    
-    concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=False)
+# Concatenate videos 
+video_parts_dir = exp_path / 'Videos'
+base_name = f"{mouse}_combined_part"
+output_path = video_parts_dir / f"{mouse}_combined_full.mp4"
+
+concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=True)
 # %%
