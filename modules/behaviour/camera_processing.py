@@ -71,6 +71,15 @@ def load_camera_df_doric(file_path, plot=False):
 
     return camera_df
 
+def get_camera_flashes_from_csv(file_path):
+    time_df = pd.read_csv(file_path, header=None)
+    timestamps = time_df.loc[time_df[1]==0][0].values
+    return pd.DataFrame({'Time(s)': timestamps})
+
+def get_led_flashes_from_csv(file_path):
+    timestamps = pd.read_csv(file_path, header=None).values
+    return pd.DataFrame({'Time(s)': timestamps})
+
 def get_camera_flashes(file_path):
     camera_df = load_camera_df_doric(file_path)
     if camera_df.empty:

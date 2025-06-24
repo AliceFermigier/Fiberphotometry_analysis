@@ -2,6 +2,7 @@
 import cv2
 import sys
 import os
+import shutil
 import numpy as np
 import pandas as pd
 import gc
@@ -33,6 +34,14 @@ import modules.common.preprocess as pp
 importlib.reload(pp)
 import modules.behaviour.camera_processing as cp
 importlib.reload(cp)
+
+# Find ffmpeg in PATH, or fallback
+ffmpeg_path = shutil.which("ffmpeg")
+if not ffmpeg_path:
+    ffmpeg_path = r"C:\Users\afermigier\ffmpeg-7.1.1-essentials_build\ffmpeg-7.1.1-essentials_build\bin\ffmpeg.exe"
+
+if not os.path.isfile(ffmpeg_path):
+    raise FileNotFoundError(f"ffmpeg not found at: {ffmpeg_path}")
 
 #%%
 
@@ -384,7 +393,7 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 
     # Run ffmpeg to concatenate
     cmd = [
-        "ffmpeg",
+        ffmpeg_path,
         "-f", "concat",
         "-safe", "0",
         "-i", str(list_file),
@@ -405,8 +414,8 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 
 #%%
 mouse = '767'
-exp='EPM_2'
-data_path_exp='20250512_EPM'
+exp='EPM_3'
+data_path_exp='20250515_EPM'
 video_name = f'{mouse}.avi'
 
 if __name__ == "__main__":
@@ -418,7 +427,8 @@ if __name__ == "__main__":
     output_path = exp_path / 'Videos' / f'{video_name[:-4]}_combined'
 
     video_time = get_video_time(video_path,
-                                raw_file_path)
+                                raw_file_path,
+                                automated_alignment=False)
 
     # Drop frames with no corresponding fiber signal
     fiber_start_time = fiberbehav_df['Time(s)'].iloc[0]
@@ -450,10 +460,10 @@ if __name__ == "__main__":
             end_frame=end
         )
 
-# Concatenate videos 
-video_parts_dir = exp_path / 'Videos'
-base_name = f"{mouse}_combined_part"
-output_path = video_parts_dir / f"{mouse}_combined_full.mp4"
+    # Concatenate videos 
+    video_parts_dir = exp_path / 'Videos'
+    base_name = f"{mouse}_combined_part"
+    output_path = video_parts_dir / f"{mouse}_combined_full.mp4"
 
-concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=True)
+    concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=True)
 # %%
