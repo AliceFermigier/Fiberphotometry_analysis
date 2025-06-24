@@ -174,12 +174,13 @@ def get_video_time(video_path, file_path, automated_alignment=False):
             video_time = np.linspace(camera_times[0], camera_times[-1], n_frames)
         else:
             video_time = np.array(camera_times)
-
     else:
-        signal_df = pp.load_deinterleaved_doric(file_path)
-        time = signal_df['Time(s)'].values
-        video_time = np.linspace(time[0], time[-1], n_frames)
-
+        camera_df = cp.get_camera_flashes_from_csv(file_path)
+        camera_times = camera_df['Time(s)'].values
+        if len(camera_times) != n_frames:
+            video_time = np.linspace(camera_times[0], camera_times[-1], n_frames)
+        else:
+            video_time = np.array(camera_times)
     return video_time
 
 def align_fiber_to_video(fiber_df, video_time):

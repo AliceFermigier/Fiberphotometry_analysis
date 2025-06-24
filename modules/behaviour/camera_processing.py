@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
+import warnings
 
 import modules.common.genplot as gp
 
@@ -77,8 +78,26 @@ def get_camera_flashes_from_csv(file_path):
     return pd.DataFrame({'Time(s)': timestamps})
 
 def get_led_flashes_from_csv(file_path):
-    timestamps = pd.read_csv(file_path, header=None).values
+    timestamps_df = pd.read_csv(file_path, header=None)
+    timestamps = timestamps_df[0].values
     return pd.DataFrame({'Time(s)': timestamps})
+
+def align_fiber_with_led_flashes(deinterleaved_df, led_df):
+    time_led = led_df['Time(s)']
+    time_fiber = deinterleaved_df['Time(s)']
+
+    min_len = min(len(time_led), len(time_fiber))
+
+    if len(time_led) != len(time_fiber):
+        warnings.warn(f'Mismatched lengths: LED = {len(time_led)}, Fiber = {len(time_fiber)}. Truncating to {min_len} samples.')
+
+    aligned_df = pd.DataFrame({
+        'Time(s)': time_led.iloc[:min_len].values,
+        '405 Deinterleaved': deinterleaved_df['405 Deinterleaved'].iloc[:min_len].values,
+        '470 Deinterleaved': deinterleaved_df['465 Deinterleaved'].iloc[:min_len].values
+    })
+
+    return aligned_df
 
 def get_camera_flashes(file_path):
     camera_df = load_camera_df_doric(file_path)

@@ -46,16 +46,16 @@ from scripts.loader import analysis_path, data_path, exp, proto_df, subjects_df,
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-automated_alignment = False
-arena_analysis = True
-dlc_data = True
-boris = False
+automated_alignment = True
+arena_analysis = False
+dlc_data = False
+boris = True
 
 #filter characteristics
 ORDER = 4
 CUT_FREQ = None #in Hz
 
-exp = 'EPM_3'
+exp = 'Social_Interaction'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -80,6 +80,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         
         # Define paths for raw, behavioral, and fiberphotometry data
         rawdata_path = data_path_exp / f'{mouse}.doric'
+        led_flashes_path = data_path_exp / f'{mouse}_fiber.csv'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
         dlc_path = behav_path_exp / f'{mouse}_reducedDLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv'
         fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
@@ -145,7 +146,9 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
         if automated_alignment:
             print('Automated alignment')
+            led_df = cp.get_led_flashes_from_csv(led_flashes_path)
             deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+            aligned_deinterleaved_df = cp.align_fiber_with_led_flashes(deinterleaved_df, led_df)
             if boris_df is not None:
                 behav_df = bp.correct_time_behav(deinterleaved_df, boris_df)
             else:
