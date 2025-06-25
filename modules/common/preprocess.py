@@ -117,6 +117,42 @@ def load_deinterleaved_doric(file_path):
 
     return deinterleaved_df
 
+def load_lockin_dualcolor_doric(file_path):
+    with h5py.File(file_path, 'r') as f:
+        base = "DataAcquisition/FPConsole/Signals/Series0001/"
+
+        try:
+            # Data structure with laptop (Julien's setup)
+            t_405 = f[base + "LockInAOUT01/Time"][:]
+            sig_405 = f[base + "LockInAOUT01/AIN01"][:]
+
+            t_465 = f[base + "LockInAOUT02/AIN01"][:]
+            sig_465 = f[base + "LockInAOUT02/Time"][:]
+
+            t_560 = f[base + "LockInAOUT03/AIN02"][:]
+            sig_560 = f[base + "LockInAOUT03/Time"][:]
+
+        except KeyError as e:
+            raise RuntimeError(f"Could not load .doric file due to missing dataset(s): {e}")
+
+    # Ensure all signals have same length
+    min_len = min(len(sig_465), len(sig_405), len(sig_560), len(t_465), len(t_405), len(t_560))
+    sig_465 = sig_465[:min_len]
+    sig_405 = sig_405[:min_len]
+    sig_560 = sig_560[:min_len]
+    t_465 = t_465[:min_len]
+    t_405 = t_405[:min_len]
+    t_560 = t_560[:min_len]
+
+    lockin_df = pd.DataFrame({
+        'Time(s)': t_405,
+        '405 Deinterleaved': sig_405,
+        '465 Deinterleaved': sig_465,
+        '560 Deinterleaved': sig_560
+    })
+
+    return lockin_df
+
 def samplerate(data_df):
     
     sr = len(data_df)/(data_df['Time(s)'].max()-data_df['Time(s)'].min())
@@ -365,3 +401,79 @@ def smoothing_SMA(data_df,win_size):
         data_df[col] = data_df[col].rolling(win_size, min_periods=1).mean()
         
     return data_df
+
+def remove_artifacts_dualcolor(data_df, artifact_intervals, col, fitted560=False):
+    begin=0
+    dFF_segment = np.full(len(data_df), np.nan)  # Create an array filled with NaNs of the same length as data_df
+    artifact_intervals.append([len(data_df), 'End'])
+    
+    for x_start, x_stop in artifact_intervals:
+        try:
+            # Calculate 'end' as the first index where 'Time(s)' is greater than x_start, -1 to not overlap with artifact
+            end = data_df.index[data_df['Time(s)'] < x_start][-1]
+            
+            if fitted560:
+                dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
+                                            data_df.iloc[begin+1:end][col].values)
+                if len(dFF_values) == len(dFF_segment[begin+1:end]):
+                    dFF_segment[begin+1:end] = dFF_values
+                else:
+                    print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
+            
+            else:
+                dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
+                                            data_df.iloc[begin+1:end]['465 Deinterleaved'].values)
+                if len(dFF_values) == len(dFF_segment[begin+1:end]):
+                    dFF_segment[begin+1:end] = dFF_values
+                else:
+                    print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
+            
+            # Update 'begin' to the index just before the stop of the artifact
+            if x_stop != 'End':
+                begin = data_df.index[data_df['Time(s)'] > x_stop][0]
+                
+        except Exception as e:
+            print(f"Error processing artifact interval ({x_start}, {x_stop}): {e}")
+    
+    return dFF_segment
+
+def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
+
+    dFFdata = np.full([3, len(data_df)], np.nan)  # [405 dFF, 470 dFF, Denoised dFF]
+
+    if fitted560:
+        if filecode in artifacts_df['Filecode'].values:
+            artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
+            artifact_intervals = literal_eval(artifact_intervals[0])
+            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', method='fit')
+            dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
+        else:
+            dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
+            dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
+            dFFdata[2] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['560 Deinterleaved'])
+            dFFdata[1] = data_df['560 Deinterleaved'].to_numpy()
+
+        # Calculate Denoised dFF
+        dFFdata[2] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
+    
+    else:
+        if filecode in artifacts_df['Filecode'].values:
+            artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
+            artifact_intervals = literal_eval(artifact_intervals[0])
+            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', method='fit')
+            dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
+        else:
+            dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
+            dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
+
+        # Calculate Denoised dFF
+        dFFdata[2] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
+
+    dFFdata_df = pd.DataFrame({
+        'Time(s)': data_df['Time(s)'],
+        '405 dFF': dFFdata[0],
+        '465 dFF': dFFdata[1],
+        'Denoised dFF': dFFdata[2]
+    })
+
+    return dFFdata_df

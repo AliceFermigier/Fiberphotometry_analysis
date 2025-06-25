@@ -74,7 +74,7 @@ def highpass_filter_with_padding(signal, sr, cutoff=0.01, order=3, pad_seconds=5
 
     return filtered[pad_len:-pad_len]
 
-def clean_signal(rawdata_df, crop=[10,-10], detrending=False, apply_hampel=True, apply_filter=False):
+def clean_signal(rawdata_df, crop=[10,-10], detrending=False, apply_hampel=True):
 
     time = rawdata_df['Time(s)'][crop[0]:crop[1]]
     detrended_405 = rawdata_df['405 Deinterleaved'][crop[0]:crop[1]]
@@ -102,20 +102,6 @@ def clean_signal(rawdata_df, crop=[10,-10], detrending=False, apply_hampel=True,
         detrended_405 = detrended_hampel_405
         detrended_465 = detrended_hampel_465
 
-    # --- High-pass Filter --- (not necessary if detrending is sufficient)
-    sr = pp.samplerate(rawdata_df)
-    if apply_filter:
-        cutoff_freq=0.01
-        detrended_filtered_405 = highpass_filter(detrended_405, sr, cutoff=cutoff_freq, order=1)
-        detrended_filtered_465 = highpass_filter(detrended_465, sr, cutoff=cutoff_freq, order=1)
-        plt.plot(time, detrended_filtered_465, linewidth=1, color='deepskyblue', label='GCaMP')
-        plt.plot(time, detrended_filtered_405, linewidth=1, color='blueviolet', label='ISOS')
-        plt.legend()
-        plt.title(f"High-pass Filtering ({cutoff_freq}Hz Cutoff)")
-        plt.show()
-        detrended_405 = detrended_filtered_405
-        detrended_465 = detrended_filtered_465
-
     clean_deinterleaved_df = pd.DataFrame({
         'Time(s)': time,
         '405 Deinterleaved': detrended_405,
@@ -124,6 +110,47 @@ def clean_signal(rawdata_df, crop=[10,-10], detrending=False, apply_hampel=True,
     
     return clean_deinterleaved_df
 
+def clean_signal_dualcolor(rawdata_df, crop=[10,-10], detrending=False, apply_hampel=True):
+    time = rawdata_df['Time(s)'][crop[0]:crop[1]]
+    detrended_405 = rawdata_df['405 Deinterleaved'][crop[0]:crop[1]]
+    detrended_465 = rawdata_df['465 Deinterleaved'][crop[0]:crop[1]]
+    detrended_560 = rawdata_df['560 Deinterleaved'][crop[0]:crop[1]]
+
+    # --- Detrend ---
+    if detrending:
+        detrended_405 = detrend(detrended_405, type='linear')
+        detrended_465 = detrend(detrended_465, type='linear')
+        detrended_560 = detrend(detrended_560, type='linear')
+        plt.plot(time, detrended_465, linewidth=1, color='deepskyblue', label='GCaMP')
+        plt.plot(time, detrended_405, linewidth=1, color='blueviolet', label='ISOS')
+        plt.plot(time, detrended_560, linewidth=1, color='orange', label='rGECO')
+        plt.legend()
+        plt.title("Detrending")
+        plt.show()
+
+    # --- Hampel Filter ---
+    if apply_hampel:
+        detrended_hampel_405 = hampel_filter(detrended_405, window_size=5, n_sigmas=5)
+        detrended_hampel_465 = hampel_filter(detrended_465, window_size=5, n_sigmas=5)
+        detrended_hampel_560 = hampel_filter(detrended_560, window_size=5, n_sigmas=5)
+        plt.plot(time, detrended_hampel_465, linewidth=1, color='deepskyblue', label='GCaMP')
+        plt.plot(time, detrended_hampel_405, linewidth=1, color='blueviolet', label='ISOS')
+        plt.plot(time, detrended_hampel_560, linewidth=1, color='orange', label='rGECO')
+        plt.legend()
+        plt.title("Hampel Filtering")
+        plt.show()
+        detrended_405 = detrended_hampel_405
+        detrended_465 = detrended_hampel_465
+        detrended_560 = detrended_hampel_560
+
+    clean_deinterleaved_df = pd.DataFrame({
+        'Time(s)': time,
+        '405 Deinterleaved': detrended_405,
+        '465 Deinterleaved': detrended_465,
+        '560 Deinterleaved' : detrended_560
+        })
+    
+    return clean_deinterleaved_df
 
 def highpass_filter_dff(dff):
     sr = pp.samplerate(dff)

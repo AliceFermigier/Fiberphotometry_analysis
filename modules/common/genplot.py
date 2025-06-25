@@ -73,13 +73,20 @@ def plot_rawdata(rawdata_df, exp, mouse, crop=0):
              linewidth=1, color='deepskyblue', label='GCaMP')
     ax7.plot(rawdata_subset['Time(s)'], rawdata_subset['405 Deinterleaved'], 
              linewidth=1, color='blueviolet', label='ISOS')
+    if '560 Deinterleaved' in rawdata_df.columns:
+        ax7.plot(rawdata_subset['Time(s)'], rawdata_subset['560 Deinterleaved'], 
+             linewidth=1, color='orange', label='rGECO')
     
     # Customize axis
     ax7.set_xlabel('Time (s)')
     ax7.set_ylabel('Voltage (V)')
-    ax7.set_title(f'GCaMP and Isosbestic Raw Traces - {exp} {mouse}')
+    if '560 Deinterleaved' in rawdata_df.columns:
+        title = f'GCaMP, rGECO and Isosbestic Raw Traces - {exp} {mouse}'
+    else:
+        title = f'GCaMP and Isosbestic Raw Traces - {exp} {mouse}'
+    ax7.set_title(title)
     ax7.legend(loc='upper right')
-    ax7.margins(0, 0.3)  # Small margins around the data
+    ax7.margins(0, 0.3)
     
     return fig
 

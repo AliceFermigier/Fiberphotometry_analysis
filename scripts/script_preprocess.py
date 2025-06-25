@@ -37,13 +37,14 @@ importlib.reload(nom)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
 
-from scripts.loader import ORDER, CUT_FREQ, experiment_path, analysis_path, data_path, exp, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
+from scripts.loader import experiment_path, analysis_path, data_path, exp, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
 
 #%% 
 # 1 - PREPROCESSING
 #####################
 
 exp = 'OF_1uL3'
+dual_color = False
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
@@ -81,22 +82,39 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     
     # Check if raw data exists and deinterleaved data does not exist
     if raw_data_path.exists() and not deinterleaved_path.exists():
+        if dual_color:
+            #1 Load deinterleaved raw data and clean data
+            deinterleaved_df = pp.load_lockin_dualcolor_doric(raw_data_path)
+            cleaned_df = cs.clean_signal_dualcolor(deinterleaved_df, detrending=False, apply_hampel=True)
+
+            #2 Save to CSV
+            deinterleaved_df.to_csv(deinterleaved_path, index=False)
+            cleaned_df.to_csv(cleaned_path, index=False)
+
+            #3 Plot raw data and cleaned data and save as PNG
+            fig_raw = gp.plot_rawdata(deinterleaved_df, exp, mouse)
+            fig_cleaned = gp.plot_rawdata(cleaned_df, exp, mouse)
+            fig_raw.savefig(raw_plot_path)
+            fig_cleaned.savefig(cleaned_plot_path)
+            plt.close(fig_raw)
+            plt.close(fig_cleaned)
         
-        #1 Load deinterleaved raw data and clean data
-        deinterleaved_df = pp.load_deinterleaved_doric(raw_data_path)
-        cleaned_df = cs.clean_signal(deinterleaved_df, detrending=False, apply_hampel=True, apply_filter=False)
-        
-        #2 Save to CSV
-        deinterleaved_df.to_csv(deinterleaved_path, index=False)
-        cleaned_df.to_csv(cleaned_path, index=False)
-        
-        #3 Plot raw data and cleaned data and save as PNG
-        fig_raw = gp.plot_rawdata(deinterleaved_df, exp, mouse)
-        fig_cleaned = gp.plot_rawdata(cleaned_df, exp, mouse)
-        fig_raw.savefig(raw_plot_path)
-        fig_cleaned.savefig(cleaned_plot_path)
-        plt.close(fig_raw)
-        plt.close(fig_cleaned)
+        else:
+            #1 Load deinterleaved raw data and clean data
+            deinterleaved_df = pp.load_deinterleaved_doric(raw_data_path)
+            cleaned_df = cs.clean_signal(deinterleaved_df, detrending=False, apply_hampel=True)
+            
+            #2 Save to CSV
+            deinterleaved_df.to_csv(deinterleaved_path, index=False)
+            cleaned_df.to_csv(cleaned_path, index=False)
+            
+            #3 Plot raw data and cleaned data and save as PNG
+            fig_raw = gp.plot_rawdata(deinterleaved_df, exp, mouse)
+            fig_cleaned = gp.plot_rawdata(cleaned_df, exp, mouse)
+            fig_raw.savefig(raw_plot_path)
+            fig_cleaned.savefig(cleaned_plot_path)
+            plt.close(fig_raw)
+            plt.close(fig_cleaned)
 
 #%% 
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
@@ -203,7 +221,7 @@ if __name__ == '__main__':
 
 
 #%% 
-# 1.4 - Artifact correction and dFF calculation
+# 1.4 - Artifact correction, high-pass filtering and dFF calculation
 
 #import artifacts boundaries
 artifacts_df = pd.read_excel(experiment_path / 'artifacts.xlsx')
