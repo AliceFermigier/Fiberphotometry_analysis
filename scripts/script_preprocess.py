@@ -43,8 +43,8 @@ from scripts.loader import experiment_path, analysis_path, data_path, exp, proto
 # 1 - PREPROCESSING
 #####################
 
-exp = 'OF_1uL3'
-dual_color = False
+exp = 'EPM'
+dual_color = True
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
@@ -120,7 +120,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = '768'
+mouse = '466'
 batch = 1
 filecode = f'{exp}_{mouse}'
 #------------------#
@@ -240,19 +240,29 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             cleaned_df = pd.read_csv(pp_path/f'{mouse}_deinterleaved_cleaned.csv')
             filecode = f'{exp}_{mouse}'
             
-            # calculate dFF with artifacts removal, then interpolate missing data
-            dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method)
-            interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
-            #sometimes 1st timestamps=Nan instead of 0, raises an error
-            interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
-            #high-pass filter to remove slow oscillations
-            filtered_dFFdata = cs.highpass_filter_dff(interpdFFdata_df)
-            filtered_dFFdata.to_csv(pp_path/f'{mouse}_dFFfilt.csv')
-            
-            #plotted GCaMP and isosbestic curves after dFF or fitting
-            fig_dFF = gp.plot_fiberpho(filtered_dFFdata,exp,mouse,method)
-            fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF.png')
-            plt.close(fig_dFF) 
+            if dual_color:
+                dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=False)
+                interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
+                interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
+                #high-pass filter to remove slow oscillations
+                filtered_dFFdata = cs.highpass_filter_dff(interpdFFdata_df)
+                filtered_dFFdata.to_csv(pp_path/f'{mouse}_dFFfilt.csv')
+
+            else:
+                # calculate dFF with artifacts removal, then interpolate missing data
+                dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method)
+                interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
+                #sometimes 1st timestamps=Nan instead of 0, raises an error
+                interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
+                #high-pass filter to remove slow oscillations
+                filtered_dFFdata = cs.highpass_filter_dff(interpdFFdata_df)
+                filtered_dFFdata.to_csv(pp_path/f'{mouse}_dFFfilt.csv')
+                
+                #plotted GCaMP and isosbestic curves after dFF or fitting
+                fig_dFF = gp.plot_fiberpho(filtered_dFFdata,exp,mouse,method)
+                fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF.png')
+                plt.close(fig_dFF) 
+
         except Exception as e:
                 print(f'Problem in processing mouse {mouse} : {e}')
 

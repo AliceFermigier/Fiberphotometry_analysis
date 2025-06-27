@@ -126,11 +126,11 @@ def load_lockin_dualcolor_doric(file_path):
             t_405 = f[base + "LockInAOUT01/Time"][:]
             sig_405 = f[base + "LockInAOUT01/AIN01"][:]
 
-            t_465 = f[base + "LockInAOUT02/AIN01"][:]
-            sig_465 = f[base + "LockInAOUT02/Time"][:]
+            t_465 = f[base + "LockInAOUT02/Time"][:]
+            sig_465 = f[base + "LockInAOUT02/AIN01"][:]
 
-            t_560 = f[base + "LockInAOUT03/AIN02"][:]
-            sig_560 = f[base + "LockInAOUT03/Time"][:]
+            t_560 = f[base + "LockInAOUT03/Time"][:]
+            sig_560 = f[base + "LockInAOUT03/AIN02"][:]
 
         except KeyError as e:
             raise RuntimeError(f"Could not load .doric file due to missing dataset(s): {e}")
@@ -402,7 +402,7 @@ def smoothing_SMA(data_df,win_size):
         
     return data_df
 
-def remove_artifacts_dualcolor(data_df, artifact_intervals, col, fitted560=False):
+def remove_artifacts_dualcolor(data_df, artifact_intervals, col):
     begin=0
     dFF_segment = np.full(len(data_df), np.nan)  # Create an array filled with NaNs of the same length as data_df
     artifact_intervals.append([len(data_df), 'End'])
@@ -412,21 +412,12 @@ def remove_artifacts_dualcolor(data_df, artifact_intervals, col, fitted560=False
             # Calculate 'end' as the first index where 'Time(s)' is greater than x_start, -1 to not overlap with artifact
             end = data_df.index[data_df['Time(s)'] < x_start][-1]
             
-            if fitted560:
-                dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
-                                            data_df.iloc[begin+1:end][col].values)
-                if len(dFF_values) == len(dFF_segment[begin+1:end]):
-                    dFF_segment[begin+1:end] = dFF_values
-                else:
-                    print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
-            
+            dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
+                                        data_df.iloc[begin+1:end][col].values)
+            if len(dFF_values) == len(dFF_segment[begin+1:end]):
+                dFF_segment[begin+1:end] = dFF_values
             else:
-                dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
-                                            data_df.iloc[begin+1:end]['465 Deinterleaved'].values)
-                if len(dFF_values) == len(dFF_segment[begin+1:end]):
-                    dFF_segment[begin+1:end] = dFF_values
-                else:
-                    print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
+                print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
             
             # Update 'begin' to the index just before the stop of the artifact
             if x_stop != 'End':
@@ -445,16 +436,29 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', method='fit')
+            dFFdata[0] = remove_artifacts_dualcolor(data_df, artifact_intervals, '465 Deinterleaved')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
+            dFFdata[2] = remove_artifacts_dualcolor(data_df, artifact_intervals, '560 Deinterleaved')
+            dFFdata[3] = data_df['560 Deinterleaved'].to_numpy()
         else:
             dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
             dFFdata[2] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['560 Deinterleaved'])
-            dFFdata[1] = data_df['560 Deinterleaved'].to_numpy()
+            dFFdata[3] = data_df['560 Deinterleaved'].to_numpy()
 
         # Calculate Denoised dFF
-        dFFdata[2] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
+        dFFdata[4] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
+        dFFdata[5] = ((dFFdata[3] - dFFdata[2]) / dFFdata[2]) * 100
+
+        dFFdata_df = pd.DataFrame({
+            'Time(s)': data_df['Time(s)'],
+            '405 dFF': dFFdata[0],
+            '465 dFF': dFFdata[1],
+            'Denoised dFF': dFFdata[4],
+            '405 dFF fitted 560': dFFdata[2],
+            '560 dFF' : dFFdata[3],
+            'Denoised 560 dFF': dFFdata[5]
+        })
     
     else:
         if filecode in artifacts_df['Filecode'].values:
@@ -462,18 +466,21 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
             artifact_intervals = literal_eval(artifact_intervals[0])
             dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
+            dFFdata[2] = data_df['560 Deinterleaved'].to_numpy()
         else:
             dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
+            dFFdata[2] = data_df['560 Deinterleaved'].to_numpy()
 
         # Calculate Denoised dFF
-        dFFdata[2] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
+        dFFdata[3] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
 
-    dFFdata_df = pd.DataFrame({
-        'Time(s)': data_df['Time(s)'],
-        '405 dFF': dFFdata[0],
-        '465 dFF': dFFdata[1],
-        'Denoised dFF': dFFdata[2]
-    })
+        dFFdata_df = pd.DataFrame({
+            'Time(s)': data_df['Time(s)'],
+            '405 dFF': dFFdata[0],
+            '465 dFF': dFFdata[1],
+            '560 dFF': dFFdata[2],
+            'Denoised dFF': dFFdata[3]
+        })
 
     return dFFdata_df

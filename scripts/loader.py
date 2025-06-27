@@ -21,7 +21,7 @@ import modules.common.nomenclature as nom
 #LOADER#
 ########
 
-experiment_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh')
+experiment_path = Path(r'e:\FiberPhotometry\202404_DualColourGRABAChxFlexGECO')
 analysis_path = experiment_path / 'Analysis' 
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -42,12 +42,9 @@ nom.create_or_load_artifacts_file(artifact_file, option='create_only')
 #time to crop at the beginning of the trial for, in seconds
 TIME_BEGIN = 4
 #------------------#
-exp = 'EPM_1'
+exp = 'EPM'
 batches = list(set(subjects_df['Batch']))
 #------------------#
 
-#threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
-#threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 0
+
 
