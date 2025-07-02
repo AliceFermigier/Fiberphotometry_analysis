@@ -13,11 +13,11 @@ import matplotlib.pyplot as plt
 plt.rcParams['text.antialiased'] = True
 plt.rcParams['lines.antialiased'] = True
 plt.rcParams.update({
-    'font.size': 15,   
-    'axes.titlesize': 15,
-    'axes.labelsize': 15,
-    'xtick.labelsize': 12,
-    'ytick.labelsize': 12
+    'font.size': 25,   
+    'axes.titlesize': 25,
+    'axes.labelsize': 25,
+    'xtick.labelsize': 22,
+    'ytick.labelsize': 22
 })
 plt.rcParams['font.family'] = 'Arial'
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
@@ -62,16 +62,20 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     # Setup figure
     n_behavior = len(behavior_cols)
     has_speed = 'Speed' in fiberbehav_df.columns
-    height_ratios = [8] + [1]*n_behavior
+    has_560 = 'Denoised 560 dFF' in fiberbehav_df.columns
+    height_ratios = [8]
+    if has_560:
+        height_ratios += [8]
+    height_ratios += [1]*n_behavior
     if has_speed:
         height_ratios += [3]
+    
     center_time = window_df['Time(s)'].iloc[idx_center - idx_start]
     end_time = window_df['Time(s)'].iloc[-1]
 
-    if has_speed:
-        size=(15, 6)
-    else:
-        size=(10, 6)
+    # Calculate height from number and types of plots
+    height = sum(height_ratios)/2
+    size=(15, height)
     
     fig, axs = plt.subplots(
         len(height_ratios),
@@ -79,7 +83,7 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
         dpi=72,
         figsize=size,
         sharex=True,
-        gridspec_kw={'height_ratios': height_ratios},
+        gridspec_kw={'height_ratios': height_ratios}
     )
 
     if len(height_ratios) == 1:
@@ -89,20 +93,31 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
 
     # Plot fiber signal
     axs[0].plot(t, window_df['Denoised dFF'], color='black')
-    axs[0].set_ylabel('Denoised dFF')
-    axs[0].set_ylim(max(-0.4, fiberbehav_df['Denoised dFF'].min()), min(0.8, fiberbehav_df['Denoised dFF'].max()))
+    axs[0].set_ylabel('465 dFF')
+    axs[0].set_ylim(max(-0.3, fiberbehav_df['Denoised dFF'].min()), min(0.8, fiberbehav_df['Denoised dFF'].max()))
     axs[0].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
+
+    # Optional: plot 560nm dFF
+    if has_560:
+        axs[1].plot(t, window_df['Denoised 560 dFF'], color='darkorange')
+        axs[1].set_ylabel('560 dFF')
+        axs[1].set_ylim(max(-0.3, fiberbehav_df['Denoised dFF'].min()), min(0.8, fiberbehav_df['Denoised dFF'].max()))
+        axs[1].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
     
     # Plot behaviors
     behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
     with open(behavior_colors_path, "r") as f:
         behaviors_to_plot = json.load(f)
+
+    pad = 1
+    if has_560:
+        pad = 2
     
     for i, behavior in enumerate(behavior_cols):
         color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
         behavior_data = window_df[behavior].values
         if np.any(behavior_data > 0):
-            axs[i + 1].fill_between(
+            axs[i + pad].fill_between(
                 t,
                 0,
                 behavior_data,
@@ -110,11 +125,11 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
                 color=color,
                 alpha=alpha
             )
-        axs[i + 1].set_yticks([])
-        axs[i + 1].set_ylabel(behavior, rotation=0, labelpad=35, va='center', ha='right')
-        axs[i + 1].spines['left'].set_visible(False)
-        axs[i + 1].set_ylim(0.1, 1.1)
-        axs[i + 1].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
+        axs[i + pad].set_yticks([])
+        axs[i + pad].set_ylabel(behavior, rotation=0, labelpad=10, va='center', ha='right')
+        axs[i + pad].spines['left'].set_visible(False)
+        axs[i + pad].set_ylim(0.1, 1.1)
+        axs[i + pad].axvspan(center_time, end_time, color='white', alpha=0.95, linewidth=3, zorder=10)
 
     # Optional: plot speed
     if has_speed:
@@ -130,11 +145,14 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         ax.spines['bottom'].set_visible(False)
+        ax.set_autoscale_on(False)
 
     for ax in axs[:-1]:
         ax.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
         
     axs[-1].set_xlabel('Time (s)')
+
+    fig.subplots_adjust(left=0.22, right=0.97, bottom=0.15, top=0.99)
 
     # Convert to image
     canvas = FigureCanvas(fig)
@@ -145,9 +163,9 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     plt.close(fig)
     del fig, axs, canvas
     gc.collect()
-    return img
+    return img, size
 
-def get_video_time(video_path, file_path, automated_alignment=False):
+def get_video_time(video_path, file_path, csv_path = None, automated_alignment=False):
     '''
     Get timestamps of video frames, in seconds
     '''
@@ -175,7 +193,7 @@ def get_video_time(video_path, file_path, automated_alignment=False):
         else:
             video_time = np.array(camera_times)
     else:
-        camera_df = cp.get_camera_flashes_from_csv(file_path)
+        camera_df = cp.get_camera_flashes_from_csv(csv_path)
         camera_times = camera_df['Time(s)'].values
         if len(camera_times) != n_frames:
             video_time = np.linspace(camera_times[0], camera_times[-1], n_frames)
@@ -270,25 +288,29 @@ def make_combined_video(video_path,
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    n_frames = int(30 * fps) if test else total_frames
+    n_frames = 200 if test else total_frames
     start_frame = start_frame if fast else start_frame+1
-    end_frame = end_frame if end_frame is not None else n_frames
+    end_frame = end_frame if end_frame is not None else total_frames
     
     if fiber_indices is None or len(fiber_indices) < 1:
         raise ValueError("fiber_indices must be provided and non-empty.")
     
     if fast:
+        _ , size = create_overlay_frame(10, fiberbehav_df, behavior_cols, window=window)
+        width_img, height_img = size
         output_path = str(output_path)
         if not output_path.endswith('.mp4'):
             output_path += '.mp4'
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
+        coeff = width/width_img
+
         out = cv2.VideoWriter(
             output_path,
             cv2.VideoWriter_fourcc(*'mp4v'),
             fps,
-            (width, height + 300))
+            (width, height + int(height_img*coeff)))
         
         if verbose:
             print(f"🎞️ Video initialized (fast). Size: {width}x{height}, FPS: {fps}, Frames: {n_frames}")
@@ -343,11 +365,11 @@ def make_combined_video(video_path,
             continue
 
         data_idx = fiber_indices[i]
-        overlay_img = create_overlay_frame(data_idx, fiberbehav_df, behavior_cols, window=window)
+        overlay_img, _ = create_overlay_frame(data_idx, fiberbehav_df, behavior_cols, window=window)
 
         if fast:
             # Resize overlay to match width
-            overlay_img = cv2.resize(overlay_img, (width, 300))
+            overlay_img = cv2.resize(overlay_img, (width, + int(height_img*coeff)))
             combined = np.vstack((frame, overlay_img))
 
         else:
@@ -360,8 +382,6 @@ def make_combined_video(video_path,
             combined = cv2.resize(combined, (final_w, final_h))
  
         out.write(combined)
-        if verbose and i % int(fps) == 0:
-            print(f"🕐 Frame {i}/{n_frames} - Time {fiberbehav_df['Time(s)'].iloc[data_idx]:.2f}s")
 
     cap.release()
     out.release()
@@ -414,9 +434,9 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
             part.unlink()
 
 #%%
-mouse = '767'
-exp='EPM_3'
-data_path_exp='20250515_EPM'
+mouse = '768'
+exp='Social_Interaction'
+data_path_exp='20250602_SocialInteraction'
 video_name = f'{mouse}.avi'
 
 if __name__ == "__main__":
@@ -426,10 +446,12 @@ if __name__ == "__main__":
     raw_file_path = exp_path / f'{mouse}.doric'
     fiberbehav_df = pd.read_csv(analysis_path / f'1_{mouse}_fiberbehavnotderived.csv')
     output_path = exp_path / 'Videos' / f'{video_name[:-4]}_combined'
+    camera_csv_path = exp_path / '768_camera.csv'
 
     video_time = get_video_time(video_path,
                                 raw_file_path,
-                                automated_alignment=False)
+                                csv_path=camera_csv_path,
+                                automated_alignment=True)
 
     # Drop frames with no corresponding fiber signal
     fiber_start_time = fiberbehav_df['Time(s)'].iloc[0]
@@ -439,14 +461,16 @@ if __name__ == "__main__":
     # Align fiber data to trimmed video timestamps
     fiber_indices = align_fiber_to_video(fiberbehav_df, video_time_trimmed)
 
-    chunk_size = int(60 * 30)  # 60 seconds * 30 FPS
+    chunk_size = int(30 * 30)  # 30 seconds * 30 FPS
     total_frames = len(video_time_trimmed)
-    
-    for start in range(0, total_frames, chunk_size):
-        end = min(start + chunk_size, total_frames)
+    test = True
+
+    if test :
+        start = 5600
+        end = 8000
         print(f"Processing frames {start} to {end}...")
         
-        chunk_output = output_path.parent / f"{output_path.stem}_part{start//chunk_size}"
+        chunk_output = output_path.parent / f"{output_path.stem}_test"
         
         make_combined_video(
             video_path=video_path,
@@ -454,17 +478,37 @@ if __name__ == "__main__":
             output_path=chunk_output,
             fiber_indices=fiber_indices,
             window=10,
-            verbose=False,
-            test=False,
+            verbose=True,
+            test=test,
             fast=True,
             start_frame=start,
             end_frame=end
         )
 
-    # Concatenate videos 
-    video_parts_dir = exp_path / 'Videos'
-    base_name = f"{mouse}_combined_part"
-    output_path = video_parts_dir / f"{mouse}_combined_full.mp4"
+    else:
+        for start in range(0, total_frames, chunk_size):
+            end = min(start + chunk_size, total_frames)
+            print(f"Processing frames {start} to {end}...")
+            
+            chunk_output = output_path.parent / f"{output_path.stem}_part{start//chunk_size}"
+            
+            make_combined_video(
+                video_path=video_path,
+                fiberbehav_df=fiberbehav_df,
+                output_path=chunk_output,
+                fiber_indices=fiber_indices,
+                window=10,
+                verbose=False,
+                test=test,
+                fast=True,
+                start_frame=start,
+                end_frame=end
+            )
 
-    concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=True)
+        # Concatenate videos 
+        video_parts_dir = exp_path / 'Videos'
+        base_name = f"{mouse}_combined_part"
+        output_path = video_parts_dir / f"{mouse}_combined_full.mp4"
+
+        concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=True)
 # %%

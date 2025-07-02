@@ -50,7 +50,7 @@ def load_video_frame(video_path):
     else:
         raise FileNotFoundError("Video frame could not be read.")   
     
-def compute_speed(coordinates_df, dist_scale=0.1322, frame_rate=19, bodypart='head'):
+def compute_speed(coordinates_df, dist_scale=0.1322, frame_rate=19, bodypart='back'):
     '''
     dist_scale in cm/px
     frame_rate in fps
@@ -59,7 +59,7 @@ def compute_speed(coordinates_df, dist_scale=0.1322, frame_rate=19, bodypart='he
     dy = np.diff(coordinates_df[f'{bodypart}_y'])
     distance = dist_scale * np.sqrt(dx**2 + dy**2)
     speed = distance * frame_rate
-    speed = cs.hampel_filter(speed, window_size=5) # remove big artifacts
+    speed = cs.hampel_filter(speed, window_size=15) # remove big artifacts
     speed = savgol_filter(speed, 5, 2)  # smoothing
 
     speed_df = pd.DataFrame({
