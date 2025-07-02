@@ -430,9 +430,8 @@ def remove_artifacts_dualcolor(data_df, artifact_intervals, col):
 
 def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
 
-    dFFdata = np.full([3, len(data_df)], np.nan)  # [405 dFF, 470 dFF, Denoised dFF]
-
     if fitted560:
+        dFFdata = np.full([6, len(data_df)], np.nan)
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
@@ -461,6 +460,7 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
         })
     
     else:
+        dFFdata = np.full([4, len(data_df)], np.nan)
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
@@ -479,7 +479,7 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
             'Time(s)': data_df['Time(s)'],
             '405 dFF': dFFdata[0],
             '465 dFF': dFFdata[1],
-            '560 dFF': dFFdata[2],
+            'Denoised 560 dFF': dFFdata[2],
             'Denoised dFF': dFFdata[3]
         })
 

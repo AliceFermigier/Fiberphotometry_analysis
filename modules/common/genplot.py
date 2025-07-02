@@ -110,7 +110,7 @@ def time_vector(fiberpho, samplerate) :
     duration =  math.ceil(fiberpho.at[len(fiberpho)-2,'Time(s)'])
     return pd.Series(np.linspace(0.0, duration, num = int(duration*samplerate)+1))
 
-def plot_fiberpho(fiberbehav_df, exp, mouse, method):
+def plot_fiberpho(fiber_df, exp, mouse, method):
     """
     Plots isosbestic and Ca dependent deltaF/F (dFF) and separate dFF plot
     """
@@ -118,8 +118,8 @@ def plot_fiberpho(fiberbehav_df, exp, mouse, method):
     
     # First subplot: GCaMP and ISOS
     ax0 = fig.add_subplot(211)
-    p1, = ax0.plot('Time(s)', '465 dFF', linewidth=1, color='deepskyblue', label='GCaMP', data=fiberbehav_df)
-    p2, = ax0.plot('Time(s)', '405 dFF', linewidth=1, color='blueviolet', label='ISOS', data=fiberbehav_df)
+    p1, = ax0.plot('Time(s)', '465 dFF', linewidth=1, color='deepskyblue', label='GCaMP', data=fiber_df)
+    p2, = ax0.plot('Time(s)', '405 dFF', linewidth=1, color='blueviolet', label='ISOS', data=fiber_df)
     ax0.set_ylabel(r'$\Delta$F/F')
     ax0.set_xlabel('Time(s)')
     ax0.legend(handles=[p1, p2], loc='upper right')
@@ -128,12 +128,86 @@ def plot_fiberpho(fiberbehav_df, exp, mouse, method):
     
     # Second subplot: just 465 dFF (or any other dFF of interest)
     ax1 = fig.add_subplot(212)
-    p3, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='dFF', data=fiberbehav_df)
+    p3, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='dFF', data=fiber_df)
     ax1.set_ylabel(r'$\Delta$F/F')
     ax1.set_xlabel('Time(s)')
     ax1.legend(loc='upper right')
     ax1.margins(0, 0.2)
     ax1.set_title('dFF')
     
+    plt.tight_layout()
+    return fig
+
+def plot_fiberpho_dualcolor(fiber_df, exp, mouse, method):
+    """
+    Plots isosbestic and Ca dependent deltaF/F (dFF) and separate dFF plot
+    """
+    if len(fiber_df.columns) == 5:
+        fig = plt.figure(figsize=(20, 15))
+        
+        # First subplot: GCaMP and ISOS
+        ax0 = fig.add_subplot(311)
+        p1, = ax0.plot('Time(s)', '465 dFF', linewidth=1, color='deepskyblue', label='GCaMP', data=fiber_df)
+        p2, = ax0.plot('Time(s)', '405 dFF', linewidth=1, color='blueviolet', label='fitted ISOS', data=fiber_df)
+        ax0.set_ylabel(r'$\Delta$F/F')
+        ax0.set_xlabel('Time(s)')
+        ax0.legend(handles=[p1, p2], loc='upper right')
+        ax0.margins(0, 0.2)
+        ax0.set_title(f'Preprocessed data - {exp} {mouse} - {method}')
+        
+        # Second subplot: denoised 465 dFF
+        ax1 = fig.add_subplot(312)
+        p3, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='deepskyblue', label='dFF', data=fiber_df)
+        ax1.set_ylabel(r'$\Delta$F/F')
+        ax1.set_xlabel('Time(s)')
+        ax1.legend(loc='upper right')
+        ax1.margins(0, 0.2)
+
+        # Third subplot: 560 dFF
+        ax2 = fig.add_subplot(313)
+        p4, = ax2.plot('Time(s)', 'Denoised 560 dFF', linewidth=1, color='orange', label='560 dFF', data=fiber_df)
+        ax2.set_ylabel(r'$\Delta$F/F')
+        ax2.set_xlabel('Time(s)')
+        ax2.legend(loc='upper right')
+        ax2.margins(0, 0.2)
+        
+    elif len(fiber_df.columns) == 7:
+        fig = plt.figure(figsize=(20, 20))
+        
+        # First subplot: GCaMP and ISOS
+        ax0 = fig.add_subplot(411)
+        p1, = ax0.plot('Time(s)', '465 dFF', linewidth=1, color='deepskyblue', label='GCaMP', data=fiber_df)
+        p2, = ax0.plot('Time(s)', '405 dFF', linewidth=1, color='blueviolet', label='fitted ISOS', data=fiber_df)
+        ax0.set_ylabel(r'$\Delta$F/F')
+        ax0.set_xlabel('Time(s)')
+        ax0.legend(handles=[p1, p2], loc='upper right')
+        ax0.margins(0, 0.2)
+        ax0.set_title(f'GCaMP and Isosbestic - {exp} {mouse} - {method}')
+        
+        # Second subplot: denoised 465 dFF
+        ax1 = fig.add_subplot(412)
+        p3, = ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='deepskyblue', label='dFF', data=fiber_df)
+        ax1.set_ylabel(r'$\Delta$F/F')
+        ax1.set_xlabel('Time(s)')
+        ax1.legend(loc='upper right')
+        ax1.margins(0, 0.2)
+
+        # Third subplot: 560 dFF and fitted 405
+        ax2 = fig.add_subplot(413)
+        p4, = ax2.plot('Time(s)', '560 dFF', linewidth=1, color='orange', label='560', data=fiber_df)
+        p5, = ax2.plot('Time(s)', '405 dFF fitted 560', linewidth=1, color='blueviolet', label='fitted ISOS', data=fiber_df)
+        ax2.set_ylabel(r'$\Delta$F/F')
+        ax2.set_xlabel('Time(s)')
+        ax2.legend(handles=[p4, p5], loc='upper right')
+        ax2.margins(0, 0.2)
+
+        # Second subplot: denoised 465 dFF
+        ax3 = fig.add_subplot(414)
+        p6, = ax3.plot('Time(s)', 'Denoised dFF', linewidth=1, color='orange', label='560 dFF', data=fiber_df)
+        ax3.set_ylabel(r'$\Delta$F/F')
+        ax3.set_xlabel('Time(s)')
+        ax3.legend(loc='upper right')
+        ax3.margins(0, 0.2)
+
     plt.tight_layout()
     return fig

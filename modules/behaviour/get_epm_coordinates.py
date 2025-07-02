@@ -24,13 +24,14 @@ def define_epm_boundaries(video_path):
 
     # Ask if orientation is correct
     plt.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    plt.title("Is the EPM orientation correct? (Y=Yes, N=No)")
+    plt.title("Is the EPM orientation correct? (Open up/down, closed right/left) (Y=Yes, N=No)")
     plt.axis("off")
     plt.show()
-    answer = input("Is the EPM in the correct orientation? (Y/N): ").strip().upper()
+    answer = input("Is the EPM in the correct orientation? (Open up/down, closed right/left) (Y/N): ").strip().upper()
 
+    rotation_angle = 0
     if answer == 'N':
-        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)  # Adjust rotation if needed
+        rotation_angle = 90
 
     # Select center zone (bottom-left and top-right corners)
     center_points = get_click_coordinates(frame, 2, "Click center bottom-left, then top-right")
@@ -65,7 +66,8 @@ def define_epm_boundaries(video_path):
         'x1': x1, 'x2': x2,
         'y1': y1, 'y2': y2,
         'minx': minx, 'maxx': maxx,
-        'miny': miny, 'maxy': maxy
+        'miny': miny, 'maxy': maxy,
+        'rotation angle' : rotation_angle
     }
 
     return epm_coordinates
@@ -77,10 +79,10 @@ def save_boundaries_to_json(boundaries, output_path):
     print(f"Boundaries saved to {output_path}")
 
 if __name__ == "__main__":
-    video_folder = r'E:\FiberPhotometry\202504_OptoFluidACh\DLC_Projects\FiberMEC_EPM-Alice-2025-05-14\videos_original'
-    video_name = '765_0_reduced'
+    video_folder = r'E:\FiberPhotometry\202404_DualColourGRABAChxFlexGECO\Data\20240410_EPM\Videos'
+    video_name = '466'
     video_path = f'{video_folder}\{video_name}.avi'
-    output_json = f'{video_name}_epm_boundaries.json'
+    output_json = f'{video_folder}\{video_name}_epm_boundaries.json'
 
     boundaries = define_epm_boundaries(video_path)
     print("\nEPM Boundaries:")

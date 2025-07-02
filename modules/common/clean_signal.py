@@ -152,33 +152,44 @@ def clean_signal_dualcolor(rawdata_df, crop=[10,-10], detrending=False, apply_ha
     
     return clean_deinterleaved_df
 
-def highpass_filter_dff(dff):
+def highpass_filter_dff(dff, dualcolor = False):
     sr = pp.samplerate(dff)
     cutoff_freq = 0.01
     denoised_dff = dff['Denoised dFF']
     time = dff['Time(s)']
-    
-    filtered_denoised_dff = highpass_filter_with_padding(
-        denoised_dff, sr, cutoff=cutoff_freq, order=1, pad_seconds=50
-    )
 
-    # Plot settings
-    fig, axs = plt.subplots(2, 1, figsize=(12, 6), sharex=True, gridspec_kw={'height_ratios': [1, 1]})
-    
-    # Unfiltered
-    axs[0].plot(time, denoised_dff, color='black', linewidth=1)
-    axs[0].set_title('Unfiltered dF/F')
-    axs[0].set_ylabel('dF/F (%)')
+    if dualcolor == True:
+        dff_560 = dff['Denoised 560 dFF']
+        filtered_denoised_dff = highpass_filter_with_padding(
+            denoised_dff, sr, cutoff=cutoff_freq, order=1, pad_seconds=50
+        )
+        filtered_560_denoised_dff = highpass_filter_with_padding(
+            dff_560, sr, cutoff=cutoff_freq, order=1, pad_seconds=50
+        )
+        dff['Denoised 560 dFF'] = filtered_560_denoised_dff
+        
+    else:
+        filtered_denoised_dff = highpass_filter_with_padding(
+            denoised_dff, sr, cutoff=cutoff_freq, order=1, pad_seconds=50
+        )
 
-    # Filtered
-    axs[1].plot(time, filtered_denoised_dff, color='seagreen', linewidth=1)
-    axs[1].set_title(f'Filtered dF/F (High-pass {cutoff_freq} Hz)')
-    axs[1].set_xlabel('Time (s)')
-    axs[1].set_ylabel('dF/F (%)')
+        # Plot settings
+        fig, axs = plt.subplots(2, 1, figsize=(12, 6), sharex=True, gridspec_kw={'height_ratios': [1, 1]})
+        
+        # Unfiltered
+        axs[0].plot(time, denoised_dff, color='black', linewidth=1)
+        axs[0].set_title('Unfiltered dF/F')
+        axs[0].set_ylabel('dF/F (%)')
 
-    # Adjust layout
-    plt.tight_layout()
-    plt.show()
+        # Filtered
+        axs[1].plot(time, filtered_denoised_dff, color='seagreen', linewidth=1)
+        axs[1].set_title(f'Filtered dF/F (High-pass {cutoff_freq} Hz)')
+        axs[1].set_xlabel('Time (s)')
+        axs[1].set_ylabel('dF/F (%)')
+
+        # Adjust layout
+        plt.tight_layout()
+        plt.show()
 
     dff['Denoised dFF'] = filtered_denoised_dff
     return dff

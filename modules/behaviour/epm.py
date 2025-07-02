@@ -30,6 +30,7 @@ def analyze_mouse_position(coords, epm_coordinates, bodypart='head'):
 
     x1, x2 = epm_coordinates['x1'], epm_coordinates['x2']
     y1, y2 = epm_coordinates['y1'], epm_coordinates['y2']
+    rotation_angle = epm_coordinates['rotation angle']
 
     coords_byzone_df = classify_position(coords_x, coords_y, x1, x2, y1, y2)
     speed_df = mp.compute_speed(coords)
@@ -38,17 +39,28 @@ def analyze_mouse_position(coords, epm_coordinates, bodypart='head'):
 
     return behav_df
 
-def classify_position(coords_x, coords_y, x1, x2, y1, y2):
+def classify_position(coords_x, coords_y, x1, x2, y1, y2, rotation_angle):
     closed_arm = np.zeros(len(coords_x))
     open_arm = np.zeros(len(coords_x))
     center = np.zeros(len(coords_x))
-    for i, (x, y) in enumerate(zip(coords_x, coords_y)): 
+    if rotation_angle == 0:
+        for i, (x, y) in enumerate(zip(coords_x, coords_y)): 
             if ((x <= x1) or (x >= x2)) and (y2 >= y >= y1):
                 closed_arm[i]=1
             elif (x1 < x < x2) and (y1 <= y <= y2):
                 center[i]=1
             else:
                 open_arm[i]=1
+    elif rotation_angle == 90:
+            if ((y <= y1) or (y >= y2)) and (x2 >= x >= x1):
+                closed_arm[i] = 1
+            elif (y1 < y < y2) and (x1 <= x <= x2):
+                center[i] = 1
+            else:
+                open_arm[i] = 1
+    else:
+            raise ValueError("Unsupported rotation angle. Use 0 or 90.")
+
     coords_byzone_df = pd.DataFrame(
          {'Closed arm':closed_arm,
           'Open arm':open_arm,

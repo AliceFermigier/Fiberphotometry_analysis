@@ -87,7 +87,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         rawdata_path = data_path_exp / f'{mouse}.doric'
         led_flashes_path = data_path_exp / f'{mouse}_fiber.csv'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
-        dlc_path = behav_path_exp / f'{mouse}_reducedDLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv'
+        dlc_path = behav_path_exp / f'{mouse}DLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv'
         fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
         boris_path = behav_path_exp / f'behav_boris_{mouse}.csv' 
         
