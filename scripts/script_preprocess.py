@@ -240,7 +240,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         filecode = f'{exp}_{mouse}'
         
         if dual_color:
-            dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=False)
+            dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=True)
             interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
             interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
             #high-pass filter to remove slow oscillations

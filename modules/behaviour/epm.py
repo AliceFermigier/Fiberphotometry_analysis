@@ -32,7 +32,7 @@ def analyze_mouse_position(coords, epm_coordinates, bodypart='head'):
     y1, y2 = epm_coordinates['y1'], epm_coordinates['y2']
     rotation_angle = epm_coordinates['rotation angle']
 
-    coords_byzone_df = classify_position(coords_x, coords_y, x1, x2, y1, y2)
+    coords_byzone_df = classify_position(coords_x, coords_y, x1, x2, y1, y2, rotation_angle)
     speed_df = mp.compute_speed(coords)
 
     behav_df = pd.concat([coords, coords_byzone_df, speed_df], axis=1)

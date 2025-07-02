@@ -161,10 +161,15 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     """
     Plots denoised deltaF/F aligned with behaviour (includes baseline). Adds Speed subplot only if present.
     """
-    behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 0]
+    behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 2]
     has_speed = 'Speed' in behavprocesssnip_df.columns
+    has_560 = 'Denoised 560 dFF' in behavprocesssnip_df.columns
 
-    if has_speed:
+    if has_speed and has_560:
+        fig = plt.figure(figsize=(20, 15))
+        ax1 = fig.add_subplot(311)
+    
+    elif has_speed:
         fig = plt.figure(figsize=(20, 10))
         ax1 = fig.add_subplot(211)
 
@@ -174,6 +179,9 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
 
     # Plot dFF trace
     ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data=behavprocesssnip_df)
+    if has_speed and has_560:
+        ax2 = fig.add_subplot(312)
+        ax2.plot('Time(s)', 'Denoised 560 dFF', linewidth=1, color='black', label='560 dFF', data=behavprocesssnip_df)
 
     if exp == 'Fear_conditioning':
         shock_times = np.where(behavprocess_df['Shock'] == 1)[0]
@@ -190,6 +198,8 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         if behavior in behavprocesssnip_df.columns:
             color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
             highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
+            if has_speed and has_560:
+                highlight_behavior_areas(ax2, behavprocesssnip_df, behavior, color, alpha)
 
     # Add event lines
     for event, color, label in [('Gate opens', 'lightsteelblue', 'Gate opens'),
@@ -211,9 +221,29 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     ax1.margins(0, 0.2)
     if scaled:
         ax1.set_ylim([-0.27, 0.75])
+    
+    if has_speed and has_560:
+    # Labels and formatting
+        fs_mult = 4
+        ax2.set_ylabel(r'$\Delta$F/F', fontsize=5 * fs_mult)
+        ax2.set_xlabel('Time(s)', fontsize=5 * fs_mult)
+        ax2.tick_params(axis='both', labelsize=4 * fs_mult)
+        ax2.legend(loc='upper right', fontsize=4 * fs_mult)
+        ax2.margins(0, 0.2)
+        if scaled:
+            ax2.set_ylim([-0.27, 0.75])
 
     # Plot speed if available
-    if has_speed:
+    if has_speed and has_560:
+        ax3 = fig.add_subplot(313)
+        ax3.plot('Time(s)', 'Speed', linewidth=1, color='black', label='Speed', data=behavprocesssnip_df)
+        ax3.set_ylabel('Speed (cm/s)', fontsize=5 * fs_mult)
+        ax3.set_xlabel('Time(s)', fontsize=5 * fs_mult)
+        ax3.tick_params(axis='both', labelsize=4 * fs_mult)
+        ax3.margins(0, 0.2)
+        if scaled:
+            ax3.set_ylim([-1, 50])
+    elif has_speed:
         ax2 = fig.add_subplot(212)
         ax2.plot('Time(s)', 'Speed', linewidth=1, color='black', label='Speed', data=behavprocesssnip_df)
         ax2.set_ylabel('Speed (cm/s)', fontsize=5 * fs_mult)

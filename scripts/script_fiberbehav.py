@@ -46,10 +46,10 @@ from scripts.loader import analysis_path, data_path, exp, proto_df, subjects_df,
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-automated_alignment = True
-arena_analysis = False
-dlc_data = False
-boris = True
+automated_alignment = False
+arena_analysis = True
+dlc_data = True
+boris = False
 
 #filter characteristics
 ORDER = 4
@@ -60,7 +60,7 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Social_Interaction'
+exp = 'EPM'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -194,7 +194,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         # Plotting
         fig = bp.plot_fiberpho_behav(
             dfiberbehav_df, list_BOI, exp, mouse,
-            THRESH_S, EVENT_TIME_THRESHOLD, batch
+            THRESH_S, EVENT_TIME_THRESHOLD, batch,
+            scaled = False
         )
         fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.pdf')
         fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
@@ -205,3 +206,4 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
 print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
                     
+# %%
