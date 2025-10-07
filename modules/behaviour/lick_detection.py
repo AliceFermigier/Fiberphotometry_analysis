@@ -4,14 +4,9 @@ import os
 import plotly.graph_objects as go
 from ipywidgets import interact, FloatSlider
 
-def txt_to_csv(capacitance_txt_path):
+def txt_to_df(capacitance_txt_path):
 
     licks_df = pd.read_csv(capacitance_txt_path, header=None, names=["time(ms)", "capacitance", "recording"])
-
-    # Make output filename by replacing .txt with .csv and save it
-    csv_path = os.path.splitext(capacitance_txt_path)[0] + ".csv"
-    licks_df.to_csv(csv_path, index=False)
-    print(f"Saved {csv_path}")
 
     return licks_df
 

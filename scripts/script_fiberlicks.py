@@ -38,6 +38,8 @@ import modules.behaviour.camera_processing as cp
 importlib.reload(cp)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
+import modules.behaviour.lick_detection as ld
+importlib.reload(ld)
 
 from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batches
 
@@ -79,15 +81,20 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         behav_path_exp = data_path_exp / 'Behaviour'
 
         # Define paths for raw, behavioral, and fiberphotometry data
-        rawdata_path = data_path_exp / f'{mouse}_0000.doric'
+        capacitance_txt_path = data_path_exp / f'{mouse}.txt'
         led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
+        camera_flashes_path = data_path_exp / f'camera_flashes_{mouse}.csv'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
         fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
         dlc_path = behav_path_exp / f'{mouse}DLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv'
 
-        led_df = cp.get_led_flashes_from_csv(led_flashes_path)
+        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path)
+        camera_flashes_df = cp.get_timestamps_from_bonsai_csv(camera_flashes_path)
         deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
         aligned_deinterleaved_df = cp.align_fiber_with_led_flashes(deinterleaved_df, led_df)
+
+        # Analyse capacitance file to detect licks
+        licks_df = ld.txt_to_df(capacitance_txt_path)
 
         # DLC data
         coordinates_df = None
