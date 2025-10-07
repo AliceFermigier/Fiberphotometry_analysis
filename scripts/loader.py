@@ -21,7 +21,7 @@ import modules.common.nomenclature as nom
 #LOADER#
 ########
 
-experiment_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh')
+experiment_path = Path(r'E:\202510_FiberMEC')
 analysis_path = experiment_path / 'Analysis' 
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)

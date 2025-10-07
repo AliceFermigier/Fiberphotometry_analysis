@@ -49,7 +49,7 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 automated_alignment = True
 arena_analysis = False
 dlc_data = False
-boris = True
+boris = False
 
 #filter characteristics
 ORDER = 4
@@ -84,7 +84,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         behav_path_exp = data_path_exp / 'Behaviour'
         
         # Define paths for raw, behavioral, and fiberphotometry data
-        rawdata_path = data_path_exp / f'{mouse}.doric'
+        rawdata_path = data_path_exp / f'{mouse}_0000.doric'
         led_flashes_path = data_path_exp / f'{mouse}_fiber.csv'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
         dlc_path = behav_path_exp / f'{mouse}DLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv'

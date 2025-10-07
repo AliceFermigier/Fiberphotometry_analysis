@@ -37,14 +37,14 @@ importlib.reload(nom)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
 
-from scripts.loader import experiment_path, analysis_path, data_path, exp, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
+from scripts.loader import experiment_path, analysis_path, data_path, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
 
 #%% 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'EPM'
-dual_color = True
+exp = 'Reward_Hab'
+dual_color = False
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
@@ -72,7 +72,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     pp_path = nom.setup_preprocessing_directory(data_path_exp)
 
     # Find raw data
-    raw_data_path = data_path_exp / f'{mouse}.doric'
+    raw_data_path = data_path_exp / f'{mouse}_0000.doric'
     
     # Paths for output deinterleaved and plot files
     deinterleaved_path = pp_path / f'{mouse}_deinterleaved.csv'
@@ -120,8 +120,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = '466'
-batch = 1
+mouse = '829'
+batch = 2
 filecode = f'{exp}_{mouse}'
 #------------------#
 
