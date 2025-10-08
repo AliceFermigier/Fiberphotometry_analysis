@@ -9,4 +9,3 @@ scikit-learn
 opencv-python
 openpyxl
 tqdm
-ipywidgets==7.7.1

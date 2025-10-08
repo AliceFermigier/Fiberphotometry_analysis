@@ -1,33 +1,49 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import os
-import plotly.graph_objects as go
-from ipywidgets import interact, FloatSlider
 
 def txt_to_df(capacitance_txt_path):
+    # Load all columns
+    df = pd.read_csv(
+        capacitance_txt_path,
+        header=None,
+        names=["time(ms)", "capacitance", "recording"],
+        low_memory=False
+    )
 
-    licks_df = pd.read_csv(capacitance_txt_path, header=None, names=["time(ms)", "capacitance", "recording"])
+    # Find indices for recording start and stop
+    try:
+        start_idx = df.index[df["recording"] == "RECORDING_START"][0]
+        stop_idx = df.index[df["recording"] == "RECORDING_STOP"][0]
+    except IndexError:
+        raise ValueError("RECORDING_START or RECORDING_STOP not found in file")
 
-    return licks_df
+    # Slice the dataframe to include only the recording period
+    df = df.loc[start_idx:stop_idx]
 
-def plot_licks_and_define_threshold(licks_df, threshold=None):
-    """
-    Plots capacitance vs time with Plotly.
-    Allows defining a threshold for lick detection.
-    Exports binary series (lick=1, no lick=0) as CSV.
-    """
+    # Reset time to start at 0 and convert to seconds
+    df["time(s)"] = (df["time(ms)"] - df["time(ms)"].iloc[0]) / 1000
+
+    # Drop the original millisecond column
+    df = df[["time(s)", "capacitance"]]
+
+    # Convert capacitance to integer
+    df["capacitance"] = df["capacitance"].astype(int)
+
+    return df
+
+def load_mouse_data(mouse, batch, datapath_exp_dict):
+    data_path_exp = datapath_exp_dict[batch]
+    capacitance_txt_path = data_path_exp / f"{mouse}.txt"
+
+    df = txt_to_df(capacitance_txt_path)
+    return df
+
+def plot_licks_and_threshold(licks_df, threshold):
 
     plt.plot(licks_df["time(ms)"], licks_df["capacitance"], linestyle="-")
     plt.xlabel("Time (ms)")
     plt.ylabel("Capacitance")
     plt.grid(True)
-
-    # Add vertical lines where timestamp is not empty
-    for _, row in licks_df.dropna().iterrows():
-        if row["recording"] == "RECORDING_START":
-            plt.axvline(x=row["time(ms)"], color="green", linestyle="--", label="Start")
-        elif row["recording"] == "RECORDING_STOP":
-            plt.axvline(x=row["time(ms)"], color="red", linestyle="--", label="Stop")
 
     # Avoid duplicate labels in legend
     handles, labels = plt.gca().get_legend_handles_labels()

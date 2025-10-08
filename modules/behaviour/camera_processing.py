@@ -82,8 +82,16 @@ def get_led_flashes_from_csv(file_path):
     timestamps = timestamps_df[0].values
     return pd.DataFrame({'Time(s)': timestamps})
 
+def get_timestamps_from_bonsai_csv(file_path):
+    df = pd.read_csv(file_path)
+    # Ensure correct column names
+    df.columns = ['Time(s)', 'Event']
+    # Filter rows where Event == True
+    output_df = df[df['Event'] == True][['Time(s)']].reset_index(drop=True)
+    return output_df
+
 def align_fiber_with_led_flashes(deinterleaved_df, led_df):
-    time_led = led_df['Time(s)']
+    time_led = led_df['Time(s)'][::2]
     time_fiber = deinterleaved_df['Time(s)']
 
     min_len = min(len(time_led), len(time_fiber))
@@ -98,6 +106,55 @@ def align_fiber_with_led_flashes(deinterleaved_df, led_df):
     })
 
     return aligned_df
+
+def time_gap(deinterleaved_df, led_df):
+    time_led = led_df['Time(s)']
+    time_fiber = deinterleaved_df['Time(s)']
+
+    time_gap = time_led[0]-time_fiber[0]
+    return time_gap
+
+def correct_behav_timestamps(behaviour_timestamps_df, time_gap):
+    behaviour_timestamps_df["Time(s)"] = (behaviour_timestamps_df["Time(s)"] - time_gap)
+    return behaviour_timestamps_df
+
+def align_behav_timestamps(fiberpho_df, behaviour_timestamps_df, behavior_col, time_col='Time(s)'):    
+    """
+    Align event timestamps to fiber photometry time points.
+    Adds a new binary column (1 if event time matches closest fp time, else 0).
+    
+    Parameters:
+        fp_df (pd.DataFrame): Fiber photometry data with a 'Time(s)' column.
+        event_df (pd.DataFrame): Event timestamps with a 'Time(s)' column.
+        behavior_col (str): Name for the new behavioral column to add.
+        time_col (str): Name of the time column (default 'Time(s)').
+    
+    Returns:
+        pd.DataFrame: Original fp_df with an added binary column.
+    """
+    # Initialize behavioral column with zeros
+    fiberpho_df[behavior_col] = 0
+
+    fp_times = fiberpho_df[time_col].values
+    event_times = behaviour_timestamps_df[time_col].values
+    
+    # For each event timestamp, find the closest fiberphotometry time
+    indices = np.searchsorted(fp_times, event_times)
+
+        # Adjust indices if necessary (to ensure closest match)
+    for i, idx in enumerate(indices):
+        if idx == 0:
+            closest_idx = 0
+        elif idx >= len(fp_times):
+            closest_idx = len(fp_times) - 1
+        else:
+            # Compare distances to find closest
+            left = fp_times[idx - 1]
+            right = fp_times[idx]
+            closest_idx = idx - 1 if abs(event_times[i] - left) < abs(event_times[i] - right) else idx
+        fiberpho_df.at[closest_idx, behavior_col] = 1
+
+    return fiberpho_df
 
 def get_camera_flashes(file_path):
     camera_df = load_camera_df_doric(file_path)

@@ -30,17 +30,19 @@ importlib.reload(cp)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
 
-from scripts.loader import analysis_path, data_path, exp, proto_df, subjects_df, batches
+from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batches
 
 #filter characteristics
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 4
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-#%% Plot PETH for each mouse 
+#%% Plot PETH for each mouse
+
+exp = 'Reward_Hab'
 
 # PETH parameters 
 baseline = False

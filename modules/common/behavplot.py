@@ -196,19 +196,23 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     
     for behavior in list_BOI:
         if behavior in behavprocesssnip_df.columns:
-            color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
-            highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
-            if has_speed and has_560:
-                highlight_behavior_areas(ax2, behavprocesssnip_df, behavior, color, alpha)
+            if behavior not in ['Licks','Airpuffs']:
+                color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
+                highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
+                if has_speed and has_560:
+                    highlight_behavior_areas(ax2, behavprocesssnip_df, behavior, color, alpha)
 
     # Add event lines
     for event, color, label in [('Gate opens', 'lightsteelblue', 'Gate opens'),
-                                ('Entry in arena', 'slategrey', 'Entry in arena')]:
+                                ('Entry in arena', 'slategrey', 'Entry in arena'),
+                                ('Licks', 'blue', 'Lick'),
+                                ('Airpuffs', 'violet', 'Airpuff')]:
         if event in list_BOI and event in behavprocesssnip_df.columns:
-            event_times = np.where(behavprocess_df[event] == 1)[0]
-            if len(event_times):
-                x = behavprocess_df.at[int(event_times[0]), 'Time(s)']
-                ax1.axvline(x, color=color, ls='--', label=label)
+            event_indices = np.where(behavprocess_df[event] == 1)[0]
+            if len(event_indices) > 0:
+                for i, event_index in enumerate(event_indices):
+                    x = behavprocess_df.at[event_index, 'Time(s)']
+                    ax1.axvline(x, color=color, ls='--', label='_'*i + label)
 
     # Labels and formatting
     fs_mult = 4
