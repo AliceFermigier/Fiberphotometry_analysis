@@ -53,12 +53,12 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 4
+THRESH_S = 6
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Reward_Hab'
-list_BOI = ['Licks']
+exp = 'Reward_Airpuffs'
+list_BOI = ['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 #create licks artifacts file if not existent
@@ -204,8 +204,9 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         if airpuff_path.exists():
             airpuff_df = cp.get_timestamps_from_bonsai_csv(airpuff_path)
             airpuff_df = cp.correct_behav_timestamps(airpuff_df, time_gap)
-            fiberbehav_df = cp.align_behav_timestamps(fiberbehav_df, licks_df, "Airpuffs")
-            fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
+            fiberbehav_df = cp.align_behav_timestamps(fiberbehav_df, airpuff_df, "Airpuffs")
+
+        fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
 
         # DLC data
         coordinates_df = None
@@ -222,6 +223,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         fiberbehav_df.to_csv(fiberbehav_notderived_path, index=False)
 
         dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
+        print(f'n_licks {mouse} : {len(np.where(dfiberbehav_df["Licks"]==1)[0])}')
+        print(f'n_airpuffs {mouse} : {len(np.where(dfiberbehav_df["Airpuffs"]==1)[0])}')
         dfiberbehav_df.to_csv(fiberbehav_path, index=False)
 
         # Plotting

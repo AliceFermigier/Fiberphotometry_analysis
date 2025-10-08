@@ -302,9 +302,9 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
         list_ind_event_w = list_ind_event_w[:maxboutsnumber]
 
     # Remove bouts that are too short
-    min_event_duration = EVENT_TIME_THRESHOLD * sr
-    valid_bouts = [(start, end) for start, end in zip(list_ind_event_o, list_ind_event_w) if 1 < end - start >= min_event_duration]
-    list_ind_event_o, list_ind_event_w = zip(*valid_bouts) if valid_bouts else ([], [])
+    #min_event_duration = EVENT_TIME_THRESHOLD * sr
+    #valid_bouts = [(start, end) for start, end in zip(list_ind_event_o, list_ind_event_w) if 1 < end - start >= min_event_duration]
+    #list_ind_event_o, list_ind_event_w = zip(*valid_bouts) if valid_bouts else ([], [])
 
     # Choose the relevant event indices to align on (either onset or withdrawal)
     list_ind_event = list_ind_event_o if event == 'onset' else list_ind_event_w
@@ -313,11 +313,11 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
     list_ind_event = [idx for idx in list_ind_event if idx + POST_TIME * sr < len(behavprocess_df)]
 
     # For onset events, adjust the start index to the minimum dFF within 1 second before and after the event
-    if event == 'onset':
-        list_ind_event = [
-            behavprocess_df.loc[idx - 1 * sr : idx + 1 * sr, 'Denoised dFF'].idxmin() 
-            for idx in list_ind_event
-        ]
+    #if event == 'onset':
+       # list_ind_event = [
+  #          behavprocess_df.loc[idx - 1 * sr : idx + 1 * sr, 'Denoised dFF'].idxmin() 
+        #    for idx in list_ind_event
+      #  ]
 
     # Preallocate the PETH array to store the z-scored traces
     n_bouts = len(list_ind_event)
@@ -333,7 +333,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
         try: 
             if baselinewindow:
                 # Calculate baseline mean (F0) and standard deviation (std0) for the time window before the event
-                dFF_baseline = behavprocess_df.loc[ind_event - 6 * sr : ind_event - PRE_EVENT_TIME * sr, 'Denoised dFF']
+                dFF_baseline = behavprocess_df.loc[ind_event - 1 * sr : ind_event - PRE_EVENT_TIME * sr, 'Denoised dFF']
                 F0 = dFF_baseline.mean() 
                 std0 = dFF_baseline.std()
 
@@ -437,7 +437,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, mouse, group,
 
     return fig
 
-def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, session, group, 
+def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, group, 
                      trace_color='cornflowerblue', trace_alpha=0.3, fill_alpha=0.5,
                      line_width=1, fill=True):
     """
@@ -496,7 +496,7 @@ def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, session, group,
     fig, ax = plt.subplots(figsize=(6, 4))
     
     # Create time vector for the x-axis
-    peri_time = np.arange(-PRE_TIME, POST_TIME + 0.1, 0.1)
+    peri_time = np.linspace(-PRE_TIME, POST_TIME, len(listmean_dFF_snips))
     
     # Ensure peri_time matches the dimensions of PETH_array
     if len(peri_time) != len(listmean_dFF_snips):
@@ -532,7 +532,7 @@ def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, session, group,
     ax.set_xlabel('Seconds')
     ax.set_ylabel(r'z-scored $\Delta$F/F')
     ax.legend(loc='upper left', fontsize='small')
-    ax.set_ylim(-2, 4)
+    ax.set_ylim(-1, 6)
     ax.margins(0, 0.1)
     ax.set_title(f'{BOI} - {exp} {group}')
     

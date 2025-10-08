@@ -7,6 +7,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import warnings
 import importlib
+from scipy.ndimage import gaussian_filter1d
+
 
 #import functions
 import modules.common.preprocess as pp
@@ -36,26 +38,24 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 4
+THRESH_S = 6
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
 #%% Plot PETH for each mouse
 
-exp = 'Reward_Hab'
-
 # PETH parameters 
-baseline = False
+baseline = True
 if baseline:
     tag = "windowedbaseline"
 else:
     tag = "wholetrace"
-for exp in [f.name for f in analysis_path.iterdir() if f.is_dir()]:
+for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
     EVENT_LIST = ['onset']  # Event triggers, e.g., onset, withdrawal
-    TIME_WINDOWS = [[5, 10]]  # Time window for PETH calculation (pre, post)
+    TIME_WINDOWS = [[1, 3]]  # Time window for PETH calculation (pre, post)
 
     # Loop over each session folder in the experiment path
     print('##########################################')
@@ -84,14 +84,13 @@ for exp in [f.name for f in analysis_path.iterdir() if f.is_dir()]:
                 continue
 
             # List all behaviors of interest (BOI) by excluding specific behaviors
-            behaviors_of_interest = [col for col in dfiberbehav_df.columns[4:] 
-                                        if col not in ['time','Entry in arena', 'Gate opens', 'Tail suspension']]
+            behaviors_of_interest = ['Airpuffs']
             
             for behavior in behaviors_of_interest:
                 for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
                     try:
                         # Generate the PETH data for the current behavior, event, and time window
-                        peth_data = bp.PETH(dfiberbehav_df, behavior, event, time_window, EVENT_TIME_THRESHOLD, baselinewindow = baseline)
+                        peth_data = bp.PETH(dfiberbehav_df, behavior, event, time_window, EVENT_TIME_THRESHOLD, baselinewindow = baseline, maxboutsnumber=14)
                         
                         # Create a DataFrame from the PETH data
                         sr = round(pp.samplerate(dfiberbehav_df))
@@ -109,16 +108,16 @@ for exp in [f.name for f in analysis_path.iterdir() if f.is_dir()]:
                         plt.close(peth_plot)
                     
                     except Exception as e:
-                        print(f'Error computing PETH for {behavior}, {mouse}')
+                        print(f'Error computing PETH for {behavior}, {mouse} : {e}')
                     
                         
 #%% Plot PETH for each group and extract mean and max Z-scored data
 
 # ----------------------------- #
 # Parameters
-BOI = 'Shock'
-TIME_WINDOW = [5, 30]  # In seconds
-MAXBOUTSNUMBER = None
+BOI = 'Airpuffs'
+TIME_WINDOW = [1, 3]  # In seconds
+MAXBOUTSNUMBER = 14
 # ----------------------------- #
 
 print('##########################################')
@@ -136,6 +135,7 @@ PETH_array = None
 PETH_mean_list = []
 PETH_max_list = []
 
+
 # Loop over each subject (mouse)
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
     print("--------------")
@@ -148,7 +148,6 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         print(f"File not found: {fiberbehav_file}")
         continue
     
-
     fiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
     sr = pp.samplerate(fiberbehav_df)
     
@@ -157,14 +156,21 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         group_list.append(group)
         print(f'PETH {BOI} for {mouse}')
         
-        # Calculate PETH for the current mouse
-        PETH_mouse = bp.PETH(fiberbehav_df, BOI, 'onset', TIME_WINDOW, EVENT_TIME_THRESHOLD, maxboutsnumber=MAXBOUTSNUMBER)
-        
+        # Calculate mean PETH for the current mouse
+        PETH_mouse = bp.PETH(
+        fiberbehav_df, BOI, 'onset', TIME_WINDOW, EVENT_TIME_THRESHOLD,
+        maxboutsnumber=MAXBOUTSNUMBER
+        )
+        #print(f'PETH mouse : {PETH_mouse}, lenght = {len(PETH_mouse)}')
+        PETH_mouse_mean = np.mean(PETH_mouse, axis=0, keepdims=True)
+        #PETH_mouse_mean = gaussian_filter1d(PETH_mouse_mean, sigma=0.7)
+
+
         if PETH_array is None:
-            PETH_array = PETH_mouse
+            PETH_array = PETH_mouse_mean
             print('Initialized PETH_array successfully')
         else:
-            PETH_array = np.concatenate((PETH_array, PETH_mouse))  # Stack new data
+            PETH_array = np.concatenate((PETH_array, PETH_mouse_mean))  # Stack new data
         
         # Calculate mean and max dFF before and after the event (PETH)
         mean_before = np.mean(PETH_mouse[:TIME_WINDOW[0]])  # Mean before event
@@ -187,7 +193,7 @@ meanmaxPETH_df = pd.DataFrame({
 meanmaxPETH_df.to_excel(peth_path / f'{BOI}_{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETHmeanmax.xlsx')
 
 # Plot PETH for each group
-included_groups = ['CD', 'HFD']
+included_groups = ['Saline', 'MEC 20uM']
 for group in included_groups:
     # Filter PETH data for the current group
     group_indices = [i for i, g in enumerate(group_list) if g == group]
@@ -196,6 +202,7 @@ for group in included_groups:
     print(f"Group {group} PETH data size: {PETH_array_group.shape}")
 
     # Plot pooled PETH for the group
-    fig_PETHpooled = bp.plot_PETH_pooled(PETH_array_group, BOI, 'onset', TIME_WINDOW, exp, session, group)
+    fig_PETHpooled = bp.plot_PETH_pooled(PETH_array_group, BOI, 'onset', TIME_WINDOW, exp, group)
     fig_PETHpooled.savefig(peth_path / f'{group}_{BOI}_{TIME_WINDOW[1]}_PETH.pdf')
     fig_PETHpooled.savefig(peth_path / f'{group}_{BOI}_{TIME_WINDOW[1]}_PETH.png')
+# %%

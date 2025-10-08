@@ -43,7 +43,7 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'Reward_Hab'
+exp = 'Reward_Airpuffs'
 dual_color = False
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
@@ -266,8 +266,5 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             fig_dFF = gp.plot_fiberpho(filtered_dFFdata,exp,mouse,method)
             fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF.png')
             plt.close(fig_dFF) 
-
-        #except Exception as e:
-         #       print(f'Problem in processing mouse {mouse} : {e}')
 
 # %%

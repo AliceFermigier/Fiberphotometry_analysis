@@ -42,7 +42,7 @@ def hampel_filter(data, window_size, n_sigmas=5):
     # Return result in the same format as input
     return pd.Series(new_data, index=data.index) if is_series else new_data
 
-def highpass_filter(data_df, sr, cutoff=0.0001, order=1):
+def highpass_filter(data_df, sr, cutoff=0.01, order=1):
     """
     High-pass filters the signal to remove slow trends.
 
@@ -74,7 +74,7 @@ def highpass_filter_with_padding(signal, sr, cutoff=0.01, order=3, pad_seconds=5
 
     return filtered[pad_len:-pad_len]
 
-def clean_signal(rawdata_df, crop=[10,-10], detrending=False, apply_hampel=True):
+def clean_signal(rawdata_df, crop=[0,-10], detrending=False, apply_hampel=True):
 
     time = rawdata_df['Time(s)'][crop[0]:crop[1]]
     detrended_405 = rawdata_df['405 Deinterleaved'][crop[0]:crop[1]]
