@@ -13,7 +13,8 @@ import numpy as np
 import os
 from pathlib import Path
 import matplotlib.pyplot as plt
-from dash import Dash, dcc, html, Input, Output, State
+from dash import Dash, dcc, html
+from dash.dependencies import Input, Output
 import plotly.express as px
 import importlib
 
@@ -57,110 +58,107 @@ THRESH_S = 6
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
+#capacitance threshold to extract licks
+THRESH_LICKS = 200
+
 exp = 'Reward_Airpuffs'
 list_BOI = ['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
-#create licks artifacts file if not existent
-artifact_licks_file = exp_path / 'artifacts_licks.csv' # File to store artifact timestamps
-nom.create_or_load_artifacts_file(artifact_licks_file, option='create_only')
+
 
 #%% 2.1 - Detect licks in capacitance data
 
-# ------------------ #
-mouse = '844'
-batch = 2
-filecode = f'{exp}_{mouse}'
-# ------------------ #
+# Load all mice data
+mouse_data = {}
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    licks_df = ld.load_mouse_data(mouse, batch, datapath_exp_dict)
+    plot_df = licks_df.groupby(licks_df.index // 10).mean()
+    mouse_data[f'{batch} - {mouse}'] = plot_df
 
-# ------------------ #
-# Create the Dash app
+# Create Dash app
 app = Dash(__name__)
-app.title = f"Lick Artifact Scorer - {mouse}"
+app.title = f"Licks Viewer - {exp}"
 
-# Load data relative to mouse
-licks_df = ld.load_mouse_data(mouse, batch, datapath_exp_dict)
-
-# Create initial figure
-plot_df = licks_df.groupby(licks_df.index // 10).mean()
-fig = px.line(plot_df, x='time(s)', y='capacitance')
-
-# ------------------ #
-# App layout
 app.layout = html.Div([
-    html.H4(f'{exp} {mouse}'),
-
-    dcc.Graph(
-        id='plot',
-        figure=fig,
-        config={'displayModeBar': True}
+    html.H3("Capacitance Traces"),
+    
+    # Dropdown to select mouse
+    dcc.Dropdown(
+        id='mouse-dropdown',
+        options=[{'label': name, 'value': name} for name in mouse_data.keys()],
+        value=list(mouse_data.keys())[0],  # default to first mouse
+        clearable=False
     ),
-
-    html.Div(id='artifact-message', style={'color': 'black', 'fontWeight': 'bold'}),
-
-    html.Button("Save Artifacts", id="save-button", n_clicks=0),
-
-    dcc.Store(id='artifact-storage', data=[]),  # Stores artifact intervals
-    dcc.Store(id='click-tracker', data=None)   # Track first/second click
+    
+    # Plot area
+    dcc.Graph(id='licks-plot')
 ])
 
-# ------------------ #
-# Callback to capture artifact intervals
 @app.callback(
-    [Output('artifact-storage', 'data'),
-     Output('artifact-message', 'children'),
-     Output('click-tracker', 'data')],
-    Input('plot', 'clickData'),
-    [State('artifact-storage', 'data'),
-     State('click-tracker', 'data')]
+    Output('licks-plot', 'figure'),
+    Input('mouse-dropdown', 'value')
 )
+def update_plot(selected_mouse):
+    df = mouse_data[selected_mouse]
+    fig = px.line(df, x='time(s)', y='capacitance',
+                  title=f'{selected_mouse} - Capacitance Trace')
+    fig.add_hline(
+        y=THRESH_LICKS,
+        line_dash="dash",
+        line_color="red",
+        annotation_text=f"Threshold = {THRESH_LICKS}",
+        annotation_position="top right"
+    )
+    fig.update_layout(
+        xaxis_title='Time (s)',
+        yaxis_title='Capacitance (a.u.)',
+        template='plotly_white',
+        showlegend=False
+    )
+    return fig
 
-def capture_artifact(click_data, artifact_intervals, click_state):
-    if click_data:
-        time_clicked = click_data['points'][0]['x']
-
-        if click_state is None:  # First click -> start of artifact
-            click_state = time_clicked
-            message = f'Artifact start marked at {time_clicked:.2f}s. Click end point.'
-        else:  # Second click -> end of artifact
-            start = min(click_state, time_clicked)
-            end = max(click_state, time_clicked)
-            artifact_intervals.append((start, end))
-            message = f'Artifact interval ({start:.2f}s, {end:.2f}s) saved. Click to start a new interval.'
-            click_state = None
-    else:
-        message = 'Click on the graph to mark the start of an artifact.'
-
-    return artifact_intervals, message, click_state
-
-# ------------------ #
-# Callback to save artifact intervals to a CSV
-@app.callback(
-    Output('save-button', 'children'),
-    Input('save-button', 'n_clicks'),
-    State('artifact-storage', 'data')
-)
-def save_artifacts_to_excel(n_clicks, artifact_intervals):
-    """
-    Saves the artifact intervals to an Excel file when the save button is pressed.
-    Each row in the Excel file contains the start and end times of each artifact.
-    """
-    if n_clicks > 0:
-        if len(artifact_intervals) > 0:
-            print(f"\n--- Processing filecode: {filecode} ---")
-            print(f"Artifacts to store: {artifact_intervals}")
-            pp.update_artifacts_file(artifact_licks_file, filecode, artifact_intervals)
-            print(f"Saved {len(artifact_intervals)} artifact intervals to {artifact_licks_file}")
-            return f'Saved {len(artifact_intervals)} Artifacts'
-        else:
-            print("No artifacts to save.")
-            return "No artifacts to save"
-
-    return "Save Artifacts"
-
-# Run the server
 if __name__ == '__main__':
     app.run(debug=False, use_reloader=False)
+
+#%% 2.1 - Detect licks in capacitance data
+
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    print("-----------------------------") 
+    print(f'BATCH : {batch}, MOUSE : {mouse}')
+    print("-----------------------------")
+    
+    data_path_exp = datapath_exp_dict[batch]
+    licks_file = data_path_exp / f'licks_from_cp_{mouse}.csv' # File to store licks
+
+    # ------------------ #
+    # Create the Dash app
+    app = Dash(__name__)
+    app.title = f"Licks - {mouse}"
+
+    # Load data relative to mouse
+    licks_df = ld.load_mouse_data(mouse, batch, datapath_exp_dict)
+
+    # Create initial figure
+    plot_df = licks_df.groupby(licks_df.index // 10).mean()
+    fig = px.line(plot_df, x='time(s)', y='capacitance')
+    # here plot a line with the threshold at THRESH_LICKS = 200
+
+    # ------------------ #
+    # App layout
+    app.layout = html.Div([
+        html.H4(f'{exp} {mouse}'),
+
+        dcc.Graph(
+            id='plot',
+            figure=fig,
+            config={'displayModeBar': True}
+        ),
+    ])
+
+    # Run the server
+    if __name__ == '__main__':
+        app.run(debug=False, use_reloader=False)
 
 #%% 2.2 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
 print('###################')
