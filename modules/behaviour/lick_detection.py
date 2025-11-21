@@ -42,6 +42,8 @@ def load_mouse_data(mouse, batch, datapath_exp_dict):
 def extract_lick_bouts(licks_df, threshold):
     lick_bouts_df = pd.Dataframe(data = {"time(ms)":licks_df["time(ms)"],"licks":np.zeros(len(licks_df["time(ms)"]))})
 
+    return lick_bouts_df
+
 def plot_licks_and_threshold(licks_df, threshold):
 
     plt.plot(
