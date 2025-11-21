@@ -66,62 +66,7 @@ list_BOI = ['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
-
-#%% 2.1 - Detect licks in capacitance data
-
-# Load all mice data
-mouse_data = {}
-for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
-    licks_df = ld.load_mouse_data(mouse, batch, datapath_exp_dict)
-    plot_df = licks_df.groupby(licks_df.index // 10).mean()
-    mouse_data[f'{batch} - {mouse}'] = plot_df
-
-# Create Dash app
-app = Dash(__name__)
-app.title = f"Licks Viewer - {exp}"
-
-app.layout = html.Div([
-    html.H3("Capacitance Traces"),
-    
-    # Dropdown to select mouse
-    dcc.Dropdown(
-        id='mouse-dropdown',
-        options=[{'label': name, 'value': name} for name in mouse_data.keys()],
-        value=list(mouse_data.keys())[0],  # default to first mouse
-        clearable=False
-    ),
-    
-    # Plot area
-    dcc.Graph(id='licks-plot')
-])
-
-@app.callback(
-    Output('licks-plot', 'figure'),
-    Input('mouse-dropdown', 'value')
-)
-def update_plot(selected_mouse):
-    df = mouse_data[selected_mouse]
-    fig = px.line(df, x='time(s)', y='capacitance',
-                  title=f'{selected_mouse} - Capacitance Trace')
-    fig.add_hline(
-        y=THRESH_LICKS,
-        line_dash="dash",
-        line_color="red",
-        annotation_text=f"Threshold = {THRESH_LICKS}",
-        annotation_position="top right"
-    )
-    fig.update_layout(
-        xaxis_title='Time (s)',
-        yaxis_title='Capacitance (a.u.)',
-        template='plotly_white',
-        showlegend=False
-    )
-    return fig
-
-if __name__ == '__main__':
-    app.run(debug=False, use_reloader=False)
-
-#%% 2.1 - Detect licks in capacitance data
+#%% 2.1 - Detect licks in capacitance data then filter with deeplabcut data
 
 for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print("-----------------------------") 
@@ -129,36 +74,23 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print("-----------------------------")
     
     data_path_exp = datapath_exp_dict[batch]
+    behav_path_exp = data_path_exp / 'Behaviour'
+    dlc_path = behav_path_exp / f'{mouse}DLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv' #tobechangedmaybe
     licks_file = data_path_exp / f'licks_from_cp_{mouse}.csv' # File to store licks
 
-    # ------------------ #
-    # Create the Dash app
-    app = Dash(__name__)
-    app.title = f"Licks - {mouse}"
+    cp_threshold = 1000
+    distance_threshold = 10 #in pixels
 
-    # Load data relative to mouse
-    licks_df = ld.load_mouse_data(mouse, batch, datapath_exp_dict)
+    #Indicate the emplacement of the lickport and the two airpuff ports
 
-    # Create initial figure
-    plot_df = licks_df.groupby(licks_df.index // 10).mean()
-    fig = px.line(plot_df, x='time(s)', y='capacitance')
-    # here plot a line with the threshold at THRESH_LICKS = 200
 
-    # ------------------ #
-    # App layout
-    app.layout = html.Div([
-        html.H4(f'{exp} {mouse}'),
+    #Detect licks in capacitance data
 
-        dcc.Graph(
-            id='plot',
-            figure=fig,
-            config={'displayModeBar': True}
-        ),
-    ])
 
-    # Run the server
-    if __name__ == '__main__':
-        app.run(debug=False, use_reloader=False)
+    #Filter with deeplabcut data
+
+
+
 
 #%% 2.2 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
 print('###################')

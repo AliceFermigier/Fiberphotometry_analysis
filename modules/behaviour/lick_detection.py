@@ -1,5 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
 def txt_to_df(capacitance_txt_path):
     # Load all columns
@@ -38,18 +39,34 @@ def load_mouse_data(mouse, batch, datapath_exp_dict):
     df = txt_to_df(capacitance_txt_path)
     return df
 
+def extract_lick_bouts(licks_df, threshold):
+    lick_bouts_df = pd.Dataframe(data = {"time(ms)":licks_df["time(ms)"],"licks":np.zeros(len(licks_df["time(ms)"]))})
+
 def plot_licks_and_threshold(licks_df, threshold):
 
-    plt.plot(licks_df["time(ms)"], licks_df["capacitance"], linestyle="-")
+    plt.plot(
+        licks_df["time(ms)"],
+        licks_df["capacitance"],
+        linestyle="-",
+        label="Capacitance"
+    )
+
+    # Add horizontal threshold line
+    plt.axhline(
+        y=threshold,
+        color="red",
+        linestyle="--",
+        linewidth=1.5,
+        label=f"Threshold = {threshold}"
+    )
+
     plt.xlabel("Time (ms)")
     plt.ylabel("Capacitance")
     plt.grid(True)
 
-    # Avoid duplicate labels in legend
+    # Clean legend (avoid duplicates)
     handles, labels = plt.gca().get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys())
 
     plt.show()
-
-    return
