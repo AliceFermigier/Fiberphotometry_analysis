@@ -48,7 +48,7 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 ############################
 automated_alignment = True
 arena_analysis = False
-dlc_data = False
+dlc_data = True
 boris = False
 
 #filter characteristics
@@ -85,9 +85,9 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         
         # Define paths for raw, behavioral, and fiberphotometry data
         rawdata_path = data_path_exp / f'{mouse}_0000.doric'
-        led_flashes_path = data_path_exp / f'{mouse}_fiber.csv'
+        led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
-        dlc_path = behav_path_exp / f'{mouse}DLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv'
+        dlc_path = behav_path_exp / f'{mouse}DLC_Resnet101_RewardBox_FiberMECNov12shuffle5_snapshot_090_filtered.csv'
         fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
         boris_path = behav_path_exp / f'behav_boris_{mouse}.csv' 
         
@@ -107,7 +107,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         if arena_analysis and dlc_data:
             try:
                 print('Get DLC data')
-                coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.99)
+                coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.95)
             except Exception as e:
                 print(f'[!] DLC file error for {mouse}: {e}')
 
@@ -172,7 +172,6 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         behav_df.to_csv(behav_path)
         print(f'Behaviour file exported to {behav_path}')
 
-        
         # Fiber photometry
         fiberpho = pd.read_csv(fiberpho_path)
         if CUT_FREQ is not None:

@@ -25,62 +25,7 @@ import modules.common.genplot as gp
 #DEFINED FUNCTIONS#
 ###################
 
-def timestamp_camera(rawdata_df) : #deprecated
-    """
-    Function to extract the timestamps where the camera starts and stops
-    --> Parameters
-        camera : pd dataframe, camera I/O with sample rate = 12kSps
-    --> Returns
-        (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
-    """
-    ind_list = np.where(rawdata_df['DI/O-3'] == 1)[0].tolist()
-    (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
-    return (gp.truncate(rawdata_df.at[ind_start, 'Time(s)'], 1),
-            gp.truncate(rawdata_df.at[ind_stop, 'Time(s)'], 1))
-
-def load_camera_df_doric(file_path, plot=False):
-    with h5py.File(file_path, 'r') as f:
-        base = "DataAcquisition/FPConsole/Signals/Series0001/"
-        dio_path = base + "DigitalIO/DIO03"
-        time_path = base + "DigitalIO/Time"
-
-        if dio_path not in f or time_path not in f:
-            print(f"Missing DIO03 or Time path in {file_path}")
-            return pd.DataFrame(columns=['Time(s)', 'Camera flashes'])
-
-        camera = f[dio_path][:]
-        time = f[time_path][:]
-
-    if len(camera) == 0 or len(time) == 0:
-        print(f"Empty camera or time array in {file_path}")
-        return pd.DataFrame(columns=['Time(s)', 'Camera flashes'])
-
-    camera_df = pd.DataFrame({
-        'Time(s)': time,
-        'Camera flashes': camera,
-    })
-
-    if plot:
-        plt.figure(figsize=(12, 4))
-        plt.plot(camera_df['Time(s)'], camera_df['Camera flashes'], drawstyle='steps-post')
-        plt.title(f'Camera Flashes - {file_path.split("/")[-1]}')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Flash Signal')
-        plt.tight_layout()
-        plt.grid(True)
-        plt.show()
-
-    return camera_df
-
-def get_camera_flashes_from_csv(file_path):
-    time_df = pd.read_csv(file_path, header=None)
-    timestamps = time_df.loc[time_df[1]==0][0].values
-    return pd.DataFrame({'Time(s)': timestamps})
-
-def get_led_flashes_from_csv(file_path):
-    timestamps_df = pd.read_csv(file_path, header=None)
-    timestamps = timestamps_df[0].values
-    return pd.DataFrame({'Time(s)': timestamps})
+## For BONSAI setup
 
 def get_timestamps_from_bonsai_csv(file_path):
     df = pd.read_csv(file_path)
@@ -89,23 +34,6 @@ def get_timestamps_from_bonsai_csv(file_path):
     # Filter rows where Event == True
     output_df = df[df['Event'] == True][['Time(s)']].reset_index(drop=True)
     return output_df
-
-def align_fiber_with_led_flashes(deinterleaved_df, led_df):
-    time_led = led_df['Time(s)'][::2]
-    time_fiber = deinterleaved_df['Time(s)']
-
-    min_len = min(len(time_led), len(time_fiber))
-
-    if len(time_led) != len(time_fiber):
-        warnings.warn(f'Mismatched lengths: LED = {len(time_led)}, Fiber = {len(time_fiber)}. Truncating to {min_len} samples.')
-
-    aligned_df = pd.DataFrame({
-        'Time(s)': time_led.iloc[:min_len].values,
-        '405 Deinterleaved': deinterleaved_df['405 Deinterleaved'].iloc[:min_len].values,
-        '470 Deinterleaved': deinterleaved_df['465 Deinterleaved'].iloc[:min_len].values
-    })
-
-    return aligned_df
 
 def time_gap(deinterleaved_df, led_df):
     time_led = led_df['Time(s)']
@@ -156,6 +84,106 @@ def align_behav_timestamps(fiberpho_df, behaviour_timestamps_df, behavior_col, t
 
     return fiberpho_df
 
+def align_camera_flashes(coordinates_df, frame_times_df):
+    """
+    Adds a real timestamp to each DLC / Boris frame.
+    
+    coordinates_df: DLC / Boris coordinates after filtering
+    frame_times_df: df of times for each camera frame (len = n_frames)
+    """
+
+    frame_times = frame_times_df.values
+    n_dlc = len(coordinates_df)
+    n_cam = len(frame_times)
+
+    if n_dlc != n_cam:
+        print(f"[!] Truncating: DLC has {n_dlc}, camera flashes {n_cam}")
+        min_len = min(n_dlc, n_cam)
+        # truncate both so they match
+        coordinates_df = coordinates_df.iloc[:min_len].copy()
+        frame_times = frame_times[:min_len]
+
+    coordinates_df["Time(s)"] = frame_times
+    return coordinates_df
+
+## For Julien's setup
+
+def get_camera_flashes_from_csv(file_path):
+    time_df = pd.read_csv(file_path, header=None)
+    timestamps = time_df.loc[time_df[1]==0][0].values
+    return pd.DataFrame({'Time(s)': timestamps})
+
+def get_led_flashes_from_csv(file_path):
+    timestamps_df = pd.read_csv(file_path, header=None)
+    timestamps = timestamps_df[0].values
+    return pd.DataFrame({'Time(s)': timestamps})
+
+def align_fiber_with_led_flashes(deinterleaved_df, led_df):
+    time_led = led_df['Time(s)'][::2]
+    time_fiber = deinterleaved_df['Time(s)']
+
+    min_len = min(len(time_led), len(time_fiber))
+
+    if len(time_led) != len(time_fiber):
+        warnings.warn(f'Mismatched lengths: LED = {len(time_led)}, Fiber = {len(time_fiber)}. Truncating to {min_len} samples.')
+
+    aligned_df = pd.DataFrame({
+        'Time(s)': time_led.iloc[:min_len].values,
+        '405 Deinterleaved': deinterleaved_df['405 Deinterleaved'].iloc[:min_len].values,
+        '470 Deinterleaved': deinterleaved_df['465 Deinterleaved'].iloc[:min_len].values
+    })
+
+    return aligned_df
+
+## For original setup (deprecated)
+
+def timestamp_camera(rawdata_df) : #deprecated
+    """
+    Function to extract the timestamps where the camera starts and stops
+    --> Parameters
+        camera : pd dataframe, camera I/O with sample rate = 12kSps
+    --> Returns
+        (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
+    """
+    ind_list = np.where(rawdata_df['DI/O-3'] == 1)[0].tolist()
+    (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
+    return (gp.truncate(rawdata_df.at[ind_start, 'Time(s)'], 1),
+            gp.truncate(rawdata_df.at[ind_stop, 'Time(s)'], 1))
+
+def load_camera_df_doric(file_path, plot=False):
+    with h5py.File(file_path, 'r') as f:
+        base = "DataAcquisition/FPConsole/Signals/Series0001/"
+        dio_path = base + "DigitalIO/DIO03"
+        time_path = base + "DigitalIO/Time"
+
+        if dio_path not in f or time_path not in f:
+            print(f"Missing DIO03 or Time path in {file_path}")
+            return pd.DataFrame(columns=['Time(s)', 'Camera flashes'])
+
+        camera = f[dio_path][:]
+        time = f[time_path][:]
+
+    if len(camera) == 0 or len(time) == 0:
+        print(f"Empty camera or time array in {file_path}")
+        return pd.DataFrame(columns=['Time(s)', 'Camera flashes'])
+
+    camera_df = pd.DataFrame({
+        'Time(s)': time,
+        'Camera flashes': camera,
+    })
+
+    if plot:
+        plt.figure(figsize=(12, 4))
+        plt.plot(camera_df['Time(s)'], camera_df['Camera flashes'], drawstyle='steps-post')
+        plt.title(f'Camera Flashes - {file_path.split("/")[-1]}')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Flash Signal')
+        plt.tight_layout()
+        plt.grid(True)
+        plt.show()
+
+    return camera_df
+
 def get_camera_flashes(file_path):
     camera_df = load_camera_df_doric(file_path)
     if camera_df.empty:
@@ -177,15 +205,3 @@ def get_camera_flashes(file_path):
 
     return pd.DataFrame({'Time(s)': timestamps})
 
-def align_camera_flashes(behav_df, camera_df):
-    if camera_df.empty or 'Time(s)' not in camera_df:
-        raise ValueError("camera_df is empty or invalid — cannot align.")
-
-    if len(behav_df) == len(camera_df['Time(s)']):
-        time_df = camera_df
-    else:
-        start, stop = camera_df['Time(s)'].iloc[0], camera_df['Time(s)'].iloc[-1]
-        time = np.linspace(start, stop, len(behav_df))
-        time_df = pd.DataFrame({'Time(s)': time})
-
-    return pd.concat([time_df, behav_df], axis=1)

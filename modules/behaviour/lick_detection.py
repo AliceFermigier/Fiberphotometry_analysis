@@ -72,3 +72,22 @@ def plot_licks_and_threshold(licks_df, threshold):
     plt.legend(by_label.values(), by_label.keys())
 
     plt.show()
+
+def compute_distance(df, port, nose_x='nose_x', nose_y='nose_y'):
+    px = port["x"]
+    py = port["y"]
+    return np.sqrt((df[nose_x] - px)**2 + (df[nose_y] - py)**2)
+
+def filter_licking(df, ports, lick_col='Licks', lick_radius=20):
+    dist = compute_distance(df, ports["lick_port"])
+    true_lick = (df[lick_col] == 1) & (dist < lick_radius)
+    df["Licks_filtered"] = true_lick.astype(int)
+    return df
+
+def detect_airpuff_entry(df, ports, radius=30):
+    distL = compute_distance(df, ports["airpuff_left"])
+    distR = compute_distance(df, ports["airpuff_right"])
+
+    df["Nose_in_any_airport"]   = ((distL < radius) | (distR < radius)).astype(int)
+
+    return df

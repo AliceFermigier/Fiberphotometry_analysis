@@ -13,10 +13,8 @@ import numpy as np
 import os
 from pathlib import Path
 import matplotlib.pyplot as plt
-from dash import Dash, dcc, html
-from dash.dependencies import Input, Output
-import plotly.express as px
 import importlib
+import json
 
 #import functions
 import modules.common.preprocess as pp
@@ -35,6 +33,8 @@ import modules.behaviour.mouse_position as mp
 importlib.reload(mp)
 import modules.behaviour.epm as epm
 importlib.reload(epm)
+import modules.behaviour.get_lick_and_airpuff_ports_coordinates as getlap
+importlib.reload(getlap)
 import modules.behaviour.camera_processing as cp
 importlib.reload(cp)
 import modules.common.clean_signal as cs
@@ -47,7 +47,7 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
 
-dlc_data = False
+dlc_data = True
 
 #filter characteristics
 ORDER = 4
@@ -66,7 +66,7 @@ list_BOI = ['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
-#%% 2.1 - Detect licks in capacitance data then filter with deeplabcut data
+#%% 2.1 - Get coordinates of lickport and airpuff ports
 
 for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print("-----------------------------") 
@@ -75,22 +75,16 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     
     data_path_exp = datapath_exp_dict[batch]
     behav_path_exp = data_path_exp / 'Behaviour'
-    dlc_path = behav_path_exp / f'{mouse}DLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv' #tobechangedmaybe
-    licks_file = data_path_exp / f'licks_from_cp_{mouse}.csv' # File to store licks
-
-    cp_threshold = 1000
-    distance_threshold = 10 #in pixels
+    video_path = data_path_exp / f"{mouse}.avi"
+    output_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
 
     #Indicate the emplacement of the lickport and the two airpuff ports
-
-
-    #Detect licks in capacitance data
-
-
-    #Filter with deeplabcut data
-
-
-
+    if output_json.isfile():
+        print('Ports json already exists')
+    else:
+        print('Get ports coordinates')
+        ports = getlap.define_ports(video_path)
+        getlap.save_ports_to_json(ports, output_json)
 
 #%% 2.2 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
 print('###################')
@@ -118,9 +112,10 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         airpuff_path = data_path_exp / f'airpuffs_{mouse}.csv'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
         fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
-        dlc_path = behav_path_exp / f'{mouse}DLC_resnet50_FiberMEC_EPMMay14shuffle1_100000_filtered.csv'
+        dlc_path = behav_path_exp / f'{mouse}DLC_resnet50_RewardBoxNov18shuffle1_100000.csv'
+        output_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
 
-        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path)
+        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
         deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
         time_gap = cp.time_gap(deinterleaved_df, led_df)
 
@@ -136,16 +131,32 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             airpuff_df = cp.correct_behav_timestamps(airpuff_df, time_gap)
             fiberbehav_df = cp.align_behav_timestamps(fiberbehav_df, airpuff_df, "Airpuffs")
 
-        fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
-
         # DLC data
+        frame_times_df = cp.get_timestamps_from_bonsai_csv(camera_flashes_path)
+        frame_times_df = cp.correct_behav_timestamps(frame_times_df, time_gap)
         coordinates_df = None
         if dlc_data:
             try:
                 print('Get DLC data')
-                coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.99)
+                coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.95)
+                coordinates_df = cp.align_camera_flashes(coordinates_df, frame_times_df)
             except Exception as e:
                 print(f'[!] DLC file error for {mouse}: {e}')
+
+        # Align DLC and fiber data
+        print('Aligning fiberphotometry and behaviour data')
+        fiberbehav_df = bp.align_dlc_to_fiber(fiberbehav_df, coordinates_df)
+
+        # Clean licking data
+        print('Cleaning licking data')
+        ports = json.load(open(output_json, "r"))
+        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, lick_col="Licks", lick_radius=20)
+
+        # Scoring nose-in-airport time
+        fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, radius=40)
+
+        # Post-process data (fuse behaviours that are too close and delete the ones that are too short)
+        fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
 
         # Save outputs
         fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
