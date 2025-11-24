@@ -43,7 +43,8 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'Screening'
+batches = [2]
+exp = 'Reward_Airpuffs'
 dual_color = False
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)

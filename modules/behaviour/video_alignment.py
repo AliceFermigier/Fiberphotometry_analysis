@@ -94,7 +94,7 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     # Plot fiber signal
     axs[0].plot(t, window_df['Denoised dFF'], color='black')
     axs[0].set_ylabel('465 dFF')
-    axs[0].set_ylim(max(-0.3, fiberbehav_df['Denoised dFF'].min()), min(0.8, fiberbehav_df['Denoised dFF'].max()))
+    axs[0].set_ylim(max(-1, fiberbehav_df['Denoised dFF'].min()), min(3, fiberbehav_df['Denoised dFF'].max()))
     axs[0].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
 
     # Optional: plot 560nm dFF
@@ -165,7 +165,7 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     gc.collect()
     return img, size
 
-def get_video_time(video_path, file_path, csv_path = None, automated_alignment=False):
+def get_video_time(video_path, file_path, csv_path = None, automated_alignment=False, bonsai_setup=True, time_gap=None):
     '''
     Get timestamps of video frames, in seconds
     '''
@@ -183,22 +183,26 @@ def get_video_time(video_path, file_path, csv_path = None, automated_alignment=F
     print(f'{n_frames} frames to process')
     cap.release()
 
-    if not automated_alignment:
-        camera_df = cp.get_camera_flashes(file_path)
+    if bonsai_setup :
+        camera_df = cp.get_timestamps_from_bonsai_csv(csv_path)
+        camera_df = cp.correct_behav_timestamps(camera_df, time_gap)
         camera_times = camera_df['Time(s)'].values
-        # camera_times is expected to be a list or array of camera flash timestamps (length == n_frames)
-        # If not the same length, interpolate linearly
-        if len(camera_times) != n_frames:
-            video_time = np.linspace(camera_times[0], camera_times[-1], n_frames)
-        else:
-            video_time = np.array(camera_times)
-    else:
+
+    elif automated_alignment:
         camera_df = cp.get_camera_flashes_from_csv(csv_path)
         camera_times = camera_df['Time(s)'].values
-        if len(camera_times) != n_frames:
-            video_time = np.linspace(camera_times[0], camera_times[-1], n_frames)
-        else:
-            video_time = np.array(camera_times)
+
+    else :
+        camera_df = cp.get_camera_flashes(file_path)
+        camera_times = camera_df['Time(s)'].values
+
+    # camera_times is expected to be a list or array of camera flash timestamps (length == n_frames)
+    # If not the same length, interpolate linearly
+    if len(camera_times) != n_frames:
+        video_time = np.linspace(camera_times[0], camera_times[-1], n_frames)
+    else:
+        video_time = np.array(camera_times)
+
     return video_time
 
 def align_fiber_to_video(fiber_df, video_time):
@@ -387,6 +391,103 @@ def make_combined_video(video_path,
     out.release()
     print(f"✅ Combined video saved to: {output_path}")
 
+def export_behavior_videos(
+    video_path,
+    fiberbehav_df,
+    fiber_indices,
+    behavior_col,
+    output_dir,
+    window=10,
+    pre_time=5,
+    post_time=5,
+    verbose=True
+):
+    """
+    Export short behavioral clips centered on each behavioral event.
+
+    Parameters
+    ----------
+    video_path : str
+        Path to the raw mouse video (avi/mp4).
+
+    fiberbehav_df : pd.DataFrame
+        Fiber + behavior dataframe with 'Time(s)'.
+
+    fiber_indices : ndarray
+        Output of align_fiber_to_video().
+
+    behavior_col : str
+        Column name of the behavior (binary 0/1).
+
+    output_dir : Path or str
+        Directory where clips will be saved.
+
+    window : int
+        Window size (passed to create_overlay_frame).
+
+    pre_time : float
+        Time before behavior onset (seconds).
+
+    post_time : float
+        Time after behavior onset (seconds).
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Sampling rate
+    sr = pp.samplerate(fiberbehav_df)
+
+    # Detect event onsets
+    behavior = fiberbehav_df[behavior_col].values
+    onsets = np.where((behavior[:-1] == 0) & (behavior[1:] == 1))[0] + 1
+
+    if verbose:
+        print(f"Found {len(onsets)} {behavior_col} onsets.")
+
+    fiber_time = fiberbehav_df["Time(s)"].values
+    video_fps = cv2.VideoCapture(video_path).get(cv2.CAP_PROP_FPS)
+
+    for i, onset_idx in enumerate(onsets):
+        onset_time = fiber_time[onset_idx]
+
+        # Define clip time window
+        t_start = onset_time - pre_time
+        t_end   = onset_time + post_time
+
+        # Convert to video frames
+        frame_start = np.searchsorted(fiber_time, t_start)
+        frame_end   = np.searchsorted(fiber_time, t_end)
+
+        # Map to video frames via fiber_indices
+        video_start = np.searchsorted(fiber_indices, frame_start)
+        video_end   = np.searchsorted(fiber_indices, frame_end)
+
+        # Make sure valid
+        if video_end <= video_start:
+            print(f"⚠️ Skipping bout {i}: invalid frame range")
+            continue
+
+        # Build output filename
+        clip_path = Path(output_dir) / f"{behavior_col}_bout_{i+1}.mp4"
+
+        if verbose:
+            print(f"➡️ Exporting bout {i+1} → {clip_path.name} "
+                  f"({video_end - video_start} frames)")
+
+        # Call your existing video generator
+        make_combined_video(
+            video_path=video_path,
+            fiberbehav_df=fiberbehav_df,
+            output_path=str(clip_path),
+            fiber_indices=fiber_indices,
+            window=window,
+            start_frame=int(video_start),
+            end_frame=int(video_end),
+            fast=True,   # recommend fast mode for many clips
+            verbose=False
+        )
+
+    print("Done exporting all behavioral bout videos.")
+
 def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path, delete_temp=False):
     """
     Concatenate multiple video chunks into a single final video using ffmpeg.
@@ -434,33 +535,58 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
             part.unlink()
 
 #%%
-mouse = '768'
-exp='Social_Interaction'
-data_path_exp='20250602_SocialInteraction'
-video_name = f'{mouse}.avi'
 
 if __name__ == "__main__":
-    exp_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Data') / f'{data_path_exp}'
-    analysis_path = Path(r'E:\FiberPhotometry\202504_OptoFluidACh\Analysis') / f'{exp}' / 'length0_interbout0_o4fNone'
-    video_path = exp_path / 'Videos' / f'{video_name}'
-    raw_file_path = exp_path / f'{mouse}.doric'
-    fiberbehav_df = pd.read_csv(analysis_path / f'1_{mouse}_fiberbehavnotderived.csv')
-    output_path = exp_path / 'Videos' / f'{video_name[:-4]}_combined'
-    camera_csv_path = exp_path / '768_camera.csv'
 
-    video_time = get_video_time(video_path,
-                                raw_file_path,
-                                csv_path=camera_csv_path,
-                                automated_alignment=True)
+    for mouse in ['822','844','827','828','829']:
+        print(f"{mouse}")
+        exp='Reward_Airpuffs'
+        data_path_exp='20251003_FiberMEC_RewardAirpuff'
+        video_name = f'{mouse}.avi'
 
-    # Drop frames with no corresponding fiber signal
-    fiber_start_time = fiberbehav_df['Time(s)'].iloc[0]
-    valid_frame_indices = np.where(video_time >= fiber_start_time)[0]
-    video_time_trimmed = video_time[valid_frame_indices]
+        exp_path = Path(r'E:\202510_FiberMEC\Data') / f'{data_path_exp}'
+        pp_path = exp_path / 'Preprocessing'
+        analysis_path = Path(r'E:\202510_FiberMEC\Analysis') / f'{exp}' / 'length0_interbout2_o4fNone'
+        video_path = exp_path / f'{video_name}'
+        raw_file_path = exp_path / f'{mouse}_0000.doric'
+        deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
+        fiberbehav_df = pd.read_csv(analysis_path / f'2_{mouse}_fiberbehavnotderived.csv')
+        output_path = exp_path / 'Videos' / f'{video_name[:-4]}_combined'
+        camera_csv_path = exp_path / f'camera_flashes_{mouse}.csv'
+        led_flashes_path = exp_path / f'miniscope_sync_{mouse}.csv'
 
-    # Align fiber data to trimmed video timestamps
-    fiber_indices = align_fiber_to_video(fiberbehav_df, video_time_trimmed)
+        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
+        deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+        time_gap = cp.time_gap(deinterleaved_df, led_df)
 
+        video_time = get_video_time(video_path,
+                                    raw_file_path,
+                                    csv_path=camera_csv_path,
+                                    automated_alignment=False, 
+                                    bonsai_setup=True,
+                                    time_gap=time_gap)
+        
+        # Drop frames with no corresponding fiber signal
+        fiber_start_time = fiberbehav_df['Time(s)'].iloc[0]
+        valid_frame_indices = np.where(video_time >= fiber_start_time)[0]
+        video_time_trimmed = video_time[valid_frame_indices]
+
+        # Align fiber data to trimmed video timestamps
+        fiber_indices = align_fiber_to_video(fiberbehav_df, video_time_trimmed)
+
+        export_behavior_videos(
+            video_path,
+            fiberbehav_df,
+            fiber_indices,
+            behavior_col="Airpuffs",
+            output_dir=Path(f"./bout_videos/{mouse}/airpuffs/"),
+            window=10,
+            pre_time=5,
+            post_time=5
+        )
+
+
+'''
     chunk_size = int(30 * 30)  # 30 seconds * 30 FPS
     total_frames = len(video_time_trimmed)
     test = True
@@ -511,4 +637,5 @@ if __name__ == "__main__":
         output_path = video_parts_dir / f"{mouse}_combined_full.mp4"
 
         concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=True)
+'''
 # %%

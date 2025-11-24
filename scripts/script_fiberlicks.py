@@ -13,6 +13,8 @@ import numpy as np
 import os
 from pathlib import Path
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use("Qt5Agg")
 import importlib
 import json
 
@@ -46,23 +48,19 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-
-dlc_data = True
-
+batches = [2]
 #filter characteristics
 ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 6
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-#capacitance threshold to extract licks
-THRESH_LICKS = 200
-
 exp = 'Reward_Airpuffs'
-list_BOI = ['Licks', 'Airpuffs']
+list_BOI = ['Licks', 'Licks_filtered', 'Airpuffs']
+#['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -79,7 +77,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     output_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
 
     #Indicate the emplacement of the lickport and the two airpuff ports
-    if output_json.isfile():
+    if output_json.is_file():
         print('Ports json already exists')
     else:
         print('Get ports coordinates')
@@ -90,6 +88,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 print('###################')
 print(f'EXPERIMENT : {exp}')
 print('###################')
+
+dlc_data = True
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
@@ -150,7 +150,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         # Clean licking data
         print('Cleaning licking data')
         ports = json.load(open(output_json, "r"))
-        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, lick_col="Licks", lick_radius=20)
+        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, lick_col="Licks", lick_radius=30)
 
         # Scoring nose-in-airport time
         fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, radius=40)
@@ -165,7 +165,9 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
         dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
         print(f'n_licks {mouse} : {len(np.where(dfiberbehav_df["Licks"]==1)[0])}')
-        print(f'n_airpuffs {mouse} : {len(np.where(dfiberbehav_df["Airpuffs"]==1)[0])}')
+        print(f'n_licks_filtered {mouse} : {len(np.where(dfiberbehav_df["Licks_filtered"]==1)[0])}')
+        if airpuff_path.exists():
+            print(f'n_airpuffs {mouse} : {len(np.where(dfiberbehav_df["Airpuffs"]==1)[0])}')
         dfiberbehav_df.to_csv(fiberbehav_path, index=False)
 
         # Plotting

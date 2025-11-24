@@ -34,9 +34,27 @@ def correct_time_behav(fiberpho_raw, behav_df):
 
     return behav_df
 
+def align_dlc_to_fiber(fiberpho_df, dlc_df, time_col="Time(s)"):
+    """
+    Interpolates DLC (x,y) coordinates onto the fiber photometry time axis.
+    """
+    fp_times = fiberpho_df[time_col].values
+    dlc_times = dlc_df[time_col].values
+    
+    aligned = fiberpho_df.copy()
+
+    # For each DLC coordinate column
+    for col in dlc_df.columns:
+        if col in ["Time(s)"]:
+            continue  # skip timestamp
+        series = pd.Series(dlc_df[col].values, index=dlc_times)
+        aligned[col] = np.interp(fp_times, dlc_times, series)
+    
+    return aligned
+
 def align_behav(behav_df, fiberpho, list_BOI):
     """
-    Aligns fiber photometry data with behavioral data from Boris on a time vector.
+    Aligns fiber photometry data with behavioral data from Boris or DLC on a time vector.
     """
 
     [start,stop]=[behav_df['Time(s)'].values[0],  behav_df['Time(s)'].values[-1]]
@@ -60,66 +78,48 @@ def align_behav(behav_df, fiberpho, list_BOI):
     
     return fiberpho
 
-def behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
-    """
-    Processes behavioral events in the fiber photometry dataframe.
+def behav_process(df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
+    sr = pp.samplerate(df)
 
-    Parameters
-    ----------
-    fiberbehav_df : pd.DataFrame
-        Dataframe containing behavioral event columns (binary 0s and 1s) alongside fiber photometry data.
-    list_BOI : list of str
-        List of behavior columns (behaviors of interest, BOIs) to process.
-    THRESH_S : float
-        Maximum allowed time (in seconds) between two consecutive exploration events 
-        to consider them as part of the same event.
-    EVENT_TIME_THRESHOLD : float
-        Minimum required duration (in seconds) for an event to be valid. Shorter events are removed.
-
-    Returns
-    -------
-    pd.DataFrame
-        The modified dataframe with updated behavioral event columns.
-    """
-    
-    # Input validation
-    if not all(boi in fiberbehav_df.columns for boi in list_BOI):
-        missing_cols = [boi for boi in list_BOI if boi not in fiberbehav_df.columns]
-        raise ValueError(f"The following behaviors of interest (BOI) are not in the DataFrame: {missing_cols}")
-
-    sr = pp.samplerate(fiberbehav_df)  # Round sampling rate to ensure it is an integer
-    
     for BOI in list_BOI:
-        # Ensure values are only 0 or 1
-        fiberbehav_df[BOI] = fiberbehav_df[BOI].round()
+        x = df[BOI].round().values.astype(int)
 
-        # 1. Fuse exploration events that are too close
-        previous_state = 0
-        consecutive_count = 0
-        for index, current_state in zip(fiberbehav_df.index, fiberbehav_df[BOI]):
-            if current_state == previous_state == 0:
-                consecutive_count += 1
-            elif current_state != previous_state and current_state == 0:
-                consecutive_count = 1
-            elif current_state != previous_state and current_state == 1:
-                if 1 < consecutive_count <= THRESH_S * sr:  # Fuse if gap is small
-                    fiberbehav_df.loc[index - consecutive_count:index - 1, BOI] = 1
-            previous_state = current_state
-        
-        # 2. Remove short exploration events
-        previous_state = 0
-        consecutive_count = 0
-        for index, current_state in zip(fiberbehav_df.index, fiberbehav_df[BOI]):
-            if current_state == previous_state == 1:
-                consecutive_count += 1
-            elif current_state != previous_state and current_state == 1:
-                consecutive_count = 1
-            elif current_state != previous_state and current_state == 0:
-                if 1 < consecutive_count <= EVENT_TIME_THRESHOLD * sr:  # Remove if duration is too short
-                    fiberbehav_df.loc[index - consecutive_count:index - 1, BOI] = 0
-            previous_state = current_state
+        # --- 1. Detect starts and ends of bouts ---
+        diff = np.diff(np.r_[0, x, 0])
+        starts = np.where(diff == 1)[0]
+        ends   = np.where(diff == -1)[0]
 
-    return fiberbehav_df
+        bouts = list(zip(starts, ends))
+
+        # --- 2. Merge bouts separated by < THRESH_S seconds ---
+        merged = []
+        prev_start, prev_end = bouts[0]
+
+        for start, end in bouts[1:]:
+            gap = (start - prev_end) / sr
+            if gap <= THRESH_S:
+                # merge with previous
+                prev_end = end
+            else:
+                merged.append((prev_start, prev_end))
+                prev_start, prev_end = start, end
+
+        merged.append((prev_start, prev_end))
+
+        # --- 3. Remove short bouts ---
+        cleaned = [
+            (s, e) for (s, e) in merged 
+            if (e - s) / sr >= EVENT_TIME_THRESHOLD
+        ]
+
+        # --- 4. Rewrite the BOI column ---
+        new_x = np.zeros_like(x)
+        for s, e in cleaned:
+            new_x[s:e] = 1
+
+        df[BOI] = new_x
+
+    return df
 
 def derive(fiberbehav_df, list_BOI):
     """
@@ -196,17 +196,14 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     
     for behavior in list_BOI:
         if behavior in behavprocesssnip_df.columns:
-            if behavior not in ['Licks','Airpuffs']:
-                color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
-                highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
-                if has_speed and has_560:
-                    highlight_behavior_areas(ax2, behavprocesssnip_df, behavior, color, alpha)
+            color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
+            highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
+            if has_speed and has_560:
+                highlight_behavior_areas(ax2, behavprocesssnip_df, behavior, color, alpha)
 
     # Add event lines
     for event, color, label in [('Gate opens', 'lightsteelblue', 'Gate opens'),
-                                ('Entry in arena', 'slategrey', 'Entry in arena'),
-                                ('Licks', 'blue', 'Lick'),
-                                ('Airpuffs', 'violet', 'Airpuff')]:
+                                ('Entry in arena', 'slategrey', 'Entry in arena')]:
         if event in list_BOI and event in behavprocesssnip_df.columns:
             event_indices = np.where(behavprocess_df[event] == 1)[0]
             if len(event_indices) > 0:

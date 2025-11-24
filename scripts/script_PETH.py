@@ -32,13 +32,14 @@ importlib.reload(cp)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
 
+#%%
 from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batches
 
 #filter characteristics
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 6
+THRESH_S = 1
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -46,6 +47,7 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = True
+MAXBOUTSNUMBER = 30
 if baseline:
     tag = "windowedbaseline"
 else:
@@ -84,13 +86,13 @@ for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.i
                 continue
 
             # List all behaviors of interest (BOI) by excluding specific behaviors
-            behaviors_of_interest = ['Airpuffs']
+            behaviors_of_interest = ['Licks_filtered','Airpuffs']
             
             for behavior in behaviors_of_interest:
                 for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
                     try:
                         # Generate the PETH data for the current behavior, event, and time window
-                        peth_data = bp.PETH(dfiberbehav_df, behavior, event, time_window, EVENT_TIME_THRESHOLD, baselinewindow = baseline, maxboutsnumber=14)
+                        peth_data = bp.PETH(dfiberbehav_df, behavior, event, time_window, EVENT_TIME_THRESHOLD, baselinewindow = baseline, maxboutsnumber=MAXBOUTSNUMBER)
                         
                         # Create a DataFrame from the PETH data
                         sr = round(pp.samplerate(dfiberbehav_df))
@@ -117,7 +119,7 @@ for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.i
 # Parameters
 BOI = 'Airpuffs'
 TIME_WINDOW = [1, 3]  # In seconds
-MAXBOUTSNUMBER = 14
+MAXBOUTSNUMBER = 40
 # ----------------------------- #
 
 print('##########################################')

@@ -122,5 +122,17 @@
     "Head dipping": [
         "red",
         0.3
+    ],
+    "Licks": [
+        "blue",
+        0.3
+    ],
+    "Licks_filtered": [
+        "violet",
+        0.6
+    ],
+    "Airpuffs": [
+        "lime",
+        0.6
     ]
 }
