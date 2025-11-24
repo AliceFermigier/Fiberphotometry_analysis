@@ -9,3 +9,5 @@ scikit-learn
 opencv-python
 openpyxl
 tqdm
+seaborn
+PyQt5

@@ -21,7 +21,7 @@ import modules.common.nomenclature as nom
 #LOADER#
 ########
 
-experiment_path = Path(r'E:\202510_FiberMEC')
+experiment_path = Path(r'F:\202510_FiberMEC')
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)
@@ -42,8 +42,7 @@ nom.create_or_load_artifacts_file(artifact_file, option='create_only')
 #time to crop at the beginning of the trial for, in seconds
 TIME_BEGIN = 0
 #------------------#
-batches = [2]
-#list(set(subjects_df['Batch']))
+batches = list(set(subjects_df['Batch']))
 #------------------#
 
 

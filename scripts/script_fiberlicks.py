@@ -10,12 +10,12 @@
 
 import pandas as pd
 import numpy as np
+import importlib
 import os
 from pathlib import Path
-import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use("Qt5Agg")
-import importlib
+import modules.common.switch_matplotlib_backends as smb
+importlib.reload(smb)
+plt = smb.with_agg() #imports matplotlib.pyplot with Agg backend
 import json
 
 #import functions
@@ -43,12 +43,14 @@ import modules.common.clean_signal as cs
 importlib.reload(cs)
 import modules.behaviour.lick_detection as ld
 importlib.reload(ld)
+import modules.behaviour.behaviour_metrics as bm
+importlib.reload(bm)
 
 from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batches
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-batches = [2]
+
 #filter characteristics
 ORDER = 4
 CUT_FREQ = None #in Hz
@@ -81,8 +83,10 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         print('Ports json already exists')
     else:
         print('Get ports coordinates')
+        plt = smb.with_qt5agg()
         ports = getlap.define_ports(video_path)
         getlap.save_ports_to_json(ports, output_json)
+plt = smb.with_agg()
 
 #%% 2.2 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
 print('###################')
@@ -153,7 +157,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, lick_col="Licks", lick_radius=30)
 
         # Scoring nose-in-airport time
-        fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, radius=40)
+        fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, radius=60)
 
         # Post-process data (fuse behaviours that are too close and delete the ones that are too short)
         fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
@@ -184,4 +188,70 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         print(f'[!] Error while processing mouse {mouse}: {e}')
 
 print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
+
+#%% 2.3 - Plot behavioural metrics
+
+print('###################')
+print(f'EXPERIMENT : {exp}')
+print('###################')
+
+BIN_SIZE = 60   # seconds
+HEATMAP_BINS = (50, 50)  # x, y bins
+
+# Create repository path where data will be stored
+exp_path = analysis_path / exp
+repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+behavioural_analysis_path = exp_path / 'Behavioural_analysis'
+behavioural_analysis_path.mkdir(exist_ok=True)
+
+all_metrics = {}
+
+# Loop through each mouse in the subject DataFrame
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    print("-----------------------------") 
+    print(f'BATCH : {batch}, MOUSE : {mouse}')
+    print("-----------------------------")
+
+
+    fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+    fiberbehav_notderived_df = pd.read_csv(fiberbehav_notderived_path)
+
+    # Compute behavioral metrics
+    metrics = bm.compute_behavior_metrics(fiberbehav_notderived_df, BIN_SIZE)
+    all_metrics[mouse] = metrics
+
+    # Plot behavioral metrics
+    mouse_fig_dir = behavioural_analysis_path / 'Figures' / f'batch {batch} mouse {mouse}'
+    bm.plot_behavior_metrics(metrics, mouse, BIN_SIZE, save_dir=mouse_fig_dir)
+
+    # Heatmap
+    bm.compute_and_plot_heatmap(fiberbehav_notderived_df, mouse, bins=HEATMAP_BINS, save_dir=mouse_fig_dir)
+
+
+    print(f"\n=== Analysis complete for mouse {batch}_{mouse}. Plots stored in {behavioural_analysis_path}. ===")
+
+# Export behavioral metrics to Excel
+print("\nExporting all behavioral metrics to Excel...")
+
+try:
+    # Concatenate all metrics into a single DataFrame
+    metrics_list = []
+    for mouse, df in all_metrics.items():
+        df = df.copy()
+        df["Mouse"] = mouse
+        metrics_list.append(df)
+
+    all_metrics_df = pd.concat(metrics_list, ignore_index=True)
+
+    # Define output path
+    excel_path = behavioural_analysis_path / "behavioral_metrics.xlsx"
+
+    # Export to Excel
+    all_metrics_df.to_excel(excel_path, index=False)
+
+    print(f"✔ Behavioral metrics successfully exported to:\n    {excel_path}")
+
+except Exception as e:
+    print(f"[!] Error while exporting behavioral metrics: {e}")
+
 # %%
