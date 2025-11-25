@@ -203,7 +203,8 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
 
     # Add event lines
     for event, color, label in [('Gate opens', 'lightsteelblue', 'Gate opens'),
-                                ('Entry in arena', 'slategrey', 'Entry in arena')]:
+                                ('Entry in arena', 'slategrey', 'Entry in arena'),
+                                ('Airpuffs', 'lime', 'Airpuffs')]:
         if event in list_BOI and event in behavprocesssnip_df.columns:
             event_indices = np.where(behavprocess_df[event] == 1)[0]
             if len(event_indices) > 0:

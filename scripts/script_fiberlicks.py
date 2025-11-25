@@ -56,12 +56,12 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
 exp = 'Reward_Airpuffs'
-list_BOI = ['Licks', 'Licks_filtered', 'Airpuffs']
+list_BOI = ['Licks', 'Licks_filtered', 'Airpuffs', 'Nose_in_any_airport']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
@@ -195,12 +195,19 @@ print('###################')
 print(f'EXPERIMENT : {exp}')
 print('###################')
 
-BIN_SIZE = 60   # seconds
+BIN_SIZE = 1   # seconds
+N_TIME_BINS_HEATMAP = 4
 HEATMAP_BINS = (50, 50)  # x, y bins
+
+behaviors_to_plot = [
+    "Licks_filtered",
+    "Airpuffs",
+    "Nose_in_any_airport"
+]
 
 # Create repository path where data will be stored
 exp_path = analysis_path / exp
-repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+repo_path = exp_path / f'length0_interbout0_o{ORDER}f{CUT_FREQ}'
 behavioural_analysis_path = exp_path / 'Behavioural_analysis'
 behavioural_analysis_path.mkdir(exist_ok=True)
 
@@ -214,7 +221,9 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
 
     fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+    fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
     fiberbehav_notderived_df = pd.read_csv(fiberbehav_notderived_path)
+    fiberbehav_df = pd.read_csv(fiberbehav_path)
 
     # Compute behavioral metrics
     metrics = bm.compute_behavior_metrics(fiberbehav_notderived_df, BIN_SIZE)
@@ -222,11 +231,18 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
     # Plot behavioral metrics
     mouse_fig_dir = behavioural_analysis_path / 'Figures' / f'batch {batch} mouse {mouse}'
-    bm.plot_behavior_metrics(metrics, mouse, BIN_SIZE, save_dir=mouse_fig_dir)
+    bm.plot_behavior_metrics(metrics, mouse, batch, BIN_SIZE, save_dir=mouse_fig_dir)
+
+    # Plot raster
+    bm.plot_behavior_raster(fiberbehav_notderived_df, 
+                            mouse, batch, behaviors=behaviors_to_plot, 
+                            save_dir=mouse_fig_dir)
 
     # Heatmap
-    bm.compute_and_plot_heatmap(fiberbehav_notderived_df, mouse, bins=HEATMAP_BINS, save_dir=mouse_fig_dir)
-
+    bm.compute_and_plot_heatmap(fiberbehav_notderived_df, 
+                                mouse, bins=HEATMAP_BINS, 
+                                n_time_bins=N_TIME_BINS_HEATMAP, 
+                                save_dir=mouse_fig_dir)
 
     print(f"\n=== Analysis complete for mouse {batch}_{mouse}. Plots stored in {behavioural_analysis_path}. ===")
 
