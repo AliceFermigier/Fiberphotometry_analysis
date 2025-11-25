@@ -133,47 +133,78 @@ def plot_behavior_metrics(metrics_df, mouse, batch, bin_size, save_dir=None):
 
     plt.show()
 
-def compute_and_plot_heatmap(df, mouse, batch, bins=(50,50), n_time_bins=1, save_dir=None):
+def compute_and_plot_heatmap(df, mouse, batch, bins=(50,50), n_bins=1, save_dir=None):
     """
     Compute + plot occupancy heatmap, save PNG/PDF if save_dir given.
     """
     if save_dir is not None:
         save_dir.mkdir(parents=True, exist_ok=True)
 
-    # ---- Split by time ----
-    t = df["Time(s)"]
-    min_t, max_t = t.min(), t.max()
-    bin_edges = np.linspace(min_t, max_t, n_time_bins + 1)
+    # -------------------------
+    # Split session into equal bins
+    # -------------------------
+    total_len = len(df)
+    bin_len = total_len // n_bins
+    dfs = [df.iloc[i*bin_len : (i+1)*bin_len] for i in range(n_bins)]
+    dfs[-1] = df.iloc[(n_bins-1)*bin_len :]  # include leftovers
 
-    # ---- Prepare figure ----
-    fig, axes = plt.subplots(1, n_time_bins, figsize=(5 * n_time_bins, 5))
-    if n_time_bins == 1:
-        axes = [axes]  # make iterable
+    # -------------------------
+    # Figure layout: 2 × n_bins
+    # -------------------------
+    fig, axes = plt.subplots(
+        2, n_bins,
+        figsize=(4*n_bins, 8),
+        gridspec_kw={'height_ratios': [1, 4]}
+    )
 
-    # ---- Loop through time bins ----
-    for i in range(n_time_bins):
-        t0, t1 = bin_edges[i], bin_edges[i+1]
+    for i, subdf in enumerate(dfs):
+        x = subdf["center_x"].values
+        y = subdf["center_y"].values
 
-        sub_df = df[(t >= t0) & (t < t1)]
+        # -------------------------
+        # 1) Trajectory
+        # -------------------------
+        ax_traj = axes[0, i]
+        ax_traj.plot(x, y, color="black", linewidth=1)
+        ax_traj.set_title(f"Bin {i+1}", fontsize=10)
 
-        x = sub_df["center_x"]
-        y = sub_df["center_y"]
+        # Remove ticks & labels
+        ax_traj.set_xticks([])
+        ax_traj.set_yticks([])
+        ax_traj.set_xlabel("")
+        ax_traj.set_ylabel("")
 
-        heatmap, xedges, yedges = np.histogram2d(x, y, bins=bins)
+        # Maintain exact aspect ratio
+        ax_traj.set_aspect('equal', adjustable='box')
 
-        ax = axes[i]
+        # -------------------------
+        # 2) Heatmap
+        # -------------------------
+        ax_hm = axes[1, i]
+        heatmap, _, _ = np.histogram2d(x, y, bins=bins)
+
         sns.heatmap(
             heatmap.T,
             cmap="inferno",
-            cbar=(i == n_time_bins - 1),  # show only one colorbar
-            ax=ax
+            ax=ax_hm,
+            cbar=True,
+            square=False,
+            vmin=0,
+            vmax=100,
+            cbar_kws={"shrink": 0.35, "pad": 0.02}
         )
 
-        ax.set_title(f"{batch} - {mouse} — Bin {i+1}\n{t0:.1f}–{t1:.1f} s")
-        ax.set_xlabel("X bin")
-        ax.set_ylabel("Y bin")
+        # Remove ticks & labels
+        ax_hm.set_xticks([])
+        ax_hm.set_yticks([])
+        ax_hm.set_xlabel("")
+        ax_hm.set_ylabel("")
 
-    plt.tight_layout()
+        # Maintain equal aspect ratio for heatmap
+        ax_hm.set_aspect('equal', adjustable='box')
+
+    plt.suptitle(f"Occupancy Heatmaps — Mouse {mouse}", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
 
     # ---- Save ----
     if save_dir is not None:

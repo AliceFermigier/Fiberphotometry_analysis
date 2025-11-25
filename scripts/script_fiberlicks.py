@@ -240,8 +240,9 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
     # Heatmap
     bm.compute_and_plot_heatmap(fiberbehav_notderived_df, 
-                                mouse, bins=HEATMAP_BINS, 
-                                n_time_bins=N_TIME_BINS_HEATMAP, 
+                                mouse, batch,
+                                bins=HEATMAP_BINS, 
+                                n_bins=N_TIME_BINS_HEATMAP, 
                                 save_dir=mouse_fig_dir)
 
     print(f"\n=== Analysis complete for mouse {batch}_{mouse}. Plots stored in {behavioural_analysis_path}. ===")
