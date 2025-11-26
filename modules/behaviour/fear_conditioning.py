@@ -1,6 +1,4 @@
 import pandas as pd
-import re
-import numpy as np
 
 def parse_protocol_sheet(path, sheet_name):
     """
@@ -24,113 +22,59 @@ def parse_protocol_sheet(path, sheet_name):
     # Convert ms → seconds
     df[time_col] = df[time_col] / 1000.0
 
-    # Generic extractor that looks for 'on' and '!on' tokens (case-insensitive),
-    # but with optional extras like on(F1), on(F3)
-    def extract_signal_intervals(df, col, on_match_fn):
-        """
-        on_match_fn(cell_text_lower) -> returns:
-            - 'on' if row starts or indicates ON,
-            - '!on' if row indicates OFF,
-            - '' otherwise
-        """
+    # ───────────────────────────────────────────────
+    # Helper: extract ON/OFF intervals for a column
+    # ───────────────────────────────────────────────
+    def extract_intervals(df, signal_col):
         intervals = []
         current_start = None
-        running_time = 0.0
-        for _, row in df.iterrows():
-            duration = float(row[time_col])
-            cell = str(row.get(col, "")).strip()
+        current_time = 0.0  # running protocol time
+        
+        for idx, row in df.iterrows():
+            duration = row[time_col]
+            cell = str(row.get(signal_col, "")).lower()
 
-            flag = on_match_fn(cell.lower())
-
-            if flag == 'on':
+            if 'on' == cell:          # ON starts now
                 if current_start is None:
-                    current_start = running_time
-            elif flag == '!on':
-                # OFF at beginning of this row => interval closes at running_time
+                    current_start = current_time
+                    
+            elif '!on' in cell:        # OFF at start of this row
                 if current_start is not None:
-                    intervals.append((current_start, running_time))
+                    intervals.append((current_start, current_time))
                     current_start = None
-            # else no change
+            
+            current_time += duration
 
-            running_time += duration
-
-        # close if file ends while ON
+        # Close if sheet ends while ON:
         if current_start is not None:
-            intervals.append((current_start, running_time))
-
+            intervals.append((current_start, current_time))
+        
         return intervals
 
-    # Match functions
-    def snd_match(cell_lower):
-        # return 'on' for on(f1) or on(f3), distinguishing later outside
-        # but we only want to detect on(f1) and on(f3) here; for general 'on' in SND ignore others
-        if re.search(r'on\s*\(\s*f1\s*\)', cell_lower):
-            return 'on_f1'
-        if re.search(r'on\s*\(\s*f3\s*\)', cell_lower):
-            return 'on_f3'
-        if '!on' in cell_lower:
-            return '!on'
-        return ''
+    # Extract LED3 → defines protocol start/stop
+    led3_col = 'LED3(1,4)'
+    led3 = extract_intervals(df, led3_col)
 
-    # We'll run through SND column row-by-row and build intervals for f1 and f3
+    # Extract CS+ / CS– from column T2
     cs_plus = []
     cs_minus = []
-    running_time = 0.0
-    # we assume rows in SND can contain either "on(F1)", "!on", or "on(F3)", etc.
-    current_f1 = None
-    current_f3 = None
-    for _, row in df.iterrows():
-        duration = float(row[time_col])
-        cell = str(row.get(snd_col, "")).strip().lower()
+    
+    running_time = 0
+    for idx, row in df.iterrows():
+        duration = row[time_col]
+        label = str(row[cs_col])
 
-        # check for explicit on(F1) or on(F3)
-        if re.search(r'on\s*\(\s*f1\s*\)', cell):
-            if current_f1 is None:
-                current_f1 = running_time
-        if re.search(r'on\s*\(\s*f3\s*\)', cell):
-            if current_f3 is None:
-                current_f3 = running_time
-
-        # check for !on: closes whichever sound(s) are currently open
-        if '!on' in cell:
-            if current_f1 is not None:
-                cs_plus.append((current_f1, running_time))
-                current_f1 = None
-            if current_f3 is not None:
-                cs_minus.append((current_f3, running_time))
-                current_f3 = None
+        if "_CS+" in label:
+            cs_plus.append((running_time, running_time + duration))
+        elif "_CS-" in label:
+            cs_minus.append((running_time, running_time + duration))
 
         running_time += duration
+    
+    # Extract shock intervals
+    shock_col = 'LED2(1,3)'
+    shock = extract_intervals(df, shock_col)
 
-    # Close any remaining open ones at end of sheet
-    total_dur = df[time_col].sum()
-    if current_f1 is not None:
-        cs_plus.append((current_f1, total_dur))
-    if current_f3 is not None:
-        cs_minus.append((current_f3, total_dur))
-
-    # Shock extraction using same on/off logic as earlier extractor, but shock appears as 'ON' and '!on'
-    def shk_match(cell_lower):
-        if 'on' == cell_lower.strip().lower() or 'on' in cell_lower:
-            # treat any 'on' as shock on (you can tighten logic if needed)
-            return 'on'
-        if '!on' in cell_lower:
-            return '!on'
-        return ''
-
-    # Use the generic extractor for shock and led3
-    # For shock we treat exact cell match having 'on' text; some rows use 'ON' or 'on(F1)' for other columns so be careful
-    def generic_on_fn(cell_lower):
-        if 'on' in cell_lower and '!on' not in cell_lower:
-            return 'on'
-        if '!on' in cell_lower:
-            return '!on'
-        return ''
-
-    shock = extract_signal_intervals(df, shk_col, generic_on_fn)
-    led3 = extract_signal_intervals(df, led3_col, generic_on_fn)
-
-    # Done
     return {
         "CS+": cs_plus,
         "CS-": cs_minus,
