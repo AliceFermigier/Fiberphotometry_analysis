@@ -3,8 +3,8 @@ import pandas as pd
 def parse_protocol_sheet(path, sheet_name):
     """
     Parse protocol excel sheet and extract intervals for:
-      - CS+ (SND column 'on(F1)' ... '!on')
-      - CS- (SND column 'on(F3)' ... '!on')
+      - CS+ (CS+ column 'on' ... '!on')
+      - CS- (CS- column 'on' ... '!on')
       - Shock (LED2(1,3) column 'ON' ... '!on')
       - LED3 (LED3(1,4) column 'on' ... '!on') for protocol-wide on/off
     
@@ -15,7 +15,8 @@ def parse_protocol_sheet(path, sheet_name):
     df.columns = [str(c).strip() for c in df.columns]
 
     time_col = 'T1'
-    snd_col = 'SND(6,2)'
+    csplus_col = 'CS+'
+    csminus_col = 'CS-'
     shk_col = 'LED2(1,3)'
     led3_col = 'LED3(1,4)'
     
@@ -52,28 +53,14 @@ def parse_protocol_sheet(path, sheet_name):
         return intervals
 
     # Extract LED3 → defines protocol start/stop
-    led3_col = 'LED3(1,4)'
     led3 = extract_intervals(df, led3_col)
 
-    # Extract CS+ / CS– from column T2
-    cs_plus = []
-    cs_minus = []
-    
-    running_time = 0
-    for idx, row in df.iterrows():
-        duration = row[time_col]
-        label = str(row[cs_col])
-
-        if "_CS+" in label:
-            cs_plus.append((running_time, running_time + duration))
-        elif "_CS-" in label:
-            cs_minus.append((running_time, running_time + duration))
-
-        running_time += duration
+    # Extract CS+ / CS– from columns
+    cs_plus = extract_intervals(df, csplus_col)
+    cs_minus = extract_intervals(df, csminus_col)
     
     # Extract shock intervals
-    shock_col = 'LED2(1,3)'
-    shock = extract_intervals(df, shock_col)
+    shock = extract_intervals(df, shk_col)
 
     return {
         "CS+": cs_plus,
