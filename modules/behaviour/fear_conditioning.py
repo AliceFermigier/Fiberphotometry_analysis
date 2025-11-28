@@ -1,5 +1,13 @@
 import pandas as pd
 import numpy as np
+from scipy.signal import savgol_filter
+from scipy.ndimage import uniform_filter1d
+import json
+import os
+import importlib
+
+import modules.behaviour.mouse_position as mp
+importlib.reload(mp)
 
 def parse_protocol_sheet(path, sheet_name):
     """
@@ -95,3 +103,52 @@ def add_interval_column(fp_df, intervals, colname, time_col='Time(s)'):
         mask_total = mask_total | mask
     fp_df.loc[mask_total, colname] = 1
     return fp_df
+
+def rms_sliding_window(speed, window_frames):
+    """
+    Compute sliding-window RMS for a 1D speed array.
+    Uses efficient convolution via uniform_filter1d.
+    """
+    squared = speed ** 2
+    mean_sq = uniform_filter1d(squared, size=window_frames, mode="nearest")
+    rms = np.sqrt(mean_sq)
+    return rms 
+
+def speeds(df, fps=20, dist_file="dist.json", threshold_file="threshold.json"):
+    """
+    Reimplementation of the MATLAB freezing detection function.
+    df: DLC dataframe with coordinate columns.
+    """
+
+    # --- Extract coordinates ---
+    nose_x = df["nose_x"].values
+    nose_y = df["nose_y"].values
+    center_x = df["center_x"].values
+    center_y = df["center_y"].values
+    tail_x = df["tail_base_x"].values
+    tail_y = df["tail_base_y"].values
+
+def detect_freezing_rms(speeds, fps=20, window_sec=1.0, threshold=1.0):
+    """
+    speeds: dict with speeds from different keypoints
+            e.g. {"nose": s_nose, "center": s_center, "tail": s_tail}
+    fps: sampling rate
+    window_sec: RMS window length
+    threshold: RMS threshold in cm/s
+    """
+    window_frames = int(window_sec * fps)
+
+    # Compute RMS for each keypoint
+    rms_dict = {}
+    for key, v in speeds.items():
+        rms_dict[key] = rms_sliding_window(v, window_frames)
+
+    # Combine speeds: use max or mean
+    # max = stricter, mean = smoother
+    combined_rms = np.maximum.reduce(list(rms_dict.values()))
+
+    # Freeze if RMS < threshold
+    freezing = (combined_rms < threshold).astype(int)
+
+    return freezing, combined_rms, rms_dict
+ 
