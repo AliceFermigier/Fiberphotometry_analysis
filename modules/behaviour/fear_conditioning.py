@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 def parse_protocol_sheet(path, sheet_name):
     """
@@ -68,3 +69,29 @@ def parse_protocol_sheet(path, sheet_name):
         "Shock": shock,
         "LED3": led3
     }
+
+def convert_to_absolute(intervals, protocol_start_time):
+    """
+    intervals: list of (start_s, end_s) relative to protocol start
+    protocol_start_time: bonsai timestamp (seconds) for protocol start
+    returns list of (abs_start_s, abs_end_s)
+    """
+    return [(protocol_start_time + s, protocol_start_time + e) for s, e in intervals]
+
+def add_interval_column(fp_df, intervals, colname, time_col='Time(s)'):
+    """
+    Mark fp_df[colname] = 1 for rows with time between any interval start/end (inclusive).
+    """
+    if colname in fp_df.columns:
+        raise ValueError(f"Column {colname} already exists in fp_df.")
+    fp_df[colname] = 0
+    if len(intervals) == 0:
+        return fp_df
+    # convert to numpy arrays for speed
+    times = fp_df[time_col].values
+    mask_total = np.zeros_like(times, dtype=bool)
+    for start, end in intervals:
+        mask = (times >= start) & (times <= end)
+        mask_total = mask_total | mask
+    fp_df.loc[mask_total, colname] = 1
+    return fp_df
