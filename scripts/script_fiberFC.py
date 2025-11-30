@@ -37,6 +37,8 @@ import modules.behaviour.epm as epm
 importlib.reload(epm)
 import modules.behaviour.get_lick_and_airpuff_ports_coordinates as getlap
 importlib.reload(getlap)
+import modules.behaviour.get_video_scale as getvid
+importlib.reload(getvid)
 import modules.behaviour.camera_processing as cp
 importlib.reload(cp)
 import modules.common.clean_signal as cs
@@ -77,6 +79,29 @@ else:
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
+#%% 2.1 - Get scale and area coordinates for each video
+
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    print("-----------------------------") 
+    print(f'BATCH : {batch}, MOUSE : {mouse}')
+    print("-----------------------------")
+    
+    data_path_exp = datapath_exp_dict[batch]
+    behav_path_exp = data_path_exp / 'Behaviour'
+    video_path = data_path_exp / f"{mouse}.avi"
+    arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
+    real_world_distance_cm=20
+
+    #Indicate the arena boundaries and the coordinates of the known distance
+    if arena_json.is_file():
+        print('Arena json already exists')
+    else:
+        print('Get arena coordinates')
+        plt = smb.with_qt5agg()
+        scale_and_coords = getvid.get_scale_and_arena_rect(video_path, real_world_distance_cm, frame_number=1000)
+        getvid.save_to_json(scale_and_coords, arena_json)
+plt = smb.with_agg()
+
 #%% 2.2 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour
 print('###################')
 print(f'EXPERIMENT : {exp}')
@@ -106,6 +131,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
     fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
     dlc_path = behav_path_exp / f'{mouse}{dlc_suffix}.csv'
+    arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
 
     led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
     deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
@@ -148,10 +174,11 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             coordinates_df = cp.align_camera_flashes(coordinates_df, frame_times_df)
         except Exception as e:
             print(f'[!] DLC file error for {mouse}: {e}')
+        behav_df = fc.detect_freezing(coordinates_df, arena_json, fps=20)
 
     # Align DLC and fiber data
     print('Aligning fiberphotometry and behaviour data')
-    fiberbehav_df = bp.align_dlc_to_fiber(fiberbehav_df, coordinates_df)
+    fiberbehav_df = bp.align_dlc_to_fiber(fiberbehav_df, behav_df)
 
     # Compute freezing bouts using DLC data
     print('Computing freezing bouts')

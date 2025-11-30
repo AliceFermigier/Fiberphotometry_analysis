@@ -37,6 +37,8 @@ import modules.behaviour.epm as epm
 importlib.reload(epm)
 import modules.behaviour.get_lick_and_airpuff_ports_coordinates as getlap
 importlib.reload(getlap)
+import modules.behaviour.get_video_scale as getvid
+importlib.reload(getvid)
 import modules.behaviour.camera_processing as cp
 importlib.reload(cp)
 import modules.common.clean_signal as cs
@@ -66,7 +68,7 @@ list_BOI = ['Licks', 'Licks_filtered', 'Airpuffs', 'Nose_in_any_airport']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
-#%% 2.1 - Get coordinates of lickport and airpuff ports
+#%% 2.1.1 - Get coordinates of lickport and airpuff ports
 
 for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print("-----------------------------") 
@@ -86,6 +88,29 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         plt = smb.with_qt5agg()
         ports = getlap.define_ports(video_path)
         getlap.save_ports_to_json(ports, output_json)
+plt = smb.with_agg()
+
+#%% 2.1.2 - Get scale and area coordinates for each video
+
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    print("-----------------------------") 
+    print(f'BATCH : {batch}, MOUSE : {mouse}')
+    print("-----------------------------")
+    
+    data_path_exp = datapath_exp_dict[batch]
+    behav_path_exp = data_path_exp / 'Behaviour'
+    video_path = data_path_exp / f"{mouse}.avi"
+    arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
+    real_world_distance_cm=20
+
+    #Indicate the arena boundaries and the coordinates of the known distance
+    if arena_json.is_file():
+        print('Arena json already exists')
+    else:
+        print('Get arena coordinates')
+        plt = smb.with_qt5agg()
+        scale_and_coords = getvid.get_scale_and_arena_rect(video_path, real_world_distance_cm, frame_number=1000)
+        getvid.save_to_json(scale_and_coords, arena_json)
 plt = smb.with_agg()
 
 #%% 2.2 - Align with behaviour, create corresponding excel, plot fiberpho data with behaviour

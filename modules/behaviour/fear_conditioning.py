@@ -1,10 +1,10 @@
 import pandas as pd
 import numpy as np
-from scipy.signal import savgol_filter
 from scipy.ndimage import uniform_filter1d
 import json
 import os
 import importlib
+import matplotlib.pyplot as plt
 
 import modules.behaviour.mouse_position as mp
 importlib.reload(mp)
@@ -114,20 +114,6 @@ def rms_sliding_window(speed, window_frames):
     rms = np.sqrt(mean_sq)
     return rms 
 
-def speeds(df, fps=20, dist_file="dist.json", threshold_file="threshold.json"):
-    """
-    Reimplementation of the MATLAB freezing detection function.
-    df: DLC dataframe with coordinate columns.
-    """
-
-    # --- Extract coordinates ---
-    nose_x = df["nose_x"].values
-    nose_y = df["nose_y"].values
-    center_x = df["center_x"].values
-    center_y = df["center_y"].values
-    tail_x = df["tail_base_x"].values
-    tail_y = df["tail_base_y"].values
-
 def detect_freezing_rms(speeds, fps=20, window_sec=1.0, threshold=1.0):
     """
     speeds: dict with speeds from different keypoints
@@ -151,4 +137,65 @@ def detect_freezing_rms(speeds, fps=20, window_sec=1.0, threshold=1.0):
     freezing = (combined_rms < threshold).astype(int)
 
     return freezing, combined_rms, rms_dict
+
+def detect_freezing(dlc_df, scale_file, fps=20):
+    """
+    df: DLC dataframe with coordinate columns.
+    video_scale in px/cm
+    """
+
+    # --- Load or calculate pixel-to-cm scaling ---
+    if os.path.exists(scale_file):
+        dist_scaling = json.load(open(scale_file))["Scale_cm_per_px"]
+    else:
+        print("❗dist.json not found. Scale set to 0.1 cm/px")
+        dist_scaling = 0.1
+
+    # --- Compute local speed for each body part ---
+    s_nose = mp.compute_speed(dlc_df, dist_scale=dist_scaling, frame_rate=fps, bodypart='nose')
+    s_center = mp.compute_speed(dlc_df, dist_scale=dist_scaling, frame_rate=fps, bodypart='center')
+    s_tail = mp.compute_speed(dlc_df, dist_scale=dist_scaling, frame_rate=fps, bodypart='tail_base')
+
+    speeds = {"nose": s_nose, "center": s_center, "tail": s_tail}
+
+    # --- Load or set speed threshold ---
+    plt.plot(s_nose, label="nose")
+    plt.plot(s_center, label="center")
+    plt.plot(s_tail, label="tail")
+    plt.legend()
+    plt.show()
+    threshold = float(input("Enter speed threshold (cm/s): "))
+
+    # --- Freeze = sustained low movement ---
+    freeze = np.zeros(len(s_nose))
+
+    for i in range(len(s_nose)):
+        if (s_center[i] <= threshold and
+            s_nose[i] <= 2 * threshold and
+            s_tail[i] <= threshold):
+            freeze[i] = 1
+
+    freeze = freeze.astype(int)
+
+    # --- Detect freezing bouts ---
+    diff_f = np.diff(freeze)
+    freeze_bouts = np.zeros_like(freeze)
+
+    # Require >= 1 sec continuous freezing
+    samples_1s = fps
+
+    for i in range(samples_1s, len(freeze) - 2 * samples_1s):
+        if diff_f[i] == 1 and np.mean(diff_f[i+1:i+samples_1s]) == 0:
+            # find end of freezing
+            end = np.where(diff_f[i:] < 0)[0]
+            if len(end) > 0:
+                end = end[0] + i
+            else:
+                end = len(freeze) - 1
+            freeze_bouts[i:end] = 1
+    freezing_df = pd.DataFrame({'Freezing':freeze_bouts})
+    total_speed_df = pd.concat([s_nose, s_center, s_tail], axis=1).sum(axis=1)
+    behav_df = pd.concat([dlc_df, freezing_df, total_speed_df], axis=1)
+
+    return behav_df, speeds
  
