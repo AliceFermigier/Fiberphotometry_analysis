@@ -85,7 +85,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         print('Ports json already exists')
     else:
         print('Get ports coordinates')
-        plt = smb.with_qt5agg()
+        plt = smb.with_qt5agg() 
         ports = getlap.define_ports(video_path)
         getlap.save_ports_to_json(ports, output_json)
 plt = smb.with_agg()
