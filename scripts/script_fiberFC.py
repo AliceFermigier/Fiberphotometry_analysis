@@ -64,7 +64,7 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Fear_Conditioning'
+exp = 'Fear_Habituation'
 if 'Conditioning' in exp:
     list_BOI = ['Shock','Freezing','CS+','CS-']
     dlc_suffix = 'DLC_resnet50_FearConditioning18shuffle1_100000'
@@ -192,3 +192,74 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     fiberbehav_df.to_csv(fiberbehav_notderived_path, index=False)
 
     dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
+
+#%% 2.3 - Plot behavioural metrics
+
+print('###################')
+print(f'EXPERIMENT : {exp}')
+print('###################')
+
+BIN_SIZE = 1   # seconds
+
+behaviors_to_plot = list_BOI
+
+# Create repository path where data will be stored
+exp_path = analysis_path / exp
+repo_path = exp_path / f'length0_interbout0_o{ORDER}f{CUT_FREQ}'
+behavioural_analysis_path = exp_path / 'Behavioural_analysis'
+behavioural_analysis_path.mkdir(exist_ok=True)
+
+all_metrics = {}
+
+# Loop through each mouse in the subject DataFrame
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    print("-----------------------------") 
+    print(f'BATCH : {batch}, MOUSE : {mouse}')
+    print("-----------------------------")
+
+
+    fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+    fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+    fiberbehav_notderived_df = pd.read_csv(fiberbehav_notderived_path)
+    fiberbehav_df = pd.read_csv(fiberbehav_path)
+
+    # Compute behavioral metrics
+    metrics = bm.compute_behavior_metrics(fiberbehav_notderived_df, BIN_SIZE)
+    all_metrics[mouse] = metrics
+
+    # Plot behavioral metrics
+    mouse_fig_dir = behavioural_analysis_path / 'Figures' / f'batch {batch} mouse {mouse}'
+    bm.plot_behavior_metrics(metrics, mouse, batch, BIN_SIZE, save_dir=mouse_fig_dir)
+
+    # Plot raster
+    bm.plot_behavior_raster(fiberbehav_notderived_df, 
+                            mouse, batch, behaviors=behaviors_to_plot, 
+                            save_dir=mouse_fig_dir)
+
+    print(f"\n=== Analysis complete for mouse {batch}_{mouse}. Plots stored in {behavioural_analysis_path}. ===")
+
+# Export behavioral metrics to Excel
+print("\nExporting all behavioral metrics to Excel...")
+
+try:
+    # Concatenate all metrics into a single DataFrame
+    metrics_list = []
+    for mouse, df in all_metrics.items():
+        df = df.copy()
+        df["Mouse"] = mouse
+        metrics_list.append(df)
+
+    all_metrics_df = pd.concat(metrics_list, ignore_index=True)
+
+    # Define output path
+    excel_path = behavioural_analysis_path / "behavioral_metrics.xlsx"
+
+    # Export to Excel
+    all_metrics_df.to_excel(excel_path, index=False)
+
+    print(f"✔ Behavioral metrics successfully exported to:\n    {excel_path}")
+
+except Exception as e:
+    print(f"[!] Error while exporting behavioral metrics: {e}")
+
+# %%

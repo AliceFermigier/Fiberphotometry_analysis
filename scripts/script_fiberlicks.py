@@ -62,8 +62,8 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Reward_Airpuffs'
-list_BOI = ['Licks', 'Licks_filtered', 'Airpuffs', 'Nose_in_any_airport']
+exp = 'Reward_Hab'
+list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
@@ -179,10 +179,10 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         # Clean licking data
         print('Cleaning licking data')
         ports = json.load(open(output_json, "r"))
-        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, lick_col="Licks", lick_radius=30)
+        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, lick_col="Licks", lick_radius=40)
 
         # Scoring nose-in-airport time
-        fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, radius=60)
+        fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, radius=120)
 
         # Post-process data (fuse behaviours that are too close and delete the ones that are too short)
         fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
@@ -226,7 +226,6 @@ HEATMAP_BINS = (50, 50)  # x, y bins
 
 behaviors_to_plot = [
     "Licks_filtered",
-    "Airpuffs",
     "Nose_in_any_airport"
 ]
 
@@ -235,6 +234,8 @@ exp_path = analysis_path / exp
 repo_path = exp_path / f'length0_interbout0_o{ORDER}f{CUT_FREQ}'
 behavioural_analysis_path = exp_path / 'Behavioural_analysis'
 behavioural_analysis_path.mkdir(exist_ok=True)
+data_path_exp = datapath_exp_dict[batch]
+behav_path_exp = data_path_exp / 'Behaviour'
 
 all_metrics = {}
 
@@ -249,6 +250,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
     fiberbehav_notderived_df = pd.read_csv(fiberbehav_notderived_path)
     fiberbehav_df = pd.read_csv(fiberbehav_path)
+    arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
+    ports_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
 
     # Compute behavioral metrics
     metrics = bm.compute_behavior_metrics(fiberbehav_notderived_df, BIN_SIZE)
@@ -264,8 +267,9 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
                             save_dir=mouse_fig_dir)
 
     # Heatmap
-    bm.compute_and_plot_heatmap(fiberbehav_notderived_df, 
+    bm.compute_and_plot_heatmap(fiberbehav_notderived_df,
                                 mouse, batch,
+                                ports_json, arena_json,
                                 bins=HEATMAP_BINS, 
                                 n_bins=N_TIME_BINS_HEATMAP, 
                                 save_dir=mouse_fig_dir)

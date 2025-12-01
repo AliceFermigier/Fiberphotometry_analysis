@@ -39,7 +39,7 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 1
+THRESH_S = 10
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -47,12 +47,12 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = True
-MAXBOUTSNUMBER = 30
+MAXBOUTSNUMBER = 10
 if baseline:
     tag = "windowedbaseline"
 else:
     tag = "wholetrace"
-for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
+for exp in ['Reward_Hab']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -86,7 +86,7 @@ for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.i
                 continue
 
             # List all behaviors of interest (BOI) by excluding specific behaviors
-            behaviors_of_interest = ['Licks_filtered','Airpuffs']
+            behaviors_of_interest = ['Licks_filtered','Nose_in_any_airport']
             
             for behavior in behaviors_of_interest:
                 for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
@@ -117,9 +117,10 @@ for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.i
 
 # ----------------------------- #
 # Parameters
-BOI = 'Airpuffs'
+BOI = 'Licks_filtered'
+#'Licks_filtered' 'Nose_in_any_airport'
 TIME_WINDOW = [1, 3]  # In seconds
-MAXBOUTSNUMBER = 40
+MAXBOUTSNUMBER = 10
 # ----------------------------- #
 
 print('##########################################')

@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 import seaborn as sns
+import json
 from scripts.loader import project_root
 
 def ensure_behavior_columns(df, required_behaviors):
@@ -133,85 +134,131 @@ def plot_behavior_metrics(metrics_df, mouse, batch, bin_size, save_dir=None):
 
     plt.show()
 
-def compute_and_plot_heatmap(df, mouse, batch, bins=(50,50), n_bins=1, save_dir=None):
-    """
-    Compute + plot occupancy heatmap, save PNG/PDF if save_dir given.
-    """
-    if save_dir is not None:
-        save_dir.mkdir(parents=True, exist_ok=True)
+def compute_and_plot_heatmap(df, mouse, batch, ports_json, arena_json,
+                             n_bins=1, bins=(50, 50), save_dir=None):
 
-    # -------------------------
-    # Split session into equal bins
-    # -------------------------
+    PAD = 100  # px padding around arena
+
+    # ----------------------------------------------
+    # Load ports & arena rectangle
+    # ----------------------------------------------
+    with open(ports_json, "r") as f:
+        ports = json.load(f)
+
+    with open(arena_json, "r") as f:
+        arena = json.load(f)
+
+    rect = arena["Arena_rectangle_px"]
+    x1 = rect["x1"] - PAD
+    y1 = rect["y1"] - PAD
+    x2 = rect["x2"] + PAD
+    y2 = rect["y2"] + PAD
+
+    # Rectangle outline
+    arena_x = [x1, x2, x2, x1, x1]
+    arena_y = [y1, y1, y2, y2, y1]
+
+    # Limits for both plots
+    x_min, x_max = x1, x2
+    y_min, y_max = y1, y2
+
+    # ----------------------------------------------
+    # Split session into bins
+    # ----------------------------------------------
     total_len = len(df)
     bin_len = total_len // n_bins
     dfs = [df.iloc[i*bin_len : (i+1)*bin_len] for i in range(n_bins)]
-    dfs[-1] = df.iloc[(n_bins-1)*bin_len :]  # include leftovers
+    dfs[-1] = df.iloc[(n_bins-1)*bin_len:]   # last bin takes remainder
 
-    # -------------------------
-    # Figure layout: 2 × n_bins
-    # -------------------------
+    # ----------------------------------------------
+    # Create figure
+    # ----------------------------------------------
     fig, axes = plt.subplots(
         2, n_bins,
         figsize=(4*n_bins, 8),
-        gridspec_kw={'height_ratios': [1, 4]}
+        gridspec_kw={"height_ratios": [1, 4]}
     )
 
     for i, subdf in enumerate(dfs):
+
         x = subdf["center_x"].values
         y = subdf["center_y"].values
 
-        # -------------------------
-        # 1) Trajectory
-        # -------------------------
-        ax_traj = axes[0, i]
-        ax_traj.plot(x, y, color="black", linewidth=1)
-        ax_traj.set_title(f"Bin {i+1}", fontsize=10)
+        # ------------------------------------------------------
+        # Trajectory panel
+        # ------------------------------------------------------
+        ax_t = axes[0, i]
+        ax_t.plot(x, y, color="black", linewidth=1)
 
-        # Remove ticks & labels
-        ax_traj.set_xticks([])
-        ax_traj.set_yticks([])
-        ax_traj.set_xlabel("")
-        ax_traj.set_ylabel("")
+        # Arena outline
+        ax_t.plot(arena_x, arena_y, color="whitesmoke", linewidth=1)
 
-        # Maintain exact aspect ratio
-        ax_traj.set_aspect('equal', adjustable='box')
+        # Ports
+        ax_t.scatter(ports["lick_port"]["x"], ports["lick_port"]["y"], 
+                     c="lime", s=30)
+        ax_t.scatter(ports["airpuff_left"]["x"], ports["airpuff_left"]["y"],
+                     c="red", s=30)
+        ax_t.scatter(ports["airpuff_right"]["x"], ports["airpuff_right"]["y"],
+                     c="red", s=30)
 
-        # -------------------------
-        # 2) Heatmap
-        # -------------------------
-        ax_hm = axes[1, i]
-        heatmap, _, _ = np.histogram2d(x, y, bins=bins)
+        ax_t.set_xlim(x_min, x_max)
+        ax_t.set_ylim(y_min, y_max)
+        ax_t.set_aspect("equal")
+        ax_t.set_xticks([])
+        ax_t.set_yticks([])
+        ax_t.set_title(f"Bin {i+1}")
 
-        sns.heatmap(
-            heatmap.T,
-            cmap="inferno",
-            ax=ax_hm,
-            cbar=True,
-            square=False,
-            vmin=0,
-            vmax=100,
-            cbar_kws={"shrink": 0.35, "pad": 0.02}
+        # ------------------------------------------------------
+        # Heatmap panel
+        # ------------------------------------------------------
+
+        # 🔥 CRUCIAL FIX: histogram must use arena rectangle range
+        heatmap, xedges, yedges = np.histogram2d(
+            x, y,
+            bins=bins,
+            range=[[x_min, x_max], [y_min, y_max]]
         )
 
-        # Remove ticks & labels
-        ax_hm.set_xticks([])
-        ax_hm.set_yticks([])
-        ax_hm.set_xlabel("")
-        ax_hm.set_ylabel("")
+        ax_h = axes[1, i]
 
-        # Maintain equal aspect ratio for heatmap
-        ax_hm.set_aspect('equal', adjustable='box')
+        # Construct extent manually (sns does not handle this)
+        extent = [x_min, x_max, y_min, y_max]
+
+        ax_h.imshow(
+            heatmap.T,
+            origin="lower",
+            cmap="inferno",
+            vmin=0,
+            vmax=100,
+            extent=extent,
+            interpolation="nearest",
+            aspect="equal"
+        )
+
+        # Arena outline + ports
+        ax_h.plot(arena_x, arena_y, color="black", linewidth=1)
+        ax_h.scatter(ports["lick_port"]["x"], ports["lick_port"]["y"], 
+                     c="lime", s=30)
+        ax_h.scatter(ports["airpuff_left"]["x"], ports["airpuff_left"]["y"],
+                     c="red", s=30)
+        ax_h.scatter(ports["airpuff_right"]["x"], ports["airpuff_right"]["y"],
+                     c="red", s=30)
+
+        ax_h.set_xlim(x_min, x_max)
+        ax_h.set_ylim(y_min, y_max)
+        ax_h.set_xticks([])
+        ax_h.set_yticks([])
 
     plt.suptitle(f"Occupancy Heatmaps — Mouse {mouse}", fontsize=16)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
 
-    # ---- Save ----
+    # ----------------------------------------------
+    # Saving
+    # ----------------------------------------------
     if save_dir is not None:
-        png_path = save_dir / f"{batch}_{mouse}_heatmap_multibin.png"
-        pdf_path = save_dir / f"{batch}_{mouse}_heatmap_multibin.pdf"
-        fig.savefig(png_path, dpi=300)
-        fig.savefig(pdf_path)
-        print(f"[✔] Multi-bin heatmap saved for {mouse}:\n  {png_path}\n  {pdf_path}")
+        save_dir.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_dir / f"{batch}_{mouse}_heatmaps_{n_bins}bins.png", dpi=300)
+        fig.savefig(save_dir / f"{batch}_{mouse}_heatmaps_{n_bins}bins.pdf")
 
     plt.show()
+
