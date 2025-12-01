@@ -173,7 +173,7 @@ def detect_freezing_rms(speeds, fps=20, window_sec=1.0, threshold=1.0):
 
     return freezing, combined_rms, rms_dict
 
-def detect_freezing(dlc_df, scale_file, fps=20):
+def detect_freezing(dlc_df, scale_file, fps=20, threshold=None):
     """
     df: DLC dataframe with coordinate columns.
     video_scale in px/cm
@@ -191,19 +191,20 @@ def detect_freezing(dlc_df, scale_file, fps=20):
     s_center = mp.compute_speed(dlc_df, dist_scale=dist_scaling, frame_rate=fps, bodypart='center')
     s_tail = mp.compute_speed(dlc_df, dist_scale=dist_scaling, frame_rate=fps, bodypart='tail_base')
 
-    # --- Load or set speed threshold ---
-    plt.plot(s_nose["Speed"], label="nose")
-    plt.plot(s_center["Speed"], label="center")
-    plt.plot(s_tail["Speed"], label="tail")
-    plt.legend()
-    plt.show()
-    threshold = float(input("Enter speed threshold (cm/s): "))
-    plt.close()
+    if threshold == None:
+        # --- Load or set speed threshold ---
+        plt.plot(s_nose["Speed"], label="nose")
+        plt.plot(s_center["Speed"], label="center")
+        plt.plot(s_tail["Speed"], label="tail")
+        plt.legend()
+        plt.show()
+        threshold = float(input("Enter speed threshold (cm/s): "))
+        plt.close()
 
     # --- Freeze = sustained low movement ---
     freeze = (
         (s_center["Speed"] <= threshold) &
-        (s_nose["Speed"]   <= threshold) &
+        (s_nose["Speed"]   <= threshold*2) &
         (s_tail["Speed"]   <= threshold)
     ).astype(int)
 
@@ -224,13 +225,9 @@ def detect_freezing(dlc_df, scale_file, fps=20):
                 end = len(freeze) - 1
             freeze_bouts[i:end] = 1
     freezing_df = pd.DataFrame({'Freezing':freeze_bouts})
-    print(freezing_df)
     total_speed = s_nose["Speed"] + s_center["Speed"] + s_tail["Speed"]
-    print(np.mean(s_nose["Speed"]))
     total_speed_df = pd.DataFrame({'Speed': total_speed})
-    print(total_speed_df, np.mean(total_speed_df["Speed"]))
     behav_df = pd.concat([dlc_df, freezing_df, total_speed_df], axis=1)
-    print(behav_df)
 
     return behav_df
  

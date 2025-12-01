@@ -47,17 +47,17 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = True
-MAXBOUTSNUMBER = 10
+MAXBOUTSNUMBER = 12
 if baseline:
     tag = "windowedbaseline"
 else:
     tag = "wholetrace"
-for exp in ['Reward_Hab']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
+for exp in ['Fear_Conditioning']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
     EVENT_LIST = ['onset']  # Event triggers, e.g., onset, withdrawal
-    TIME_WINDOWS = [[1, 3]]  # Time window for PETH calculation (pre, post)
+    TIME_WINDOWS = [[2, 10]]  # Time window for PETH calculation (pre, post)
 
     # Loop over each session folder in the experiment path
     print('##########################################')
@@ -86,41 +86,38 @@ for exp in ['Reward_Hab']: #[f.name for f in analysis_path.iterdir() if f.is_dir
                 continue
 
             # List all behaviors of interest (BOI) by excluding specific behaviors
-            behaviors_of_interest = ['Licks_filtered','Nose_in_any_airport']
+            behaviors_of_interest = ['Shock']
             
             for behavior in behaviors_of_interest:
                 for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
-                    try:
-                        # Generate the PETH data for the current behavior, event, and time window
-                        peth_data = bp.PETH(dfiberbehav_df, behavior, event, time_window, EVENT_TIME_THRESHOLD, baselinewindow = baseline, maxboutsnumber=MAXBOUTSNUMBER)
-                        
-                        # Create a DataFrame from the PETH data
-                        sr = round(pp.samplerate(dfiberbehav_df))
-                        PRE_TIME, POST_TIME = time_window
-                        n_timepoints = (PRE_TIME + POST_TIME) * sr + 1
-                        time_index = np.linspace(-PRE_TIME, POST_TIME, n_timepoints)
+                    # Generate the PETH data for the current behavior, event, and time window
+                    peth_data = bp.PETH(dfiberbehav_df, behavior, event, time_window, EVENT_TIME_THRESHOLD, baselinewindow = baseline, maxboutsnumber=MAXBOUTSNUMBER)
+                    
+                    # Create a DataFrame from the PETH data
+                    sr = round(pp.samplerate(dfiberbehav_df))
+                    PRE_TIME, POST_TIME = time_window
+                    n_timepoints = (PRE_TIME + POST_TIME) * sr + 1
+                    time_index = np.linspace(-PRE_TIME, POST_TIME, n_timepoints)
 
-                        peth_df = pd.DataFrame(np.transpose(peth_data), index=time_index)
-                        
-                        # Plot the PETH and save the figure 
-                        peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, exp, mouse, group)
-                        plot_filename = f'{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.png'
-                        peth_plot_path = peth_path / plot_filename
-                        peth_plot.savefig(peth_plot_path)
-                        plt.close(peth_plot)
+                    peth_df = pd.DataFrame(np.transpose(peth_data), index=time_index)
                     
-                    except Exception as e:
-                        print(f'Error computing PETH for {behavior}, {mouse} : {e}')
+                    # Plot the PETH and save the figure 
+                    peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, exp, mouse, group)
+                    plot_filename = f'{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.png'
+                    peth_plot_path = peth_path / plot_filename
+                    peth_plot.savefig(peth_plot_path)
+                    plt.close(peth_plot)
+                
                     
                         
-#%% Plot PETH for each group and extract mean and max Z-scored data
+ #%% Plot PETH for each group and extract mean and max Z-scored data
 
 # ----------------------------- #
 # Parameters
-BOI = 'Licks_filtered'
+BOI = 'Shock'
 #'Licks_filtered' 'Nose_in_any_airport'
-TIME_WINDOW = [1, 3]  # In seconds
-MAXBOUTSNUMBER = 10
+TIME_WINDOW = [2, 10]  # In seconds
+MAXBOUTSNUMBER = 12
 # ----------------------------- #
 
 print('##########################################')

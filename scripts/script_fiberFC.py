@@ -63,18 +63,19 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Fear_Habituation'
+exp = 'Fear_Conditioning'
 if 'Conditioning' in exp:
-    list_BOI = ['Shock','Freezing','CS+','CS-']
+    list_BOI = ['Shock','CS+','CS-']
     dlc_suffix = 'DLC_resnet50_FearConditioning18shuffle1_100000'
     sheet = 'Conditioning'
 else:
     list_BOI = ['Freezing','CS+','CS-']
-    dlc_suffix = 'DLC_resnet50_FearHab_FiberNov26shuffle1_100000'
     if 'Habituation' in exp:
         sheet = 'Habituation'
+        dlc_suffix = 'DLC_resnet50_FearHab_FiberNov26shuffle1_100000'
     else:
         sheet = 'Retrieval'
+        dlc_suffix = 'DLC_resnet50_FearHab_FiberNov26shuffle1_100000_filtered'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -107,7 +108,7 @@ print(f'EXPERIMENT : {exp}')
 print('###################')
 
 import matplotlib.pyplot as plt
-dlc_data = True
+dlc_data = False
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
@@ -156,11 +157,11 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         shock_abs = fc.convert_to_absolute(proto["Shock"], protocol_start)
 
     # Add interval columns to your fiberphotometry data
-    fiberpho_df = fc.add_interval_column(fiberpho_df, cs_plus_abs, "CS+")
-    fiberpho_df = fc.add_interval_column(fiberpho_df, cs_minus_abs, "CS-")
-    fiberpho_df = fc.add_interval_column(fiberpho_df, led3_abs, "Protocol_start")
+    fiberbehav_df = fc.add_interval_column(fiberpho_df, cs_plus_abs, "CS+")
+    fiberbehav_df = fc.add_interval_column(fiberbehav_df, cs_minus_abs, "CS-")
+    fiberbehav_df = fc.add_interval_column(fiberbehav_df, led3_abs, "Protocol_start")
     if 'Shock' in list_BOI:
-        fiberpho_df = fc.add_interval_column(fiberpho_df, shock_abs, "Shock")
+        fiberbehav_df = fc.add_interval_column(fiberbehav_df, shock_abs, "Shock")
     print('Imetronic data aligned')
 
     # DLC data
@@ -176,12 +177,11 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             print(f'[!] DLC file error for {mouse}: {e}')
         # Compute freezing bouts using DLC data
         print('Computing freezing bouts')
-        behav_df = fc.detect_freezing(coordinates_df, arena_json, fps=20)
-        print(behav_df.columns)
+        behav_df = fc.detect_freezing(coordinates_df, arena_json, fps=20, threshold=0.2)
 
-    # Align DLC and fiber data
-    print('Aligning fiberphotometry and behaviour data')
-    fiberbehav_df = bp.align_dlc_to_fiber(fiberpho_df, behav_df)
+        # Align DLC and fiber data
+        print('Aligning fiberphotometry and behaviour data')
+        fiberbehav_df = bp.align_dlc_to_fiber(fiberbehav_df, behav_df)
 
     # Post-process data (fuse behaviours that are too close and delete the ones that are too short)
     fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
@@ -233,14 +233,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
     fiberbehav_notderived_df = pd.read_csv(fiberbehav_notderived_path)
     fiberbehav_df = pd.read_csv(fiberbehav_path)
-
-    # Compute behavioral metrics
-    metrics = bm.compute_behavior_metrics(fiberbehav_notderived_df, BIN_SIZE)
-    all_metrics[mouse] = metrics
-
-    # Plot behavioral metrics
     mouse_fig_dir = behavioural_analysis_path / 'Figures' / f'batch {batch} mouse {mouse}'
-    bm.plot_behavior_metrics(metrics, mouse, batch, BIN_SIZE, save_dir=mouse_fig_dir)
 
     # Plot raster
     bm.plot_behavior_raster(fiberbehav_notderived_df, 

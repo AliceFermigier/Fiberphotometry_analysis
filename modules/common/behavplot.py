@@ -530,7 +530,7 @@ def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, group,
     ax.set_xlabel('Seconds')
     ax.set_ylabel(r'z-scored $\Delta$F/F')
     ax.legend(loc='upper left', fontsize='small')
-    ax.set_ylim(-1, 6)
+    ax.set_ylim(-1, 8)
     ax.margins(0, 0.1)
     ax.set_title(f'{BOI} - {exp} {group}')
     
