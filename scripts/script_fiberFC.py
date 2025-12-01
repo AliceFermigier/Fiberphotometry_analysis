@@ -106,6 +106,7 @@ print('###################')
 print(f'EXPERIMENT : {exp}')
 print('###################')
 
+import matplotlib.pyplot as plt
 dlc_data = True
 
 # Create repository path where fiberbehav data will be stored
@@ -155,8 +156,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         shock_abs = fc.convert_to_absolute(proto["Shock"], protocol_start)
 
     # Add interval columns to your fiberphotometry data
-    fiberpho_df = fc.add_interval_column(fiberpho_df, cs_plus_abs, "CS_plus")
-    fiberpho_df = fc.add_interval_column(fiberpho_df, cs_minus_abs, "CS_minus")
+    fiberpho_df = fc.add_interval_column(fiberpho_df, cs_plus_abs, "CS+")
+    fiberpho_df = fc.add_interval_column(fiberpho_df, cs_minus_abs, "CS-")
     fiberpho_df = fc.add_interval_column(fiberpho_df, led3_abs, "Protocol_start")
     if 'Shock' in list_BOI:
         fiberpho_df = fc.add_interval_column(fiberpho_df, shock_abs, "Shock")
@@ -174,7 +175,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         except Exception as e:
             print(f'[!] DLC file error for {mouse}: {e}')
         behav_df = fc.detect_freezing(coordinates_df, arena_json, fps=20)
-        print(behav_df)
+        print(behav_df.columns)
 
     # Align DLC and fiber data
     print('Aligning fiberphotometry and behaviour data')
@@ -192,6 +193,17 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     fiberbehav_df.to_csv(fiberbehav_notderived_path, index=False)
 
     dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
+    dfiberbehav_df.to_csv(fiberbehav_path, index=False)
+
+    # Plotting
+    fig = bp.plot_fiberpho_behav(
+        dfiberbehav_df, list_BOI, exp, mouse,
+        THRESH_S, EVENT_TIME_THRESHOLD, batch,
+        scaled = False
+    )
+    fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.pdf')
+    fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
+    plt.close()
 
 #%% 2.3 - Plot behavioural metrics
 

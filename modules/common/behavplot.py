@@ -82,6 +82,9 @@ def behav_process(df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
     sr = pp.samplerate(df)
 
     for BOI in list_BOI:
+        if BOI not in df.columns:
+            print(f"[!] BOI '{BOI}' not in dataframe")
+            continue
         x = df[BOI].round().values.astype(int)
 
         # --- 1. Detect starts and ends of bouts ---
@@ -89,7 +92,10 @@ def behav_process(df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
         starts = np.where(diff == 1)[0]
         ends   = np.where(diff == -1)[0]
 
-        bouts = list(zip(starts, ends))
+        bouts = list(zip(starts, ends))  
+        if len(bouts) == 0:
+            print(f"[i] No bouts detected for {BOI}")
+            continue
 
         # --- 2. Merge bouts separated by < THRESH_S seconds ---
         merged = []
@@ -182,12 +188,6 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     if has_speed and has_560:
         ax2 = fig.add_subplot(312)
         ax2.plot('Time(s)', 'Denoised 560 dFF', linewidth=1, color='black', label='560 dFF', data=behavprocesssnip_df)
-
-    if exp == 'Fear_conditioning':
-        shock_times = np.where(behavprocess_df['Shock'] == 1)[0]
-        for idx in shock_times[:2]:
-            x = behavprocess_df.at[int(idx), 'Time(s)']
-            ax1.axvline(x, color='yellow', ls='-', lw=2, label='Shock')
 
     # Highlight behaviors
     behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"

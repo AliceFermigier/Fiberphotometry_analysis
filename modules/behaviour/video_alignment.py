@@ -38,7 +38,7 @@ importlib.reload(cp)
 # Find ffmpeg in PATH, or fallback
 ffmpeg_path = shutil.which("ffmpeg")
 if not ffmpeg_path:
-    ffmpeg_path = r"C:\Users\afermigier\ffmpeg-7.1.1-essentials_build\ffmpeg-7.1.1-essentials_build\bin\ffmpeg.exe"
+    ffmpeg_path = r"C:\Users\afermigier\Programmes\ffmpeg-7.1.1-essentials_build\bin\ffmpeg.exe"
 
 if not os.path.isfile(ffmpeg_path):
     raise FileNotFoundError(f"ffmpeg not found at: {ffmpeg_path}")

@@ -134,5 +134,21 @@
     "Airpuffs": [
         "lime",
         0.6
+    ],
+    "CS+": [
+        "orange",
+        0.6
+    ],
+    "CS-": [
+        "lime",
+        0.2
+    ],
+    "Freezing": [
+        "cornflowerblue",
+        0.6
+    ],
+    "Shock": [
+        "gold",
+        0.8
     ]
 }

@@ -200,11 +200,12 @@ def detect_freezing(dlc_df, scale_file, fps=20):
     plt.legend()
     plt.show()
     threshold = float(input("Enter speed threshold (cm/s): "))
+    plt.close()
 
     # --- Freeze = sustained low movement ---
     freeze = (
         (s_center["Speed"] <= threshold) &
-        (s_nose["Speed"]   <= 2 * threshold) &
+        (s_nose["Speed"]   <= threshold) &
         (s_tail["Speed"]   <= threshold)
     ).astype(int)
 
@@ -225,8 +226,12 @@ def detect_freezing(dlc_df, scale_file, fps=20):
                 end = len(freeze) - 1
             freeze_bouts[i:end] = 1
     freezing_df = pd.DataFrame({'Freezing':freeze_bouts})
-    total_speed_df = pd.concat([s_nose, s_center, s_tail], axis=1).sum(axis=1)
-    behav_df = pd.concat([dlc_df, freezing_df, total_speed_df], axis=1)
+    print(freezing_df)
+    total_speed = s_nose["Speed"] + s_center["Speed"] + s_tail["Speed"]
+    print(s_nose, s_nose["Speed"])
+    total_speed_df = pd.DataFrame({'Speed': total_speed})
+    print(total_speed_df)
+    behav_df = pd.concat([dlc_df, freezing_df, total_speed_df], axis=0)
 
     return behav_df
  
