@@ -191,8 +191,6 @@ def detect_freezing(dlc_df, scale_file, fps=20):
     s_center = mp.compute_speed(dlc_df, dist_scale=dist_scaling, frame_rate=fps, bodypart='center')
     s_tail = mp.compute_speed(dlc_df, dist_scale=dist_scaling, frame_rate=fps, bodypart='tail_base')
 
-    speeds = {"nose": s_nose, "center": s_center, "tail": s_tail}
-
     # --- Load or set speed threshold ---
     plt.plot(s_nose["Speed"], label="nose")
     plt.plot(s_center["Speed"], label="center")
@@ -228,10 +226,11 @@ def detect_freezing(dlc_df, scale_file, fps=20):
     freezing_df = pd.DataFrame({'Freezing':freeze_bouts})
     print(freezing_df)
     total_speed = s_nose["Speed"] + s_center["Speed"] + s_tail["Speed"]
-    print(s_nose, s_nose["Speed"])
+    print(np.mean(s_nose["Speed"]))
     total_speed_df = pd.DataFrame({'Speed': total_speed})
-    print(total_speed_df)
-    behav_df = pd.concat([dlc_df, freezing_df, total_speed_df], axis=0)
+    print(total_speed_df, np.mean(total_speed_df["Speed"]))
+    behav_df = pd.concat([dlc_df, freezing_df, total_speed_df], axis=1)
+    print(behav_df)
 
     return behav_df
  

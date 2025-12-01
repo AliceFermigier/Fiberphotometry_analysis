@@ -174,15 +174,14 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             coordinates_df = cp.align_camera_flashes(coordinates_df, frame_times_df)
         except Exception as e:
             print(f'[!] DLC file error for {mouse}: {e}')
+        # Compute freezing bouts using DLC data
+        print('Computing freezing bouts')
         behav_df = fc.detect_freezing(coordinates_df, arena_json, fps=20)
         print(behav_df.columns)
 
     # Align DLC and fiber data
     print('Aligning fiberphotometry and behaviour data')
     fiberbehav_df = bp.align_dlc_to_fiber(fiberpho_df, behav_df)
-
-    # Compute freezing bouts using DLC data
-    print('Computing freezing bouts')
 
     # Post-process data (fuse behaviours that are too close and delete the ones that are too short)
     fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
