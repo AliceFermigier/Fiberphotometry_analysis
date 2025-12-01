@@ -9,6 +9,41 @@ import matplotlib.pyplot as plt
 import modules.behaviour.mouse_position as mp
 importlib.reload(mp)
 
+
+def _sanitize_time_column(df, time_col='T1'):
+    """
+    Convert time column (ms) to numeric seconds.
+    Returns new df with df[time_col] in seconds (float), and raises a helpful error if conversion fails.
+    """
+    if time_col not in df.columns:
+        raise KeyError(f"Time column '{time_col}' not found. Columns: {list(df.columns)}")
+
+    # Strip whitespace from textual cells to help conversion (works inplace)
+    df = df.copy()
+    df[time_col] = df[time_col].astype(str).str.strip()
+
+    # Remove thousands separators like commas if present (e.g., "60,000")
+    df[time_col] = df[time_col].str.replace(r'[,\s]+', '', regex=True)
+
+    # Convert to numeric (ms). Non-convertible entries become NaN
+    df[time_col] = pd.to_numeric(df[time_col], errors='coerce')
+
+    # Detect invalid rows
+    bad_mask = df[time_col].isna()
+    if bad_mask.any():
+        bad_rows = df.loc[bad_mask, time_col].index.tolist()
+        sample = df.loc[bad_mask].head(10)  # show up to 10 bad rows
+        raise ValueError(
+            f"Could not convert {len(bad_rows)} rows in '{time_col}' to numbers. "
+            f"Indices (up to 10 shown): {bad_rows[:10]}\n"
+            f"Sample bad rows (first 10):\n{sample}\n"
+            "Hint: open the Excel and look for headers/merged cells or non-numeric tokens in T1."
+        )
+
+    # Convert ms -> seconds
+    df[time_col] = df[time_col].astype(float) / 1000.0
+    return df
+
 def parse_protocol_sheet(path, sheet_name):
     """
     Parse protocol excel sheet and extract intervals for:
@@ -29,8 +64,8 @@ def parse_protocol_sheet(path, sheet_name):
     shk_col = 'LED2(1,3)'
     led3_col = 'LED3(1,4)'
     
-    # Convert ms → seconds
-    df[time_col] = df[time_col] / 1000.0
+    # Sanitize time column robustly and convert to seconds
+    df = _sanitize_time_column(df, time_col='T1')
 
     # ───────────────────────────────────────────────
     # Helper: extract ON/OFF intervals for a column
@@ -159,23 +194,19 @@ def detect_freezing(dlc_df, scale_file, fps=20):
     speeds = {"nose": s_nose, "center": s_center, "tail": s_tail}
 
     # --- Load or set speed threshold ---
-    plt.plot(s_nose, label="nose")
-    plt.plot(s_center, label="center")
-    plt.plot(s_tail, label="tail")
+    plt.plot(s_nose["Speed"], label="nose")
+    plt.plot(s_center["Speed"], label="center")
+    plt.plot(s_tail["Speed"], label="tail")
     plt.legend()
     plt.show()
     threshold = float(input("Enter speed threshold (cm/s): "))
 
     # --- Freeze = sustained low movement ---
-    freeze = np.zeros(len(s_nose))
-
-    for i in range(len(s_nose)):
-        if (s_center[i] <= threshold and
-            s_nose[i] <= 2 * threshold and
-            s_tail[i] <= threshold):
-            freeze[i] = 1
-
-    freeze = freeze.astype(int)
+    freeze = (
+        (s_center["Speed"] <= threshold) &
+        (s_nose["Speed"]   <= 2 * threshold) &
+        (s_tail["Speed"]   <= threshold)
+    ).astype(int)
 
     # --- Detect freezing bouts ---
     diff_f = np.diff(freeze)
@@ -197,5 +228,5 @@ def detect_freezing(dlc_df, scale_file, fps=20):
     total_speed_df = pd.concat([s_nose, s_center, s_tail], axis=1).sum(axis=1)
     behav_df = pd.concat([dlc_df, freezing_df, total_speed_df], axis=1)
 
-    return behav_df, speeds
+    return behav_df
  

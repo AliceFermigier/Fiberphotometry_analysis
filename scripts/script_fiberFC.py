@@ -15,7 +15,6 @@ import os
 from pathlib import Path
 import modules.common.switch_matplotlib_backends as smb
 importlib.reload(smb)
-plt = smb.with_agg() #imports matplotlib.pyplot with Agg backend
 import json
 
 #import functions
@@ -71,7 +70,7 @@ if 'Conditioning' in exp:
     sheet = 'Conditioning'
 else:
     list_BOI = ['Freezing','CS+','CS-']
-    dlc_suffix = 'DLC_resnet50_FearHab18shuffle1_100000'
+    dlc_suffix = 'DLC_resnet50_FearHab_FiberNov26shuffle1_100000'
     if 'Habituation' in exp:
         sheet = 'Habituation'
     else:
@@ -90,7 +89,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     behav_path_exp = data_path_exp / 'Behaviour'
     video_path = data_path_exp / f"{mouse}.avi"
     arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
-    real_world_distance_cm=20
+    real_world_distance_cm=30
 
     #Indicate the arena boundaries and the coordinates of the known distance
     if arena_json.is_file():
@@ -175,10 +174,11 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         except Exception as e:
             print(f'[!] DLC file error for {mouse}: {e}')
         behav_df = fc.detect_freezing(coordinates_df, arena_json, fps=20)
+        print(behav_df)
 
     # Align DLC and fiber data
     print('Aligning fiberphotometry and behaviour data')
-    fiberbehav_df = bp.align_dlc_to_fiber(fiberbehav_df, behav_df)
+    fiberbehav_df = bp.align_dlc_to_fiber(fiberpho_df, behav_df)
 
     # Compute freezing bouts using DLC data
     print('Computing freezing bouts')

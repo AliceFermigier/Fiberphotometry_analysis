@@ -62,7 +62,10 @@ def compute_speed(coordinates_df, dist_scale=0.1322, frame_rate=19, bodypart='ba
     speed = cs.hampel_filter(speed, window_size=15) # remove big artifacts
     speed = savgol_filter(speed, 5, 2)  # smoothing
 
-    speed_df = pd.DataFrame({
+    print("speed shape:", speed.shape)
+    print("after Hampel:", np.array(speed).shape)
+
+    speed_df = pd.Series({
         'Speed': speed
     })
 
