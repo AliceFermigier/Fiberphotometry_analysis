@@ -46,7 +46,7 @@ EVENT_TIME_THRESHOLD = 0
 #%% Plot PETH for each mouse
 
 # PETH parameters 
-baseline = True
+baseline = False
 MAXBOUTSNUMBER = 12
 if baseline:
     tag = "windowedbaseline"

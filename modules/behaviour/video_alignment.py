@@ -537,16 +537,18 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 #%%
 
 if __name__ == "__main__":
-
-    for mouse in ['822','844','827','828','829']:
+    batch = 2
+    #'822','844','827','828','829',
+    for mouse in ['821']:
         print(f"{mouse}")
         exp='Reward_Airpuffs'
+        behavior = "Licks_filtered"
         data_path_exp='20251003_FiberMEC_RewardAirpuff'
         video_name = f'{mouse}.avi'
 
-        exp_path = Path(r'E:\202510_FiberMEC\Data') / f'{data_path_exp}'
+        exp_path = Path(r'G:\202510_FiberMEC\Data') / f'{data_path_exp}'
         pp_path = exp_path / 'Preprocessing'
-        analysis_path = Path(r'E:\202510_FiberMEC\Analysis') / f'{exp}' / 'length0_interbout2_o4fNone'
+        analysis_path = Path(r'G:\202510_FiberMEC\Analysis') / f'{exp}' / 'length0_interbout10_o4fNone'
         video_path = exp_path / f'{video_name}'
         raw_file_path = exp_path / f'{mouse}_0000.doric'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
@@ -578,11 +580,11 @@ if __name__ == "__main__":
             video_path,
             fiberbehav_df,
             fiber_indices,
-            behavior_col="Airpuffs",
-            output_dir=Path(f"./bout_videos/{mouse}/airpuffs/"),
-            window=10,
-            pre_time=5,
-            post_time=5
+            behavior_col = behavior,
+            output_dir = analysis_path / f'Videos_{behavior}/{batch}_{mouse}',
+            window = 10,
+            pre_time = 7,
+            post_time = 7
         )
 
 
