@@ -538,12 +538,12 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 
 if __name__ == "__main__":
     batch = 2
-    #'822','844','827','828','829',
-    for mouse in ['821']:
+    #
+    for mouse in ['822','844','827','828','829','821']:
         print(f"{mouse}")
-        exp='Reward_Airpuffs'
+        exp='Reward_Hab'
         behavior = "Licks_filtered"
-        data_path_exp='20251003_FiberMEC_RewardAirpuff'
+        data_path_exp='20251002_FiberMEC_RewardHab'
         video_name = f'{mouse}.avi'
 
         exp_path = Path(r'G:\202510_FiberMEC\Data') / f'{data_path_exp}'
