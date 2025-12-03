@@ -203,7 +203,7 @@ def plot_fiberpho_dualcolor(fiber_df, exp, mouse, method):
 
         # Second subplot: denoised 465 dFF
         ax3 = fig.add_subplot(414)
-        p6, = ax3.plot('Time(s)', 'Denoised dFF', linewidth=1, color='orange', label='560 dFF', data=fiber_df)
+        p6, = ax3.plot('Time(s)', 'Denoised 560 dFF', linewidth=1, color='orange', label='560 dFF', data=fiber_df)
         ax3.set_ylabel(r'$\Delta$F/F')
         ax3.set_xlabel('Time(s)')
         ax3.legend(loc='upper right')

@@ -94,14 +94,14 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     # Plot fiber signal
     axs[0].plot(t, window_df['Denoised dFF'], color='black')
     axs[0].set_ylabel('465 dFF')
-    axs[0].set_ylim(max(-1, fiberbehav_df['Denoised dFF'].min()), min(3, fiberbehav_df['Denoised dFF'].max()))
+    axs[0].set_ylim(max(-2, fiberbehav_df['Denoised dFF'].min()), min(10, fiberbehav_df['Denoised dFF'].max()))
     axs[0].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
 
     # Optional: plot 560nm dFF
     if has_560:
         axs[1].plot(t, window_df['Denoised 560 dFF'], color='darkorange')
         axs[1].set_ylabel('560 dFF')
-        axs[1].set_ylim(max(-0.3, fiberbehav_df['Denoised dFF'].min()), min(0.8, fiberbehav_df['Denoised dFF'].max()))
+        axs[1].set_ylim(max(-0.5, fiberbehav_df['Denoised dFF'].min()), min(1.5, fiberbehav_df['Denoised dFF'].max()))
         axs[1].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
     
     # Plot behaviors
@@ -537,37 +537,37 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 #%%
 
 if __name__ == "__main__":
-    batch = 2
-    #
-    for mouse in ['822','844','827','828','829','821']:
+    batch = 1
+    #'822','844','827','828','829','821'
+    for mouse in ['467']:
         print(f"{mouse}")
-        exp='Reward_Hab'
-        behavior = "Licks_filtered"
-        data_path_exp='20251002_FiberMEC_RewardHab'
+        exp='Fear_Conditioning'
+        behavior = "Shock"
+        data_path_exp='20240415_FC_Cond'
         video_name = f'{mouse}.avi'
 
-        exp_path = Path(r'G:\202510_FiberMEC\Data') / f'{data_path_exp}'
+        exp_path = Path(r'E:\FiberPhotometry\202404_DualColourGRABAChxFlexGECO\Data') / f'{data_path_exp}'
         pp_path = exp_path / 'Preprocessing'
-        analysis_path = Path(r'G:\202510_FiberMEC\Analysis') / f'{exp}' / 'length0_interbout10_o4fNone'
+        analysis_path = Path(r'E:\FiberPhotometry\202404_DualColourGRABAChxFlexGECO\Analysis') / f'{exp}' / 'length0_interbout0_o4fNone'
         video_path = exp_path / f'{video_name}'
         raw_file_path = exp_path / f'{mouse}_0000.doric'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
-        fiberbehav_df = pd.read_csv(analysis_path / f'2_{mouse}_fiberbehavnotderived.csv')
-        output_path = exp_path / 'Videos' / f'{video_name[:-4]}_combined'
+        fiberbehav_df = pd.read_csv(analysis_path / f'{batch}_{mouse}_fiberbehavnotderived.csv')
+        output_path = analysis_path / f'Videos_{behavior}/{batch}_{mouse}' / f'{video_name[:-4]}_combined'
         camera_csv_path = exp_path / f'camera_flashes_{mouse}.csv'
         led_flashes_path = exp_path / f'miniscope_sync_{mouse}.csv'
 
-        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
-        deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-        time_gap = cp.time_gap(deinterleaved_df, led_df)
+        #led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
+        #deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+        #time_gap = cp.time_gap(deinterleaved_df, led_df)
 
         video_time = get_video_time(video_path,
                                     raw_file_path,
                                     csv_path=camera_csv_path,
                                     automated_alignment=False, 
-                                    bonsai_setup=True,
-                                    time_gap=time_gap)
-        
+                                    bonsai_setup=False,
+                                    time_gap=None)
+        '''
         # Drop frames with no corresponding fiber signal
         fiber_start_time = fiberbehav_df['Time(s)'].iloc[0]
         valid_frame_indices = np.where(video_time >= fiber_start_time)[0]
@@ -575,7 +575,10 @@ if __name__ == "__main__":
 
         # Align fiber data to trimmed video timestamps
         fiber_indices = align_fiber_to_video(fiberbehav_df, video_time_trimmed)
+        '''
 
+        fiber_indices = align_fiber_to_video(fiberbehav_df, video_time)
+        '''
         export_behavior_videos(
             video_path,
             fiberbehav_df,
@@ -583,42 +586,21 @@ if __name__ == "__main__":
             behavior_col = behavior,
             output_dir = analysis_path / f'Videos_{behavior}/{batch}_{mouse}',
             window = 10,
-            pre_time = 7,
-            post_time = 7
+            pre_time = 5,
+            post_time = 5
         )
+        '''
 
+        chunk_size = int(15 * 20)  # 30 seconds * 30 FPS
+        total_frames = len(video_time)
+        test = False
 
-'''
-    chunk_size = int(30 * 30)  # 30 seconds * 30 FPS
-    total_frames = len(video_time_trimmed)
-    test = True
-
-    if test :
-        start = 5600
-        end = 8000
-        print(f"Processing frames {start} to {end}...")
-        
-        chunk_output = output_path.parent / f"{output_path.stem}_test"
-        
-        make_combined_video(
-            video_path=video_path,
-            fiberbehav_df=fiberbehav_df,
-            output_path=chunk_output,
-            fiber_indices=fiber_indices,
-            window=10,
-            verbose=True,
-            test=test,
-            fast=True,
-            start_frame=start,
-            end_frame=end
-        )
-
-    else:
-        for start in range(0, total_frames, chunk_size):
-            end = min(start + chunk_size, total_frames)
+        if test :
+            start = 7500
+            end = 8500
             print(f"Processing frames {start} to {end}...")
             
-            chunk_output = output_path.parent / f"{output_path.stem}_part{start//chunk_size}"
+            chunk_output = output_path.parent / f"{output_path.stem}_test"
             
             make_combined_video(
                 video_path=video_path,
@@ -626,18 +608,38 @@ if __name__ == "__main__":
                 output_path=chunk_output,
                 fiber_indices=fiber_indices,
                 window=10,
-                verbose=False,
+                verbose=True,
                 test=test,
                 fast=True,
                 start_frame=start,
                 end_frame=end
             )
 
-        # Concatenate videos 
-        video_parts_dir = exp_path / 'Videos'
-        base_name = f"{mouse}_combined_part"
-        output_path = video_parts_dir / f"{mouse}_combined_full.mp4"
+        else:
+            for start in range(0, total_frames, chunk_size):
+                end = min(start + chunk_size, total_frames)
+                print(f"Processing frames {start} to {end}...")
+                
+                chunk_output = output_path.parent / f"{output_path.stem}_part{start//chunk_size}"
+                
+                make_combined_video(
+                    video_path=video_path,
+                    fiberbehav_df=fiberbehav_df,
+                    output_path=chunk_output,
+                    fiber_indices=fiber_indices,
+                    window=10,
+                    verbose=False,
+                    test=test,
+                    fast=True,
+                    start_frame=start,
+                    end_frame=end
+                )
+    '''
+            # Concatenate videos 
+            video_parts_dir = exp_path / 'Videos'
+            base_name = f"{mouse}_combined_part"
+            output_path = video_parts_dir / f"{mouse}_combined_full.mp4"
 
-        concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=True)
-'''
-# %%
+            concatenate_videos(video_parts_dir, base_name, output_path, delete_temp=True)
+    '''
+    # %%

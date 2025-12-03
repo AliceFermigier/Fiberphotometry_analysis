@@ -39,7 +39,7 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 10
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -52,6 +52,7 @@ if baseline:
     tag = "windowedbaseline"
 else:
     tag = "wholetrace"
+
 for exp in ['Fear_Conditioning']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
@@ -72,8 +73,10 @@ for exp in ['Fear_Conditioning']: #[f.name for f in analysis_path.iterdir() if f
     # Loop over each mouse in the subjects DataFrame
     for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
         fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+        print(mouse)
 
-        if fiberbehav_path.exists():  # Check if fiber behavior file exists for this mouse
+        if fiberbehav_path.exists() and mouse == 467:  # Check if fiber behavior file exists for this mouse
+            print('yes')
             print("--------------")
             print(f'MOUSE : {mouse} {batch}')
             print("--------------")
@@ -86,7 +89,7 @@ for exp in ['Fear_Conditioning']: #[f.name for f in analysis_path.iterdir() if f
                 continue
 
             # List all behaviors of interest (BOI) by excluding specific behaviors
-            behaviors_of_interest = ['Shock']
+            behaviors_of_interest = ['CS+','Shock']
             
             for behavior in behaviors_of_interest:
                 for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
@@ -117,7 +120,13 @@ for exp in ['Fear_Conditioning']: #[f.name for f in analysis_path.iterdir() if f
 BOI = 'Shock'
 #'Licks_filtered' 'Nose_in_any_airport'
 TIME_WINDOW = [2, 10]  # In seconds
+baseline = True
 MAXBOUTSNUMBER = 12
+
+if baseline:
+    tag = "windowedbaseline"
+else:
+    tag = "wholetrace"
 # ----------------------------- #
 
 print('##########################################')
@@ -125,7 +134,7 @@ print(f'EXPERIMENT: {exp}')
 print('##########################################')
 
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
-peth_path = repo_path / 'PETH'
+peth_path = repo_path / f'PETH_grouped_{tag}'
 peth_path.mkdir(parents=True, exist_ok=True)  # Create PETH directory if it doesn't exist
 
 # Initialize data storage lists
@@ -159,7 +168,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         # Calculate mean PETH for the current mouse
         PETH_mouse = bp.PETH(
         fiberbehav_df, BOI, 'onset', TIME_WINDOW, EVENT_TIME_THRESHOLD,
-        maxboutsnumber=MAXBOUTSNUMBER
+        baselinewindow = baseline, maxboutsnumber=MAXBOUTSNUMBER
         )
         #print(f'PETH mouse : {PETH_mouse}, lenght = {len(PETH_mouse)}')
         PETH_mouse_mean = np.mean(PETH_mouse, axis=0, keepdims=True)

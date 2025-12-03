@@ -46,10 +46,10 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
-automated_alignment = True
+automated_alignment = False
 arena_analysis = False
-dlc_data = True
-boris = False
+dlc_data = False
+boris = True
 
 #filter characteristics
 ORDER = 4
@@ -60,7 +60,7 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Social_Interaction'
+exp = 'Fear_Conditioning'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 

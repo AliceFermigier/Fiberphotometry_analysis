@@ -44,7 +44,7 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 #####################
 
 exp = 'Fear_Conditioning'
-dual_color = False
+dual_color = True
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
