@@ -39,7 +39,7 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 10
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -47,18 +47,18 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = False
-MAXBOUTSNUMBER = 12
+MAXBOUTSNUMBER = 14
 if baseline:
     tag = "windowedbaseline"
 else:
     tag = "wholetrace"
 
-for exp in ['Fear_Conditioning']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
+for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
     EVENT_LIST = ['onset']  # Event triggers, e.g., onset, withdrawal
-    TIME_WINDOWS = [[2, 10]]  # Time window for PETH calculation (pre, post)
+    TIME_WINDOWS = [[-5, 10]]  # Time window for PETH calculation (pre, post)
 
     # Loop over each session folder in the experiment path
     print('##########################################')
@@ -73,10 +73,8 @@ for exp in ['Fear_Conditioning']: #[f.name for f in analysis_path.iterdir() if f
     # Loop over each mouse in the subjects DataFrame
     for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
         fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
-        print(mouse)
 
-        if fiberbehav_path.exists() and mouse == 467:  # Check if fiber behavior file exists for this mouse
-            print('yes')
+        if fiberbehav_path.exists():  # Check if fiber behavior file exists for this mouse
             print("--------------")
             print(f'MOUSE : {mouse} {batch}')
             print("--------------")
@@ -89,7 +87,7 @@ for exp in ['Fear_Conditioning']: #[f.name for f in analysis_path.iterdir() if f
                 continue
 
             # List all behaviors of interest (BOI) by excluding specific behaviors
-            behaviors_of_interest = ['CS+','Shock']
+            behaviors_of_interest = ['Licks_filtered', 'Airpuffs']
             
             for behavior in behaviors_of_interest:
                 for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
@@ -106,9 +104,8 @@ for exp in ['Fear_Conditioning']: #[f.name for f in analysis_path.iterdir() if f
                     
                     # Plot the PETH and save the figure 
                     peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, exp, mouse, group)
-                    plot_filename = f'{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.png'
-                    peth_plot_path = peth_path / plot_filename
-                    peth_plot.savefig(peth_plot_path)
+                    peth_plot.savefig(peth_path / f'{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
+                    peth_plot.savefig(peth_path / f'{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
                     plt.close(peth_plot)
                 
                     
@@ -117,11 +114,12 @@ for exp in ['Fear_Conditioning']: #[f.name for f in analysis_path.iterdir() if f
 
 # ----------------------------- #
 # Parameters
-BOI = 'Shock'
+exp = 'Reward_Airpuffs'
+BOI = 'Licks_filtered'
 #'Licks_filtered' 'Nose_in_any_airport'
-TIME_WINDOW = [2, 10]  # In seconds
-baseline = True
-MAXBOUTSNUMBER = 12
+TIME_WINDOW = [5, 10]  # In seconds
+baseline = False
+MAXBOUTSNUMBER = 14
 
 if baseline:
     tag = "windowedbaseline"
@@ -180,7 +178,11 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             print('Initialized PETH_array successfully')
         else:
             PETH_array = np.concatenate((PETH_array, PETH_mouse_mean))  # Stack new data
-        
+
+        if len(PETH_mouse) <= TIME_WINDOW[0]:
+            print(f"Skipping {mouse}: PETH length {len(PETH_mouse)} too short for TIME_WINDOW={TIME_WINDOW}")
+            continue
+                
         # Calculate mean and max dFF before and after the event (PETH)
         mean_before = np.mean(PETH_mouse[:TIME_WINDOW[0]])  # Mean before event
         mean_after = np.mean(PETH_mouse[TIME_WINDOW[0]:])   # Mean after event
@@ -189,7 +191,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         
         PETH_mean_list.append((mean_before, mean_after))
         PETH_max_list.append((max_before, max_after))
-
+'''
 # Export mean/max PETH data to Excel
 meanmaxPETH_df = pd.DataFrame({
     'Subject': subject_list,
@@ -200,7 +202,7 @@ meanmaxPETH_df = pd.DataFrame({
     f'Max dFF after {BOI}': [x[1] for x in PETH_max_list]
 })
 meanmaxPETH_df.to_excel(peth_path / f'{BOI}_{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETHmeanmax.xlsx')
-
+'''
 # Plot PETH for each group
 included_groups = ['Saline', 'MEC 20uM']
 for group in included_groups:

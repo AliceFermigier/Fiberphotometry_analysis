@@ -216,12 +216,14 @@ print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 
 #%% 2.3 - Plot behavioural metrics
 
+exp = 'Reward_Extinction'
+
 print('###################')
 print(f'EXPERIMENT : {exp}')
 print('###################')
 
 BIN_SIZE = 1   # seconds
-N_TIME_BINS_HEATMAP = 4
+N_TIME_BINS_HEATMAP = 3
 HEATMAP_BINS = (50, 50)  # x, y bins
 
 behaviors_to_plot = [

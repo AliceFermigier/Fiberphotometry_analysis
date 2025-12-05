@@ -94,7 +94,7 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     # Plot fiber signal
     axs[0].plot(t, window_df['Denoised dFF'], color='black')
     axs[0].set_ylabel('465 dFF')
-    axs[0].set_ylim(max(-2, fiberbehav_df['Denoised dFF'].min()), min(10, fiberbehav_df['Denoised dFF'].max()))
+    axs[0].set_ylim(max(-0.3, fiberbehav_df['Denoised dFF'].min()), min(1.5, fiberbehav_df['Denoised dFF'].max()))
     axs[0].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
 
     # Optional: plot 560nm dFF
@@ -537,18 +537,18 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 #%%
 
 if __name__ == "__main__":
-    batch = 1
+    batch = 3
     #'822','844','827','828','829','821'
-    for mouse in ['467']:
+    for mouse in ['822','844','827','829']:
         print(f"{mouse}")
-        exp='Fear_Conditioning'
-        behavior = "Shock"
-        data_path_exp='20240415_FC_Cond'
+        exp='Reward_Airpuffs'
+        behavior = "Airpuffs"
+        data_path_exp='20251030_FiberMEC_RewardAirpuff'
         video_name = f'{mouse}.avi'
 
-        exp_path = Path(r'E:\FiberPhotometry\202404_DualColourGRABAChxFlexGECO\Data') / f'{data_path_exp}'
+        exp_path = Path(r'F:\202510_FiberMEC\Data') / f'{data_path_exp}'
         pp_path = exp_path / 'Preprocessing'
-        analysis_path = Path(r'E:\FiberPhotometry\202404_DualColourGRABAChxFlexGECO\Analysis') / f'{exp}' / 'length0_interbout0_o4fNone'
+        analysis_path = Path(r'F:\202510_FiberMEC\Analysis') / f'{exp}' / 'length0_interbout0_o4fNone'
         video_path = exp_path / f'{video_name}'
         raw_file_path = exp_path / f'{mouse}_0000.doric'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
@@ -557,17 +557,17 @@ if __name__ == "__main__":
         camera_csv_path = exp_path / f'camera_flashes_{mouse}.csv'
         led_flashes_path = exp_path / f'miniscope_sync_{mouse}.csv'
 
-        #led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
-        #deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-        #time_gap = cp.time_gap(deinterleaved_df, led_df)
+        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
+        deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+        time_gap = cp.time_gap(deinterleaved_df, led_df)
 
         video_time = get_video_time(video_path,
                                     raw_file_path,
                                     csv_path=camera_csv_path,
                                     automated_alignment=False, 
-                                    bonsai_setup=False,
-                                    time_gap=None)
-        '''
+                                    bonsai_setup=True,
+                                    time_gap=time_gap)
+        
         # Drop frames with no corresponding fiber signal
         fiber_start_time = fiberbehav_df['Time(s)'].iloc[0]
         valid_frame_indices = np.where(video_time >= fiber_start_time)[0]
@@ -575,10 +575,7 @@ if __name__ == "__main__":
 
         # Align fiber data to trimmed video timestamps
         fiber_indices = align_fiber_to_video(fiberbehav_df, video_time_trimmed)
-        '''
-
-        fiber_indices = align_fiber_to_video(fiberbehav_df, video_time)
-        '''
+        
         export_behavior_videos(
             video_path,
             fiberbehav_df,
@@ -587,7 +584,7 @@ if __name__ == "__main__":
             output_dir = analysis_path / f'Videos_{behavior}/{batch}_{mouse}',
             window = 10,
             pre_time = 5,
-            post_time = 5
+            post_time = 10
         )
         '''
 
@@ -634,7 +631,7 @@ if __name__ == "__main__":
                     start_frame=start,
                     end_frame=end
                 )
-    '''
+    
             # Concatenate videos 
             video_parts_dir = exp_path / 'Videos'
             base_name = f"{mouse}_combined_part"

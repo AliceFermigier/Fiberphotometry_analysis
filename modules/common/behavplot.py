@@ -429,6 +429,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, mouse, group,
     ax_trace.tick_params(labelsize=text_size * 0.8)
     ax_trace.legend(loc='upper left', fontsize=text_size * 0.6)
     ax_trace.margins(0, 0.01)
+    ax_trace.set_ylim(-1.5, 6)
 
     # Finalize layout
     fig.subplots_adjust(right=0.8, hspace=0.1)

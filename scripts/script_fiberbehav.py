@@ -46,10 +46,11 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
+bonsai_setup = True
 automated_alignment = False
 arena_analysis = False
-dlc_data = False
-boris = True
+dlc_data = True
+boris = False
 
 #filter characteristics
 ORDER = 4
@@ -60,7 +61,7 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Fear_Conditioning'
+exp = 'EPM'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -82,8 +83,9 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         data_path_exp = datapath_exp_dict[batch]
         pp_path = data_path_exp / 'Preprocessing'
         behav_path_exp = data_path_exp / 'Behaviour'
-        
+
         # Define paths for raw, behavioral, and fiberphotometry data
+        camera_flashes_path = data_path_exp / f'camera_flashes_{mouse}.csv'
         rawdata_path = data_path_exp / f'{mouse}_0000.doric'
         led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
@@ -131,7 +133,14 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         
         # Time alignment
         behav_df = None
-        if not automated_alignment:
+        if bonsai_setup:
+                led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
+                deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+                time_gap = cp.time_gap(deinterleaved_df, led_df)
+
+                fiberpho_df = pd.read_csv(fiberpho_path)
+
+        elif not automated_alignment:
             print('Get camera flashes')
             camera_df = cp.get_camera_flashes(rawdata_path)
             print(camera_df)
@@ -149,7 +158,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
                 print('[!] No camera flashes found, falling back to automated alignment.')
                 automated_alignment = True
 
-        if automated_alignment:
+        elif automated_alignment:
             print('Automated alignment')
             led_df = cp.get_led_flashes_from_csv(led_flashes_path)
             deinterleaved_df = pd.read_csv(deinterleaved_raw_path)

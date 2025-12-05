@@ -227,9 +227,9 @@ def compute_and_plot_heatmap(df, mouse, batch, ports_json, arena_json,
         ax_h.imshow(
             heatmap.T,
             origin="lower",
-            cmap="inferno",
+            cmap="jet",
             vmin=0,
-            vmax=100,
+            vmax=60,
             extent=extent,
             interpolation="nearest",
             aspect="equal"
