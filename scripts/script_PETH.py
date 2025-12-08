@@ -39,26 +39,28 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 10
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
 #%% Plot PETH for each mouse
 
 # PETH parameters 
-baseline = False
+baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
 MAXBOUTSNUMBER = 14
 if baseline:
     tag = "windowedbaseline"
 else:
     tag = "wholetrace"
 
+# Plot parameters
+EVENT_LIST = ['onset','withdrawal']
+TIME_WINDOWS = [[5, 10],[5, 10]]  # Time window for PETH calculation (pre, post), for each event
+Y_LIM = [-2,8]
+
 for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
-
-    EVENT_LIST = ['onset']  # Event triggers, e.g., onset, withdrawal
-    TIME_WINDOWS = [[-5, 10]]  # Time window for PETH calculation (pre, post)
 
     # Loop over each session folder in the experiment path
     print('##########################################')
@@ -103,23 +105,27 @@ for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.i
                     peth_df = pd.DataFrame(np.transpose(peth_data), index=time_index)
                     
                     # Plot the PETH and save the figure 
-                    peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, exp, mouse, group)
-                    peth_plot.savefig(peth_path / f'{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
-                    peth_plot.savefig(peth_path / f'{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
+                    peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, exp, batch, mouse, group, ylim=Y_LIM)
+                    peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
+                    peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
                     plt.close(peth_plot)
-                
                     
                         
  #%% Plot PETH for each group and extract mean and max Z-scored data
 
 # ----------------------------- #
-# Parameters
+# PETH parameters
 exp = 'Reward_Airpuffs'
 BOI = 'Licks_filtered'
-#'Licks_filtered' 'Nose_in_any_airport'
-TIME_WINDOW = [5, 10]  # In seconds
-baseline = False
+baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
 MAXBOUTSNUMBER = 14
+event='onset'
+
+#'Licks_filtered' 'Nose_in_any_airport'
+
+# Plot parameters
+TIME_WINDOW = [5, 10]  # In seconds
+Y_LIM = [-2, 8]
 
 if baseline:
     tag = "windowedbaseline"
@@ -141,7 +147,6 @@ group_list = []
 PETH_array = None
 PETH_mean_list = []
 PETH_max_list = []
-
 
 # Loop over each subject (mouse)
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
@@ -191,18 +196,18 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         
         PETH_mean_list.append((mean_before, mean_after))
         PETH_max_list.append((max_before, max_after))
-'''
-# Export mean/max PETH data to Excel
-meanmaxPETH_df = pd.DataFrame({
-    'Subject': subject_list,
-    'Group': group_list,
-    f'Mean dFF before {BOI}': [x[0] for x in PETH_mean_list],
-    f'Mean dFF after {BOI}': [x[1] for x in PETH_mean_list],
-    f'Max dFF before {BOI}': [x[0] for x in PETH_max_list],
-    f'Max dFF after {BOI}': [x[1] for x in PETH_max_list]
-})
-meanmaxPETH_df.to_excel(peth_path / f'{BOI}_{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETHmeanmax.xlsx')
-'''
+
+        # Export mean/max PETH data to Excel
+        meanmaxPETH_df = pd.DataFrame({
+            'Subject': subject_list,
+            'Group': group_list,
+            f'Mean dFF before {BOI}': [x[0] for x in PETH_mean_list],
+            f'Mean dFF after {BOI}': [x[1] for x in PETH_mean_list],
+            f'Max dFF before {BOI}': [x[0] for x in PETH_max_list],
+            f'Max dFF after {BOI}': [x[1] for x in PETH_max_list]
+        })
+        meanmaxPETH_df.to_excel(peth_path / f'{BOI}_{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETHmeanmax.xlsx')
+
 # Plot PETH for each group
 included_groups = ['Saline', 'MEC 20uM']
 for group in included_groups:
@@ -213,7 +218,7 @@ for group in included_groups:
     print(f"Group {group} PETH data size: {PETH_array_group.shape}")
 
     # Plot pooled PETH for the group
-    fig_PETHpooled = bp.plot_PETH_pooled(PETH_array_group, BOI, 'onset', TIME_WINDOW, exp, group)
+    fig_PETHpooled = bp.plot_PETH_pooled(PETH_array_group, BOI, event, TIME_WINDOW, exp, group, ylim=Y_LIM)
     fig_PETHpooled.savefig(peth_path / f'{group}_{BOI}_{TIME_WINDOW[1]}_PETH.pdf')
     fig_PETHpooled.savefig(peth_path / f'{group}_{BOI}_{TIME_WINDOW[1]}_PETH.png')
 # %%

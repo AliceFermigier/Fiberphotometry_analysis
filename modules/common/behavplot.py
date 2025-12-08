@@ -310,13 +310,6 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
     # Check if the event happens too late in the dataframe to process
     list_ind_event = [idx for idx in list_ind_event if idx + POST_TIME * sr < len(behavprocess_df)]
 
-    # For onset events, adjust the start index to the minimum dFF within 1 second before and after the event
-    #if event == 'onset':
-       # list_ind_event = [
-  #          behavprocess_df.loc[idx - 1 * sr : idx + 1 * sr, 'Denoised dFF'].idxmin() 
-        #    for idx in list_ind_event
-      #  ]
-
     # Preallocate the PETH array to store the z-scored traces
     n_bouts = len(list_ind_event)
     n_timepoints = (POST_TIME + PRE_TIME) * sr + 1
@@ -346,7 +339,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
 
     return PETH_array
 
-def plot_PETH(PETH_data, BOI, event, timewindow, exp, mouse, group, 
+def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim = None,
               trace_color='black', fill_alpha=0.2, trace_linewidth=2, heatmap_cmap='magma'):
     import matplotlib.pyplot as plt
     import numpy as np
@@ -359,7 +352,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, mouse, group,
         raise ValueError("PETH_data is empty or None. Please provide valid PETH data.")
 
     # Text size multiplier
-    text_size = 20  # 4x typical 12 pt font
+    text_size = 38  # 4x typical 12 pt font
 
     # Create figure and axes
     fig, (ax_heatmap, ax_trace) = plt.subplots(2, 1, figsize=(15, 10), gridspec_kw={'height_ratios': [1, 2]})
@@ -384,10 +377,10 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, mouse, group,
         vmax=vmax
     )
     ax_heatmap.axvline(x=0, linewidth=2, color='black', linestyle='--', label=f'{event.capitalize()} event')
-    ax_heatmap.set_ylabel('Bout Number', fontsize=text_size)
+    ax_heatmap.set_ylabel('Bout #', fontsize=text_size)
     ax_heatmap.set_yticks(np.arange(0.5, len(PETH_data), 2))
-    ax_heatmap.set_yticklabels(np.arange(0, len(PETH_data), 2), fontsize=text_size * 0.8)
-    ax_heatmap.set_title(f'{BOI} {event.capitalize()} - {exp}, Mouse: {mouse}, Group: {group}', fontsize=text_size)
+    ax_heatmap.set_yticklabels(np.arange(0, len(PETH_data), 2), fontsize=text_size * 0.9)
+    ax_heatmap.set_title(f'{BOI} {event.capitalize()} - {exp}, Mouse: {mouse}, Batch: {batch}, Group: {group}', fontsize=text_size*0.6)
     ax_heatmap.set_xticks([])
     ax_heatmap.set_xticklabels([])
     ax_heatmap.set_xlabel('')
@@ -396,21 +389,21 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, mouse, group,
     cbar_ax = fig.add_axes([0.85, 0.54, 0.02, 0.34])  # Custom position for colorbar
     cbar = fig.colorbar(im, cax=cbar_ax)
     cbar.set_label('Z-scored ΔF/F', fontsize=text_size)
-    cbar.ax.tick_params(labelsize=text_size * 0.8)
+    cbar.ax.tick_params(labelsize=text_size * 0.9)
 
     ## ----------------- Trace Plot ----------------- ##
     for trial_snip in PETH_data:
         ax_trace.plot(peri_time, trial_snip, linewidth=0.5, color=[0.7, 0.7, 0.7])
     
     # Add single legend entry for individual trials
-    ax_trace.plot([], [], linewidth=0.5, color=[0.7, 0.7, 0.7], label='Individual trials')
+    ax_trace.plot([], [], linewidth=0.5, color=[0.7, 0.7, 0.7], label='_Individual trials')
 
     ax_trace.plot(
         peri_time,
         mean_dFF_snips,
         linewidth=trace_linewidth,
         color=trace_color,
-        label='Mean response'
+        label='_Mean response'
     )
 
     ax_trace.fill_between(
@@ -419,24 +412,25 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, mouse, group,
         mean_dFF_snips - std_dFF_snips,
         facecolor=trace_color,
         alpha=fill_alpha,
-        label='Standard error'
+        label='_Standard error'
     )
 
-    ax_trace.axvline(x=0, linewidth=2, color='slategray', linestyle='--', label=f'{event.capitalize()} event')
+    ax_trace.axvline(x=0, linewidth=2, color='slategray', linestyle='--', label=f'{event.capitalize()} {BOI}')
 
     ax_trace.set_xlabel('Time (s)', fontsize=text_size)
     ax_trace.set_ylabel('Z-scored ΔF/F', fontsize=text_size)
-    ax_trace.tick_params(labelsize=text_size * 0.8)
-    ax_trace.legend(loc='upper left', fontsize=text_size * 0.6)
+    ax_trace.tick_params(labelsize=text_size * 0.9)
+    ax_trace.legend(loc='upper left', fontsize=text_size * 0.9)
     ax_trace.margins(0, 0.01)
-    ax_trace.set_ylim(-1.5, 6)
+    if ylim != None:
+        ax_trace.set_ylim(ylim[0],ylim[1])
 
     # Finalize layout
     fig.subplots_adjust(right=0.8, hspace=0.1)
 
     return fig
 
-def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, group, 
+def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, group, ylim=None,
                      trace_color='cornflowerblue', trace_alpha=0.3, fill_alpha=0.5,
                      line_width=1, fill=True):
     """
@@ -528,10 +522,11 @@ def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, group,
     ax.axvline(x=0, linewidth=2, color='slategray', linestyle='--', label=f'{event.capitalize()} Event')
     
     ## ----------------- Axis Labels and Limits ----------------- ##
-    ax.set_xlabel('Seconds')
+    ax.set_xlabel('Time(s)')
     ax.set_ylabel(r'z-scored $\Delta$F/F')
-    ax.legend(loc='upper left', fontsize='small')
-    ax.set_ylim(-1, 8)
+    ax.legend(loc='upper right', fontsize='medium')
+    if ylim != None:
+        ax.set_ylim(ylim[0],ylim[1])
     ax.margins(0, 0.1)
     ax.set_title(f'{BOI} - {exp} {group}')
     
