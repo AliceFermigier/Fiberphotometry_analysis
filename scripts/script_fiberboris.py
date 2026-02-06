@@ -5,6 +5,8 @@ Created on Sun Dec 15 16:53:24 2024
 To run fiberphotometry analysis with behaviour or plethysmography data
 2 - ANALYSIS WITH BEHAVIOUR BORIS FILE
 
+This file might me deprecated !
+
 @author: alice fermigier
 """
 
