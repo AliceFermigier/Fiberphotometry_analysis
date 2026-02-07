@@ -109,7 +109,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     else:
         print('Get arena coordinates')
         plt = smb.with_qt5agg()
-        scale_and_coords = getvid.get_scale_and_arena_rect(video_path, real_world_distance_cm, frame_number=1000)
+        scale_and_coords = getvid.get_scale_and_arena_rect(video_path, real_world_distance_cm)
         getvid.save_to_json(scale_and_coords, arena_json)
 plt = smb.with_agg()
 

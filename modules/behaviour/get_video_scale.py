@@ -57,10 +57,11 @@ class RectangleSelector:
             "y2": float(self.y1)
         }
 
-def get_scale_and_arena_rect(video_path, real_world_distance_cm, frame_number=1000):
+def get_scale_and_arena_rect(video_path, real_world_distance_cm, real_world_distance_name="arena long side", frame_number=1000):
     """
     First selects two points for scale, then lets the user draw a rectangle
     by click-drag-release for arena boundaries.
+    Real word distance corresponds to a known distance
     """
 
     # ---------------------------
@@ -79,7 +80,7 @@ def get_scale_and_arena_rect(video_path, real_world_distance_cm, frame_number=10
     # 1️⃣ SCALE (2 clicks)
     # ---------------------------
     plt.imshow(frame_rgb)
-    plt.title(f"Click two points with known distance ({real_world_distance_cm} cm)")
+    plt.title(f"Click two extremities of {real_world_distance_name} with known distance ({real_world_distance_cm} cm)")
     scale_points = plt.ginput(2, timeout=0)
     plt.close()
 
