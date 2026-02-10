@@ -367,14 +367,12 @@ def butterfilt(data_df, order, cut_freq):
     Parameters:
     -----------
     data_df : pd.DataFrame
-        DataFrame containing 'Time(s)' and one or more data columns to be filtered.
-        
+        DataFrame containing 'Time(s)' and one or more data columns to be filtered.        
     order : int
-        The order of the Butterworth filter (e.g., 3, 4, etc.).
-        
+        The order of the Butterworth filter (e.g., 3, 4, etc.).     
     cut_freq : float
         The cutoff frequency (in Hz) for the low-pass Butterworth filter.
-    
+        
     Returns:
     --------
     filtered_df : pd.DataFrame
