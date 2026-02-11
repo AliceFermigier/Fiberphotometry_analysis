@@ -111,21 +111,22 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     data_path_exp = datapath_exp_dict[batch]
     behav_path_exp = data_path_exp / 'Behaviour'
     video_path = data_path_exp / f"{mouse}.avi"
-    arena_json = behav_path_exp / f"{mouse}_scale_and_arena_coordinates.json"
+    scale_json = behav_path_exp / f"{mouse}_scale_and_arena_coordinates.json"
     real_world_distance_cm=20
     real_world_distance_name="2 open arms lenght"
 
     #Indicate the arena boundaries and the coordinates of the known distance
-    if arena_json.is_file():
-        print('Arena json already exists')
+    if scale_json.is_file():
+        print('Scale json already exists')
     else:
         print('Get arena coordinates')
         plt = smb.with_qt5agg()
         scale_and_coords = getvid.get_scale_and_arena_rect(video_path, real_world_distance_cm, real_world_distance_name)
-        getvid.save_to_json(scale_and_coords, arena_json)
+        getvid.save_to_json(scale_and_coords, scale_json)
 plt = smb.with_agg()
 
-# Loop through each mouse in the subject DataFrame
+#%% 2.2 - Analyze fiberpho data alongside EPM data
+
 for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print("-----------------------------") 
     print(f'BATCH : {batch}, MOUSE : {mouse}')
@@ -145,14 +146,21 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         
         # Arena boundaries
         try:
-            arena_coordinates_file = [f for f in os.listdir(behav_path_exp) if f.endswith('.json')][0]
-            print(f'Arena boundaries : {arena_coordinates_file}')
-            arena_coordinates_path = behav_path_exp / arena_coordinates_file
-            with open(arena_coordinates_path, 'r') as f:
+            arena_json = behav_path_exp / f"{mouse}_epm_coordinates.json"
+            with open(arena_json, 'r') as f:
                 arena_coordinates = json.load(f)
         except Exception as e:
             print(f'[!] Arena boundary file missing or invalid for {mouse}: {e}')
             arena_coordinates = {}
+
+        # Arena scale
+        try:
+            scale_json = behav_path_exp / f"{mouse}_scale_and_arena_coordinates.json"
+            with open(scale_json, 'r') as f:
+                arena_scale = json.load(f)
+        except Exception as e:
+            print(f'[!] Scale file missing or invalid for {mouse}: {e}')
+            arena_scale = {}
 
         # DLC data
         coordinates_df = None
