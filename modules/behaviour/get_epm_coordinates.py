@@ -29,23 +29,35 @@ def define_epm_boundaries(video_path):
     plt.show()
     answer = input("Is the EPM in the correct orientation? (Open up/down, closed right/left) (Y/N): ").strip().upper()
 
-    rotation_angle = 0
-    if answer == 'N':
-        rotation_angle = 90
+    # Select open_arms (bottom-left and top-right corners)
+    open_arms = get_click_coordinates(frame, 2, "Click open arms bottom-left, then top-right")
+    open_xL, open_yBot = open_arms[0]
+    open_xR, open_yTop = open_arms[1]
+    open_xL, open_xR = sorted([open_xL, open_xR])
+    open_yBot, open_yTop = sorted([open_yBot, open_yTop])
 
-    # Select center zone (bottom-left and top-right corners)
-    center_points = get_click_coordinates(frame, 2, "Click center bottom-left, then top-right")
-    x1, y2 = center_points[0]
-    x2, y1 = center_points[1]
-    x1, x2 = sorted([x1, x2])
-    y1, y2 = sorted([y1, y2])
+    # Select closed_arms (bottom-left and top-right corners)
+    closed_arms = get_click_coordinates(frame, 2, "Click closed arms bottom-left, then top-right")
+    closed_xL, closed_yBot = closed_arms[0]
+    closed_xR, closed_yTop = closed_arms[1]
+    closed_xL, closed_xR = sorted([closed_xL, closed_xR])
+    closed_yBot, closed_yTop = sorted([closed_yBot, closed_yTop])
 
-    # Select entire EPM bounding box
-    area_points = get_click_coordinates(frame, 2, "Click maze bottom-left, then top-right")
-    minx, miny = area_points[0]
-    maxx, maxy = area_points[1]
-    minx, maxx = sorted([minx, maxx])
-    miny, maxy = sorted([miny, maxy])
+    # Center coordinates
+    if answer == 'N': #closed arm top/down
+        
+        center_xL = closed_xL
+        center_xR = closed_xR
+        center_yBot = open_yBot
+        center_yTop = open_yTop
+    
+    else:
+
+        center_xL = open_xL
+        center_xR = open_xR
+        center_yBot = closed_yBot
+        center_yTop = closed_yTop
+
 
     # Show confirmation
     plt.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
