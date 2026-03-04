@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import json
 import os
 
@@ -60,26 +61,60 @@ def define_epm_boundaries(video_path):
 
 
     # Show confirmation
-    plt.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    plt.axvline(x1, color='g', label='x1/x2 (Center)')
-    plt.axvline(x2, color='g')
-    plt.axhline(y1, color='g')
-    plt.axhline(y2, color='g')
-    plt.axvline(minx, color='r', linestyle='--', label='min/max x (Maze)')
-    plt.axvline(maxx, color='r', linestyle='--')
-    plt.axhline(miny, color='r', linestyle='--', label='min/max y (Maze)')
-    plt.axhline(maxy, color='r', linestyle='--')
-    plt.title("EPM Boundaries")
-    plt.legend()
-    plt.axis('on')
+    fig, ax = plt.subplots()
+    ax.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+
+    # Open arms rectangle (green)
+    open_rect = patches.Rectangle(
+        (open_xL, open_yBot),
+        open_xR - open_xL,
+        open_yTop - open_yBot,
+        linewidth=2,
+        edgecolor='yellow',
+        facecolor='yellow',
+        alpha=0.3,
+        label='Open Arms'
+    )
+    ax.add_patch(open_rect)
+
+    # Closed arms rectangle (red)
+    closed_rect = patches.Rectangle(
+        (closed_xL, closed_yBot),
+        closed_xR - closed_xL,
+        closed_yTop - closed_yBot,
+        linewidth=2,
+        edgecolor='red',
+        facecolor='red',
+        alpha=0.3,
+        label='Closed Arms'
+    )
+    ax.add_patch(closed_rect)
+
+    # Center rectangle (blue)
+    center_rect = patches.Rectangle(
+        (center_xL, center_yBot),
+        center_xR - center_xL,
+        center_yTop - center_yBot,
+        linewidth=2,
+        edgecolor='green',
+        facecolor='green',
+        alpha=0.3,
+        label='Center'
+    )
+    ax.add_patch(center_rect)
+
+    ax.legend()
+    plt.title("EPM Boundary Confirmation")
+    plt.axis("off")
     plt.show()
 
     epm_coordinates = {
-        'x1': x1, 'x2': x2,
-        'y1': y1, 'y2': y2,
-        'minx': minx, 'maxx': maxx,
-        'miny': miny, 'maxy': maxy,
-        'rotation angle' : rotation_angle
+        'open_xL': open_xL, 'open_xR': open_xR,
+        'open_yBot': open_yBot, 'open_yTop': open_yTop,
+        'closed_xL': closed_xL, 'closed_xR': closed_xR,
+        'closed_yBot': closed_yBot, 'closed_yTop': closed_yTop,
+        'center_xL': center_xL, 'center_xR': center_xR,
+        'center_yBot': center_yBot, 'center_yTop': center_yTop
     }
 
     return epm_coordinates
