@@ -278,7 +278,7 @@ def plot_denoised_photometry(denoised_dFFdata):
         y='Value',
         color='Signal',
         color_discrete_map={'dFF raw': 'green', 'dFF lowpass': 'green'},
-        labels={'Time(s)': 'Time (seconds)', 'Value': 'dLight Signal (V)'},
+        labels={'Time(s)': 'Time (seconds)', 'Value': 'GCaMP Signal (V)'},
         title='Denoised signals'
     )
     
