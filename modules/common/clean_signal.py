@@ -15,6 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.signal import butter, filtfilt, detrend
+import plotly.express as px
 
 import modules.common.preprocess as pp
 
@@ -25,11 +26,12 @@ import modules.common.preprocess as pp
 
 def hampel_filter(data, window_size, n_sigmas=5):
     k = 1.4826  # scaling factor for Gaussian distribution
-
-    # Determine if input is a pandas Series or numpy array
+    
     is_series = isinstance(data, pd.Series)
     original_data = data.values if is_series else data
     new_data = original_data.copy()
+
+    artifact_idx = []
 
     for i in range(window_size, len(original_data) - window_size):
         window = original_data[i - window_size:i + window_size + 1]
@@ -38,9 +40,52 @@ def hampel_filter(data, window_size, n_sigmas=5):
 
         if np.abs(original_data[i] - median) > n_sigmas * mad:
             new_data[i] = median
+            artifact_idx.append(i)
 
-    # Return result in the same format as input
-    return pd.Series(new_data, index=data.index) if is_series else new_data
+    filtered = pd.Series(new_data, index=data.index) if is_series else new_data
+
+    return filtered, artifact_idx
+
+def plot_hampel_results(time, raw_405, raw_465, filt_405, filt_465, art405, art465):
+
+    df_plot = pd.DataFrame({
+        "Time": time,
+        "Raw 405": raw_405,
+        "Filtered 405": filt_405,
+        "Raw 465": raw_465,
+        "Filtered 465": filt_465
+    })
+
+    df_long = df_plot.melt(id_vars="Time", var_name="Signal", value_name="Value")
+
+    fig = px.line(
+        df_long,
+        x="Time",
+        y="Value",
+        color="Signal",
+        title="Raw vs Hampel Filtered Signals"
+    )
+
+    # Artifact markers
+    fig.add_scatter(
+        x=time.iloc[art405],
+        y=filt_405.iloc[art405],
+        mode="markers",
+        marker=dict(size=8),
+        name="Artifacts 405",
+        hovertemplate="Artifact<br>Time: %{x}<br>Value: %{y}"
+    )
+
+    fig.add_scatter(
+        x=time.iloc[art465],
+        y=filt_465.iloc[art465],
+        mode="markers",
+        marker=dict(size=8),
+        name="Artifacts 465",
+        hovertemplate="Artifact<br>Time: %{x}<br>Value: %{y}"
+    )
+
+    fig.show()
 
 def highpass_filter(data_df, sr, cutoff=0.01, order=1):
     """
@@ -74,11 +119,11 @@ def highpass_filter_with_padding(signal, sr, cutoff=0.01, order=3, pad_seconds=5
 
     return filtered[pad_len:-pad_len]
 
-def clean_signal(rawdata_df, crop=[0,-10], detrending=False, apply_hampel=True):
+def clean_signal(rawdata_df, detrending=False, apply_hampel=True):
 
-    time = rawdata_df['Time(s)'][crop[0]:crop[1]]
-    detrended_405 = rawdata_df['405 Deinterleaved'][crop[0]:crop[1]]
-    detrended_465 = rawdata_df['465 Deinterleaved'][crop[0]:crop[1]]
+    time = rawdata_df['Time(s)']
+    detrended_405 = rawdata_df['405 Deinterleaved']
+    detrended_465 = rawdata_df['465 Deinterleaved']
 
     # --- Detrend ---
     if detrending:
@@ -92,13 +137,22 @@ def clean_signal(rawdata_df, crop=[0,-10], detrending=False, apply_hampel=True):
 
     # --- Hampel Filter ---
     if apply_hampel:
-        detrended_hampel_405 = hampel_filter(detrended_405, window_size=5, n_sigmas=5)
-        detrended_hampel_465 = hampel_filter(detrended_465, window_size=5, n_sigmas=5)
-        plt.plot(time, detrended_hampel_465, linewidth=1, color='deepskyblue', label='GCaMP')
-        plt.plot(time, detrended_hampel_405, linewidth=1, color='blueviolet', label='ISOS')
-        plt.legend()
-        plt.title("Hampel Filtering")
-        plt.show()
+        detrended_hampel_405, artifacts_405 = hampel_filter(detrended_405, window_size=5, n_sigmas=5)
+        detrended_hampel_465, artifacts_465 = hampel_filter(detrended_465, window_size=5, n_sigmas=5)
+
+        print(f"405 artifacts removed: {len(artifacts_405)}")
+        print(f"465 artifacts removed: {len(artifacts_465)}")
+
+        plot_hampel_results(
+            time,
+            detrended_405,
+            detrended_465,
+            detrended_hampel_405,
+            detrended_hampel_465,
+            artifacts_405,
+            artifacts_465
+    )
+
         detrended_405 = detrended_hampel_405
         detrended_465 = detrended_hampel_465
 
@@ -110,11 +164,11 @@ def clean_signal(rawdata_df, crop=[0,-10], detrending=False, apply_hampel=True):
     
     return clean_deinterleaved_df
 
-def clean_signal_dualcolor(rawdata_df, crop=[10,-10], detrending=False, apply_hampel=True):
-    time = rawdata_df['Time(s)'][crop[0]:crop[1]]
-    detrended_405 = rawdata_df['405 Deinterleaved'][crop[0]:crop[1]]
-    detrended_465 = rawdata_df['465 Deinterleaved'][crop[0]:crop[1]]
-    detrended_560 = rawdata_df['560 Deinterleaved'][crop[0]:crop[1]]
+def clean_signal_dualcolor(rawdata_df, detrending=False, apply_hampel=True):
+    time = rawdata_df['Time(s)']
+    detrended_405 = rawdata_df['405 Deinterleaved']
+    detrended_465 = rawdata_df['465 Deinterleaved']
+    detrended_560 = rawdata_df['560 Deinterleaved']
 
     # --- Detrend ---
     if detrending:

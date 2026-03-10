@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import plotly.express as px
 
 #%%
 ###################
@@ -88,6 +89,53 @@ def plot_rawdata(rawdata_df, exp, mouse, crop=0):
     ax7.legend(loc='upper right')
     ax7.margins(0, 0.3)
     
+    return fig
+
+def plot_rawdata_interactive(rawdata_df, exp, mouse, crop=0):
+    """
+    Interactive plot of raw isosbestic (405 nm) and GCaMP (465 nm) traces, optionally rGECO (560 nm).
+
+    Parameters:
+    rawdata_df (pd.DataFrame): Must contain 'Time(s)', '465 Deinterleaved', '405 Deinterleaved'. Optional: '560 Deinterleaved'.
+    exp (str): Experiment name.
+    mouse (str): Mouse identifier.
+    crop (int): Rows to skip from the beginning.
+
+    Returns:
+    plotly.graph_objects.Figure: Interactive figure.
+    """
+    # Slice data
+    df = rawdata_df.iloc[crop:].copy()
+
+    # Melt dataframe for px.line
+    channels = ['465 Deinterleaved', '405 Deinterleaved']
+    if '560 Deinterleaved' in df.columns:
+        channels.append('560 Deinterleaved')
+
+    df_long = df.melt(id_vars='Time(s)', value_vars=channels,
+                      var_name='Signal', value_name='Voltage')
+
+    # Map colors similar to original
+    color_map = {
+        '465 Deinterleaved': 'deepskyblue',
+        '405 Deinterleaved': 'blueviolet',
+        '560 Deinterleaved': 'orange'
+    }
+
+    # Create interactive line plot
+    fig = px.line(df_long, x='Time(s)', y='Voltage', color='Signal',
+                  color_discrete_map=color_map,
+                  title=f"{'GCaMP, rGECO and ' if '560 Deinterleaved' in df.columns else ''}Isosbestic Raw Traces - {exp} {mouse}")
+
+    # Add layout tweaks
+    fig.update_layout(
+        xaxis_title="Time (s)",
+        yaxis_title="Voltage (V)",
+        legend_title="Signal",
+        margin=dict(l=50, r=50, t=50, b=50),
+        hovermode="x unified"
+    )
+
     return fig
 
 def truncate(n, decimals=0):
@@ -210,4 +258,34 @@ def plot_fiberpho_dualcolor(fiber_df, exp, mouse, method):
         ax3.margins(0, 0.2)
 
     plt.tight_layout()
+    return fig
+
+
+def plot_denoised_photometry(denoised_dFFdata):
+    """
+    Create interactive Plotly Express visualization of photometry data.
+    """
+    
+    # Reshape data for px (needs long format)
+    data_long = pd.concat([
+        denoised_dFFdata[['Time(s)']].assign(Signal='dFF raw', Value=denoised_dFFdata['Denoised dFF']),
+        denoised_dFFdata[['Time(s)']].assign(Signal='dFF lowpass', Value=denoised_dFFdata['Denoised lowpass dFF'])
+    ])
+    
+    fig = px.line(
+        data_long,
+        x='Time(s)',
+        y='Value',
+        color='Signal',
+        color_discrete_map={'dFF raw': 'green', 'dFF lowpass': 'green'},
+        labels={'Time(s)': 'Time (seconds)', 'Value': 'dLight Signal (V)'},
+        title='Denoised signals'
+    )
+    
+    # Adjust opacity for raw signal
+    fig.data[0].update(opacity=0.3, line=dict(width=1))
+    fig.data[1].update(line=dict(width=2))
+    
+    fig.update_layout(hovermode='x unified', template='plotly_white', height=600)
+    fig.show()
     return fig

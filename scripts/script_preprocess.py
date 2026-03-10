@@ -45,7 +45,6 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 
 exp = 'EPM'
 dual_color = False
-reverted_560 = True
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
@@ -85,7 +84,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     if raw_data_path.exists() and not deinterleaved_path.exists():
         if dual_color:
             #1 Load deinterleaved raw data and clean data
-            deinterleaved_df = pp.load_lockin_dualcolor_doric(raw_data_path, reverted_560)
+            deinterleaved_df = pp.load_lockin_dualcolor_doric(raw_data_path)
             cleaned_df = cs.clean_signal_dualcolor(deinterleaved_df, detrending=False, apply_hampel=True)
 
             #2 Save to CSV
@@ -117,7 +116,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             plt.close(fig_raw)
             plt.close(fig_cleaned)
 
-#%% 
+ #%% 
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#

@@ -117,7 +117,7 @@ def load_deinterleaved_doric(file_path):
 
     return deinterleaved_df
 
-def load_lockin_dualcolor_doric(file_path, reverted_560=False):
+def load_lockin_dualcolor_doric(file_path):
     with h5py.File(file_path, 'r') as f:
         base = "DataAcquisition/FPConsole/Signals/Series0001/"
 
@@ -131,9 +131,6 @@ def load_lockin_dualcolor_doric(file_path, reverted_560=False):
 
             t_560 = f[base + "LockInAOUT03/Time"][:]
             sig_560 = f[base + "LockInAOUT03/AIN02"][:]
-            # Flip red signal if it is upside down (simple polarity issue)
-            if reverted_560:
-                sig_560 = (sig_560.max() + sig_560.min()) - sig_560
 
         except KeyError as e:
             raise RuntimeError(f"Could not load .doric file due to missing dataset(s): {e}")
