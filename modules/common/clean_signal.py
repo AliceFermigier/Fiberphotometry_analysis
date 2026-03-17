@@ -14,7 +14,8 @@ To be used after manual removal of big artifacts caused by patch cord movement (
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.signal import butter, filtfilt, detrend
+from scipy.signal import butter, filtfilt
+from scipy.optimize import curve_fit
 import plotly.express as px
 
 import modules.common.preprocess as pp
@@ -153,25 +154,6 @@ def plot_hampel_results_dualcolor(time, raw_405, raw_465, raw_560,
     )
 
     fig.show()
-    
-def highpass_filter(data_df, sr, cutoff=0.01, order=1):
-    """
-    High-pass filters the signal to remove slow trends.
-
-    Parameters:
-    - signal: 1D numpy array or list of your raw fluorescence values
-    - cutoff: cutoff frequency in Hz (e.g., 0.01 Hz = 100 sec cycles)
-    - fs: sampling rate in Hz (10 Hz in your case)
-    - order: filter order (higher = sharper cutoff)
-
-    Returns:
-    - detrended signal as a NumPy array
-    """
-    nyq = 0.5 * sr
-    norm_cutoff = cutoff / nyq
-    b, a = butter(order, norm_cutoff, btype='high', analog=False)
-    filtered_signal = filtfilt(b, a, data_df)
-    return filtered_signal
 
 def highpass_filter_with_padding(signal, sr, cutoff=0.01, order=3, pad_seconds=50):
     pad_len = int(sr * pad_seconds)
@@ -252,44 +234,111 @@ def remove_high_artifacts_dualcolor(rawdata_df):
     
     return clean_deinterleaved_df
 
-def highpass_filter_dff(dff, dualcolor = False):
-    sr = pp.samplerate(dff)
+def plot_highpass_filter_results(time, dff, filtered_dff, cutoff_freq, title = 'dF/F'):
+    # Plot settings
+    fig, axs = plt.subplots(2, 1, figsize=(12, 6), sharex=True, gridspec_kw={'height_ratios': [1, 1]})
+    
+    # Unfiltered
+    axs[0].plot(time, dff, color='black', linewidth=1)
+    axs[0].set_title(f'Unfiltered {title}')
+    axs[0].set_ylabel('dF/F (%)')
+
+    # Filtered
+    axs[1].plot(time, filtered_dff, color='black', linewidth=1)
+    axs[1].set_title(f'Filtered {title} (High-pass {cutoff_freq} Hz)')
+    axs[1].set_xlabel('Time (s)')
+    axs[1].set_ylabel('dF/F (%)')
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.show()
+
+def plot_exponential_fit_results(time, dff, filtered_dff, title = 'dF/F'):
+    # Plot settings
+    fig, axs = plt.subplots(2, 1, figsize=(12, 6), sharex=True, gridspec_kw={'height_ratios': [1, 1]})
+
+    # Unfiltered
+    axs[0].plot(time, dff, color='black', linewidth=1)
+    axs[0].set_title(f'Original {title}')
+    axs[0].set_ylabel('dF/F (%)')
+
+    # Filtered
+    axs[1].plot(time, filtered_dff, color='black', linewidth=1)
+    axs[1].set_title(f'Detrended {title} - Type : exponential')
+    axs[1].set_xlabel('Time (s)')
+    axs[1].set_ylabel('dF/F (%)')
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.show()
+
+def highpass_filter_dff(dff_df, dualcolor = False):
+    sr = pp.samplerate(dff_df)
     cutoff_freq = 0.01
-    denoised_dff = dff['Denoised dFF']
-    time = dff['Time(s)']
+    dff_465 = dff_df['dFF'].copy()
+    time = dff_df['Time(s)']
+
+    filtered_dff = highpass_filter_with_padding(
+        dff_465, sr, cutoff=cutoff_freq, order=1, pad_seconds=50)
+    dff_df['dFF'] = filtered_dff
+    plot_highpass_filter_results(time, dff_465, filtered_dff, cutoff_freq)
 
     if dualcolor == True:
-        dff_560 = dff['Denoised 560 dFF']
-        filtered_denoised_dff = highpass_filter_with_padding(
-            denoised_dff, sr, cutoff=cutoff_freq, order=1, pad_seconds=50
-        )
-        filtered_560_denoised_dff = highpass_filter_with_padding(
-            dff_560, sr, cutoff=cutoff_freq, order=1, pad_seconds=50
-        )
-        dff['Denoised 560 dFF'] = filtered_560_denoised_dff
+        dff_560 = dff_df['560 dFF'].copy()
+
+        filtered_560_dff = highpass_filter_with_padding(
+            dff_560, sr, cutoff=cutoff_freq, order=1, pad_seconds=50)
         
-    else:
-        filtered_denoised_dff = highpass_filter_with_padding(
-            denoised_dff, sr, cutoff=cutoff_freq, order=1, pad_seconds=50
-        )
+        dff_df['560 dFF'] = filtered_560_dff
+        plot_highpass_filter_results(time, dff_560, filtered_560_dff, cutoff_freq, title='560 dF/F')
+            
+    return dff_df
 
-        # Plot settings
-        fig, axs = plt.subplots(2, 1, figsize=(12, 6), sharex=True, gridspec_kw={'height_ratios': [1, 1]})
-        
-        # Unfiltered
-        axs[0].plot(time, denoised_dff, color='black', linewidth=1)
-        axs[0].set_title('Unfiltered dF/F')
-        axs[0].set_ylabel('dF/F (%)')
+def exp_func(t, A, tau, C):
+    return A * np.exp(-t / tau) + C
 
-        # Filtered
-        axs[1].plot(time, filtered_denoised_dff, color='seagreen', linewidth=1)
-        axs[1].set_title(f'Filtered dF/F (High-pass {cutoff_freq} Hz)')
-        axs[1].set_xlabel('Time (s)')
-        axs[1].set_ylabel('dF/F (%)')
+def exponential_detrend(dff_df, dualcolor = False):
 
-        # Adjust layout
-        plt.tight_layout()
-        plt.show()
+    dff_465 = dff_df['dFF'].copy()
+    time = dff_df['Time(s)']
 
-    dff['Denoised dFF'] = filtered_denoised_dff
+    # Initial parameter guesses
+    p0 = [np.max(dff_465), np.mean(time), np.min(dff_465)]
+
+    # Fit exponential decay
+    params, _ = curve_fit(exp_func, time, dff_465, p0=p0)
+    trend = exp_func(time, *params)
+    detrended_dff_465 = dff_465 - trend
+
+    plot_exponential_fit_results(time, dff_465, detrended_dff_465)
+
+    dff_df['dFF'] = detrended_dff_465 
+
+    if dualcolor == True:
+        dff_560 = dff_df['560 dFF'].copy()
+        # Initial parameter guesses
+        p0 = [np.max(dff_560), np.mean(time), np.min(dff_560)]
+
+        # Fit exponential decay
+        params, _ = curve_fit(exp_func, time, dff_560, p0=p0)
+        trend = exp_func(time, *params)
+        detrended_dff_560 = dff_560 - trend
+
+        plot_exponential_fit_results(time, dff_560, detrended_dff_560, title = '560 dF/F')
+
+        dff_df['560 dFF'] = detrended_dff_560 
+
+    return dff_df
+
+def lowpass_dFF(dff, order = 2, cut_freq = 10):
+
+    sampling_rate = pp.samplerate(dff)
+    time = dff['Time(s)']
+    raw_dff = dff['dFF']
+
+    # Lowpass filter - zero phase filtering (with filtfilt) is used to avoid distorting the signal.
+    b,a = butter(order, cut_freq, btype='low', fs=sampling_rate)
+    dFF_lowpass = filtfilt(b,a, raw_dff)
+
+    dff['Denoised dFF'] = dFF_lowpass
     return dff

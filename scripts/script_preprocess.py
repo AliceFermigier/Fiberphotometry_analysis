@@ -226,6 +226,7 @@ if __name__ == '__main__':
 #import artifacts boundaries
 artifacts_df = pd.read_excel(experiment_path / 'artifacts.xlsx')
 method = 'fit'
+correct_photobleach_method = 'exponential'
 
 print('#####################')
 print(f'EXPERIMENT : {exp}')
@@ -239,30 +240,34 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         cleaned_df = pd.read_csv(pp_path/f'{mouse}_deinterleaved_cleaned.csv')
         filecode = f'{exp}_{mouse}'
         
+        # calculate dFF with artifacts removal, then interpolate missing data
         if dual_color:
             dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=True)
-            interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
-            interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
+        else:
+            dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method)
+
+        # interpolate missing data
+        interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
+        # sometimes 1st timestamps=Nan instead of 0, raises an error
+        interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0)
+
+        if correct_photobleach_method == 'highpass':
             #high-pass filter to remove slow oscillations
             filtered_dFFdata = cs.highpass_filter_dff(interpdFFdata_df, dual_color)
-            filtered_dFFdata.to_csv(pp_path/f'{mouse}_dFFfilt.csv')
+            filtered_dFFdata.to_csv(pp_path/f'{mouse}_dFF_corrected.csv')
 
-            #plotted GCaMP and isosbestic curves after dFF or fitting
+        elif correct_photobleach_method == 'exponential':
+            #exponential detrend to remove slow oscillations
+            detrended_dFFdata = cs.highpass_filter_dff(interpdFFdata_df, dual_color)
+            detrended_dFFdata.to_csv(pp_path/f'{mouse}_dFF_corrected.csv')
+
+        #plotted GCaMP and isosbestic curves after dFF and photobleanch correction
+        if dual_color:
             fig_dFF = gp.plot_fiberpho_dualcolor(filtered_dFFdata,exp,mouse,method)
             fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF.png')
             plt.close(fig_dFF) 
 
         else:
-            # calculate dFF with artifacts removal, then interpolate missing data
-            dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method)
-            interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
-            #sometimes 1st timestamps=Nan instead of 0, raises an error
-            interpdFFdata_df['Time(s)'] = interpdFFdata_df['Time(s)'].fillna(0) 
-            #high-pass filter to remove slow oscillations
-            filtered_dFFdata = cs.highpass_filter_dff(interpdFFdata_df)
-            filtered_dFFdata.to_csv(pp_path/f'{mouse}_dFFfilt.csv')
-            
-            #plotted GCaMP and isosbestic curves after dFF or fitting
             fig_dFF = gp.plot_fiberpho(filtered_dFFdata,exp,mouse,method)
             fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF.png')
             plt.close(fig_dFF) 
