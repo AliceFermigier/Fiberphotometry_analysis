@@ -85,7 +85,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         if dual_color:
             #1 Load deinterleaved raw data and clean data
             deinterleaved_df = pp.load_lockin_dualcolor_doric(raw_data_path)
-            cleaned_df = cs.clean_signal_dualcolor(deinterleaved_df, detrending=False, apply_hampel=True)
+            cleaned_df = cs.remove_high_artifacts_dualcolor(deinterleaved_path)
 
             #2 Save to CSV
             deinterleaved_df.to_csv(deinterleaved_path, index=False)
@@ -102,7 +102,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         else:
             #1 Load deinterleaved raw data and clean data
             deinterleaved_df = pp.load_deinterleaved_doric(raw_data_path)
-            cleaned_df = cs.clean_signal(deinterleaved_df, detrending=False, apply_hampel=True)
+            cleaned_df = cs.remove_high_artifacts(deinterleaved_df)
             
             #2 Save to CSV
             deinterleaved_df.to_csv(deinterleaved_path, index=False)
