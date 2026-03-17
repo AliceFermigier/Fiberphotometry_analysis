@@ -17,6 +17,7 @@ import numpy as np
 from scipy import signal
 from ast import literal_eval
 import h5py
+from sklearn.linear_model import LinearRegression
 
 import modules.common.nomenclature as nom
 
@@ -187,38 +188,22 @@ def update_artifacts_file(file_path, filecode, artifacts):
     df.to_excel(file_path, index=False)
     print(f"Updated Excel file at: {file_path}")
 
-def linearfit_sklearn(sig_405, sig_465):
-    # Fit 405 to 465 using linear regression
-    from sklearn.linear_model import LinearRegression
+def linearfit_sklearn(sig_405, sig_465, trim=[10,-10]):
     model = LinearRegression()
-    
+
     if isinstance(sig_405, np.ndarray):
         sig_405 = sig_405.reshape(-1, 1)
     else:
         sig_405 = sig_405.to_numpy().reshape(-1, 1)
         sig_465 = sig_465.to_numpy()
 
-    model.fit(sig_405, sig_465)
+    # Fit only on the trimmed middle portion, predict on full signal
+    model.fit(sig_405[trim[0]:trim[1]], sig_465[trim[0]:trim[1]])
     fitted_405 = model.predict(sig_405)
 
     return fitted_405
 
-def controlFit(control, signal): # Deprecated
-    """
-    Fits a linear model to control vs. signal and predicts signal using the fit.
-    
-    Parameters:
-    - control (pd.Series or np.array): 405nm control signal
-    - signal (pd.Series or np.array): 470nm signal to be fitted to the control
-    
-    Returns:
-    - np.array: Fitted signal using a linear model
-    """
-    p = np.polyfit(control, signal, 1)  # Linear fit (y = p[0]*x + p[1])
-    fitted_signal = (p[0] * control) + p[1]
-    return fitted_signal
-
-def remove_artifacts(data_df, artifact_intervals, col, method='mean'):
+def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
     """
     Helper function to remove artifacts from a specific column of the data.
     
@@ -256,8 +241,16 @@ def remove_artifacts(data_df, artifact_intervals, col, method='mean'):
                     print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
             
             elif method == 'fit':
+                if begin==0:
+                    trim=[10,-1]
+                elif x_stop=='End':
+                    trim=[0,-10]
+                else:
+                    trim=[0,-1]
+
                 dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
-                                            data_df.iloc[begin+1:end]['465 Deinterleaved'].values)
+                                            data_df.iloc[begin+1:end]['465 Deinterleaved'].values,
+                                            trim=trim)
                 if len(dFF_values) == len(dFF_segment[begin+1:end]):
                     dFF_segment[begin+1:end] = dFF_values
                 else:
@@ -272,21 +265,21 @@ def remove_artifacts(data_df, artifact_intervals, col, method='mean'):
     
     return dFF_segment
 
-def dFF(data_df, artifacts_df, filecode, method='mean'):
+def dFF(data_df, artifacts_df, filecode, method='fit'):
     """
-    Calculates dFF (delta F over F) and removes artifacts from 405nm and 470nm photometry data.
+    Calculates dFF (delta F over F) and removes artifacts from 405nm and 465nm photometry data.
     
     Parameters:
-    - data_df (pd.DataFrame): Input photometry data containing 'Time(s)', '405 Deinterleaved', '470 Deinterleaved'
+    - data_df (pd.DataFrame): Input photometry data containing 'Time(s)', '405 Deinterleaved', '465 Deinterleaved'
     - artifacts_df (pd.DataFrame): Dataframe containing artifact information
     - filecode (str): Unique identifier for the file being processed
     - sr (int): Sampling rate of the data
     - method (str): 'mean' or 'fit' method for calculating dFF
     
     Returns:
-    - dFFdata_df (pd.DataFrame): DataFrame with 'Time(s)', '405 dFF', '470 dFF', and 'Denoised dFF'
+    - dFFdata_df (pd.DataFrame): DataFrame with 'Time(s)', '405 Fitted', '465 Fitted', and 'dFF'
     """
-    dFFdata = np.full([3, len(data_df)], np.nan)  # [405 dFF, 470 dFF, Denoised dFF]
+    dFFdata = np.full([3, len(data_df)], np.nan)
 
     if method == 'mean':
         for i, col in enumerate(['405 Deinterleaved', '465 Deinterleaved']):
@@ -311,11 +304,16 @@ def dFF(data_df, artifacts_df, filecode, method='mean'):
         # Calculate Denoised dFF
         dFFdata[2] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
 
+        # Replace first and last 10 frames with 1st quartile 
+        q1 = np.nanpercentile(dFFdata[2], 25)
+        dFFdata[2][:10]  = q1
+        dFFdata[2][-10:] = q1
+
     dFFdata_df = pd.DataFrame({
         'Time(s)': data_df['Time(s)'],
-        '405 dFF': dFFdata[0],
-        '465 dFF': dFFdata[1],
-        'Denoised dFF': dFFdata[2]
+        '405 Fitted': dFFdata[0],
+        '465 Fitted': dFFdata[1],
+        'dFF': dFFdata[2]
     })
 
     return dFFdata_df
@@ -354,49 +352,6 @@ def interpolate_dFFdata(data_df, method='linear'):
         # Compute the mean of each column and fill NaNs with this mean
         col_means = data_df[dff_columns].mean(skipna=True)  # Mean of each dFF column, ignoring NaNs
         data_df[dff_columns] = data_df[dff_columns].fillna(col_means)
-        
-    return data_df
-
-def butterfilt(data_df, order, cut_freq):
-    """
-    Applies a Butterworth low-pass filter to all columns (except 'Time(s)') in the input DataFrame.
-    
-    Parameters:
-    -----------
-    data_df : pd.DataFrame
-        DataFrame containing 'Time(s)' and one or more data columns to be filtered.        
-    order : int
-        The order of the Butterworth filter (e.g., 3, 4, etc.).     
-    cut_freq : float
-        The cutoff frequency (in Hz) for the low-pass Butterworth filter.
-        
-    Returns:
-    --------
-    filtered_df : pd.DataFrame
-    """
-    # Calculate sampling rate using the first two time points to avoid index issues
-    sampling_rate = samplerate(data_df)
-    
-    # Create the Butterworth filter coefficients
-    sos = signal.butter(order, cut_freq, btype='low', output='sos', fs=sampling_rate)
-    
-    # Create a copy of the DataFrame to avoid modifying the original data
-    filtered_df = data_df.copy()
-    
-    col = 'Denoised dFF'
-    if filtered_df[col].isnull().any():
-        filtered_df[col] = filtered_df[col].interpolate().fillna(method='bfill').fillna(method='ffill')
-    filtered_df[col] = signal.sosfilt(sos, filtered_df[col].values)
-
-    return filtered_df
-
-def smoothing_SMA(data_df,win_size):
-    """
-    Simple moving average (SMA) smoothing
-    win_size : size of the moving window
-    """
-    for col in data_df.columns[1:]:
-        data_df[col] = data_df[col].rolling(win_size, min_periods=1).mean()
         
     return data_df
 
@@ -449,12 +404,12 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
 
         dFFdata_df = pd.DataFrame({
             'Time(s)': data_df['Time(s)'],
-            '405 dFF': dFFdata[0],
-            '465 dFF': dFFdata[1],
-            'Denoised dFF': dFFdata[4],
-            '405 dFF fitted 560': dFFdata[2],
-            '560 dFF' : dFFdata[3],
-            'Denoised 560 dFF': dFFdata[5]
+            '405 Fitted': dFFdata[0],
+            '465 Fitted': dFFdata[1],
+            'dFF': dFFdata[4],
+            '405 Fitted 560': dFFdata[2],
+            '560 Fitted' : dFFdata[3],
+            '560 dFF': dFFdata[5]
         })
     
     else:
@@ -475,10 +430,10 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
 
         dFFdata_df = pd.DataFrame({
             'Time(s)': data_df['Time(s)'],
-            '405 dFF': dFFdata[0],
-            '465 dFF': dFFdata[1],
-            'Denoised 560 dFF': dFFdata[2],
-            'Denoised dFF': dFFdata[3]
+            '405 Fitted': dFFdata[0],
+            '465 Fitted': dFFdata[1],
+            '560 dFF': dFFdata[2],
+            'dFF': dFFdata[3]
         })
 
     return dFFdata_df

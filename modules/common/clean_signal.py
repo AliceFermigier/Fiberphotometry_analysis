@@ -171,8 +171,8 @@ def highpass_filter_with_padding(signal, sr, cutoff=0.01, order=3, pad_seconds=5
 def remove_high_artifacts(rawdata_df):
 
     time = rawdata_df['Time(s)']
-    data_405 = rawdata_df['405 Deinterleaved']
-    data_465 = rawdata_df['465 Deinterleaved']
+    data_405 = rawdata_df['405 Deinterleaved'].copy()
+    data_465 = rawdata_df['465 Deinterleaved'].copy()
 
     # --- Hampel Filter ---
     hampel_405, artifacts_405 = hampel_filter(data_405, window_size=5, n_sigmas=5)
@@ -200,9 +200,9 @@ def remove_high_artifacts(rawdata_df):
 
 def remove_high_artifacts_dualcolor(rawdata_df):
     time = rawdata_df['Time(s)']
-    data_405 = rawdata_df['405 Deinterleaved']
-    data_465 = rawdata_df['465 Deinterleaved']
-    data_560 = rawdata_df['560 Deinterleaved']
+    data_405 = rawdata_df['405 Deinterleaved'].copy()
+    data_465 = rawdata_df['465 Deinterleaved'].copy()
+    data_560 = rawdata_df['560 Deinterleaved'].copy()
 
     # --- Hampel Filter ---
     hampel_405, artifacts_405 = hampel_filter(data_405, window_size=5, n_sigmas=5)
@@ -272,9 +272,8 @@ def plot_exponential_fit_results(time, dff, filtered_dff, title = 'dF/F'):
     plt.tight_layout()
     plt.show()
 
-def highpass_filter_dff(dff_df, dualcolor = False):
+def highpass_filter_dff(dff_df, dualcolor = False, cutoff_freq = 0.001):
     sr = pp.samplerate(dff_df)
-    cutoff_freq = 0.01
     dff_465 = dff_df['dFF'].copy()
     time = dff_df['Time(s)']
 
