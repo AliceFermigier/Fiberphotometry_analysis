@@ -44,7 +44,7 @@ def define_ports(video_path):
     plt.legend()
     plt.title("Port locations")
     plt.axis('on')
-    plt.show()
+    plt.show(block=True)
 
     ports = {
         "lick_port": {"x": lick_port[0], "y": lick_port[1]},
