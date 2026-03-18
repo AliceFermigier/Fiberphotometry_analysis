@@ -99,7 +99,7 @@ def get_scale_and_arena_rect(video_path, real_world_distance_cm, real_world_dist
     ax.set_title("Drag to draw arena rectangle")
 
     selector = RectangleSelector(ax)
-    plt.show()  # waits until user draws
+    plt.show(block=True)  # waits until user draws
 
     rect = selector.get_rectangle()
     if rect is None:

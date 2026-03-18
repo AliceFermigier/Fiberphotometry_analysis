@@ -175,8 +175,8 @@ def remove_high_artifacts(rawdata_df):
     data_465 = rawdata_df['465 Deinterleaved'].copy()
 
     # --- Hampel Filter ---
-    hampel_405, artifacts_405 = hampel_filter(data_405, window_size=5, n_sigmas=5)
-    hampel_465, artifacts_465 = hampel_filter(data_465, window_size=5, n_sigmas=5)
+    hampel_405, artifacts_405 = hampel_filter(data_405, window_size=50, n_sigmas=4)
+    hampel_465, artifacts_465 = hampel_filter(data_465, window_size=10, n_sigmas=5)
 
     print(f"405 artifacts removed: {len(artifacts_405)}")
     print(f"465 artifacts removed: {len(artifacts_465)}")
@@ -205,9 +205,9 @@ def remove_high_artifacts_dualcolor(rawdata_df):
     data_560 = rawdata_df['560 Deinterleaved'].copy()
 
     # --- Hampel Filter ---
-    hampel_405, artifacts_405 = hampel_filter(data_405, window_size=5, n_sigmas=5)
-    hampel_465, artifacts_465 = hampel_filter(data_465, window_size=5, n_sigmas=5)
-    hampel_560, artifacts_560 = hampel_filter(data_560, window_size=5, n_sigmas=5)
+    hampel_405, artifacts_405 = hampel_filter(data_405, window_size=50, n_sigmas=4)
+    hampel_465, artifacts_465 = hampel_filter(data_465, window_size=10, n_sigmas=5)
+    hampel_560, artifacts_560 = hampel_filter(data_560, window_size=10, n_sigmas=5)
 
     print(f"405 artifacts removed: {len(artifacts_405)}")
     print(f"465 artifacts removed: {len(artifacts_465)}")

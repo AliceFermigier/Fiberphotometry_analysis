@@ -14,8 +14,6 @@ To run fiberphotometry analysis with EPM data
 import pandas as pd
 import numpy as np
 from pathlib import Path
-import os
-import warnings
 import json
 import importlib
 import modules.common.switch_matplotlib_backends as smb
@@ -88,17 +86,21 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     
     data_path_exp = datapath_exp_dict[batch]
     behav_path_exp = data_path_exp / 'Behaviour'
-    video_path = data_path_exp / f"{mouse}.avi"
+    video_path = behav_path_exp / f"{mouse}.avi"
     output_json = behav_path_exp / f"{mouse}_epm_coordinates.json"
 
     #Indicate the emplacement of the lickport and the two airpuff ports
-    if output_json.is_file():
-        print('EPM json already exists')
-    else:
-        print('Get EPM coordinates')
-        plt = smb.with_qt5agg() 
-        arena = getepm.define_epm_boundaries(video_path)
-        getepm.save_boundaries_to_json(arena, output_json)
+    try:
+        if output_json.is_file():
+            print('EPM json already exists')
+        else:
+            print('Get EPM coordinates')
+            plt = smb.with_qt5agg() 
+            arena = getepm.define_epm_boundaries(video_path)
+            getepm.save_boundaries_to_json(arena, output_json)
+    except Exception as e:
+        print(f"Problem while processing mouse {mouse} : {e}")
+plt.close('all') 
 plt = smb.with_agg()
 
 #%% 2.1.2 - Get scale and area coordinates for each video
@@ -110,19 +112,23 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     
     data_path_exp = datapath_exp_dict[batch]
     behav_path_exp = data_path_exp / 'Behaviour'
-    video_path = data_path_exp / f"{mouse}.avi"
+    video_path = behav_path_exp / f"{mouse}.avi"
     scale_json = behav_path_exp / f"{mouse}_scale_and_arena_coordinates.json"
-    real_world_distance_cm=20
+    real_world_distance_cm=76.5
     real_world_distance_name="2 open arms lenght"
 
     #Indicate the arena boundaries and the coordinates of the known distance
-    if scale_json.is_file():
-        print('Scale json already exists')
-    else:
-        print('Get arena coordinates')
-        plt = smb.with_qt5agg()
-        scale_and_coords = getvid.get_scale_and_arena_rect(video_path, real_world_distance_cm, real_world_distance_name)
-        getvid.save_to_json(scale_and_coords, scale_json)
+    try:
+        if scale_json.is_file():
+            print('Scale json already exists')
+        else:
+            print('Get arena coordinates')
+            plt = smb.with_qt5agg()
+            scale_and_coords = getvid.get_scale_and_arena_rect(video_path, real_world_distance_cm, real_world_distance_name)
+            getvid.save_to_json(scale_and_coords, scale_json)
+    except Exception as e:
+        print(f"Problem while processing mouse {mouse} : {e}")
+plt.close('all') 
 plt = smb.with_agg()
 
 #%% 2.2 - Analyze fiberpho data alongside EPM data
@@ -141,8 +147,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         rawdata_path = data_path_exp / f'{mouse}_0000.doric'
         led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
-        dlc_path = behav_path_exp / f'{mouse}DLC_Resnet101_RewardBox_FiberMECNov12shuffle5_snapshot_090_filtered.csv'
-        fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
+        dlc_path = behav_path_exp / f'{mouse}DLC_Resnet50_EPM_quality50Feb10shuffle1_snapshot_110_filtered.csv'
+        fiberpho_path = pp_path / f'{mouse}_dFF_corrected.csv'
         
         # Arena boundaries
         try:
@@ -198,6 +204,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         if 'EPM' in exp and coordinates_df is not None:
             print(f'Analyzing mouse position for {mouse}')
             list_BOI = ['Open arm', 'Closed arm', 'Center']
+            
             behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, bodypart='nose')
 
         if behav_df is None:
