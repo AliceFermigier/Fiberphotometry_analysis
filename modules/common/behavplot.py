@@ -169,7 +169,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     """
     behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 2]
     has_speed = 'Speed' in behavprocesssnip_df.columns
-    has_560 = 'Denoised 560 dFF' in behavprocesssnip_df.columns
+    has_560 = '560 dFF' in behavprocesssnip_df.columns
 
     if has_speed and has_560:
         fig = plt.figure(figsize=(20, 15))
@@ -184,10 +184,10 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         ax1 = fig.add_subplot(111)       
 
     # Plot dFF trace
-    ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data=behavprocesssnip_df)
+    ax1.plot('Time(s)', 'dFF', linewidth=1, color='black', label='_GCaMP', data=behavprocesssnip_df)
     if has_speed and has_560:
         ax2 = fig.add_subplot(312)
-        ax2.plot('Time(s)', 'Denoised 560 dFF', linewidth=1, color='black', label='560 dFF', data=behavprocesssnip_df)
+        ax2.plot('Time(s)', '560 dFF', linewidth=1, color='black', label='560 dFF', data=behavprocesssnip_df)
 
     # Highlight behaviors
     behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
@@ -316,20 +316,20 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
     PETH_array = np.zeros((n_bouts, n_timepoints))
     
     # Initialize mean and std on whole trace
-    F0 = behavprocess_df['Denoised dFF'].mean()
-    std0 = behavprocess_df['Denoised dFF'].std()
+    F0 = behavprocess_df['dFF'].mean()
+    std0 = behavprocess_df['dFF'].std()
 
     # Loop through each event and extract the fiberpho trace centered on the event
     for i, ind_event in enumerate(list_ind_event):
         try: 
             if baselinewindow:
                 # Calculate baseline mean (F0) and standard deviation (std0) for the time window before the event
-                dFF_baseline = behavprocess_df.loc[ind_event - 1 * sr : ind_event - PRE_EVENT_TIME * sr, 'Denoised dFF']
+                dFF_baseline = behavprocess_df.loc[ind_event - 1 * sr : ind_event - PRE_EVENT_TIME * sr, 'dFF']
                 F0 = dFF_baseline.mean() 
                 std0 = dFF_baseline.std()
 
             # Extract the fiberpho trace for the time window around the event
-            event_window = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event + POST_TIME * sr, 'Denoised dFF']
+            event_window = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event + POST_TIME * sr, 'dFF']
             
             # Ensure the event window has the correct length to avoid shape mismatch
             if len(event_window) == n_timepoints:

@@ -28,7 +28,7 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group, batch):
     
     Args:
     - list_BOI (list): List of behaviors of interest to analyze.
-    - fiberbehav_df (DataFrame): Dataframe containing behavior onset/offsets and 'Denoised dFF' signal.
+    - fiberbehav_df (DataFrame): Dataframe containing behavior onset/offsets and 'dFF' signal.
     - exp (str): The experiment type (e.g., 'Fear', 'NewContext', etc.).
     - session (str): The session type (e.g., 'Test', 'Conditioning', etc.).
     - mouse (str): The mouse identifier.
@@ -62,8 +62,8 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group, batch):
             if fiberbehavsnip_df[behav].sum() > 2:  # Check if behavior has enough activity
                 try:
                     # Calculate mean dFF for the behavior
-                    meandFF_behav_df = fiberbehavsnip_df.groupby(behav, as_index=False)['Denoised dFF'].mean()
-                    mean_dFF_value = meandFF_behav_df.loc[meandFF_behav_df[behav] == 1, 'Denoised dFF'].values
+                    meandFF_behav_df = fiberbehavsnip_df.groupby(behav, as_index=False)['dFF'].mean()
+                    mean_dFF_value = meandFF_behav_df.loc[meandFF_behav_df[behav] == 1, 'dFF'].values
                     if mean_dFF_value.size > 0:
                         results[behav] = mean_dFF_value[0]
                         list_behav_analyzed.append(behav)
@@ -79,7 +79,7 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group, batch):
 
     # --- Calculate baseline dFF (before trial starts) ---
     try:
-        meandFF_baseline = fiberbehavsnip_df.loc[:ind_start_trial, 'Denoised dFF'].mean()
+        meandFF_baseline = fiberbehavsnip_df.loc[:ind_start_trial, 'dFF'].mean()
     except Exception as e:
         print(f"Error calculating baseline dFF for Mouse {mouse}: {e}")
         meandFF_baseline = np.nan
@@ -92,7 +92,7 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group, batch):
         for behav in list_behav_analyzed:
             meandFF_postbaseline_df = meandFF_postbaseline_df.loc[meandFF_postbaseline_df[behav] == 0]
 
-        meandFF_postbaseline = meandFF_postbaseline_df['Denoised dFF'].mean()
+        meandFF_postbaseline = meandFF_postbaseline_df['dFF'].mean()
     except Exception as e:
         print(f"Error calculating post-baseline dFF for Mouse {mouse}: {e}")
         meandFF_postbaseline = np.nan
@@ -105,7 +105,7 @@ def meandFF_behav(list_BOI, fiberbehav_df, exp, session, mouse, group, batch):
         for behav in list_behav_analyzed:
             meandFF_df = meandFF_df.loc[meandFF_df[behav] == 0]
 
-        meandFF = meandFF_df['Denoised dFF'].mean()
+        meandFF = meandFF_df['dFF'].mean()
     except Exception as e:
         print(f"Error calculating mean dFF for Mouse {mouse}: {e}")
         meandFF = np.nan
@@ -123,7 +123,7 @@ def diffmeanmaxdFF_behav(behavprocess_df, list_BOI, mouse, group, batch):
     Also calculates mean mean and max dFF across all bouts (will give a different value than meandFF_behav : here 1 bout = 1 value)
     
     Args:
-    - behavprocess_df (DataFrame): Dataframe containing behavior onset/offsets and 'Denoised dFF' signal.
+    - behavprocess_df (DataFrame): Dataframe containing behavior onset/offsets and 'dFF' signal.
     - list_BOI (list): List of behaviors of interest to analyze.
     - mouse (str): The mouse identifier.
     - group (str): The group identifier.
@@ -168,15 +168,15 @@ def diffmeanmaxdFF_behav(behavprocess_df, list_BOI, mouse, group, batch):
                     stop_window = min(len(behavprocess_df) - 1, stop + 5)
                     
                     # Calculate means at the start and stop of the bout (±5 indices around start/stop)
-                    mean_start = behavprocess_df.loc[start_window:start + 5, 'Denoised dFF'].mean()
-                    mean_stop = behavprocess_df.loc[stop - 5:stop_window, 'Denoised dFF'].mean()
+                    mean_start = behavprocess_df.loc[start_window:start + 5, 'dFF'].mean()
+                    mean_stop = behavprocess_df.loc[stop - 5:stop_window, 'dFF'].mean()
                     
                     # Calculate delta dFF
                     delta_dFF = mean_stop - mean_start
                     
                     # Calculate mean and max dFF within the bout
-                    mean_dFF = behavprocess_df.loc[start:stop, 'Denoised dFF'].mean()
-                    max_dFF = behavprocess_df.loc[start:stop, 'Denoised dFF'].max()
+                    mean_dFF = behavprocess_df.loc[start:stop, 'dFF'].mean()
+                    max_dFF = behavprocess_df.loc[start:stop, 'dFF'].max()
                     
                     list_deltadFF_behav.append(delta_dFF)
                     list_meandFF_behav.append(mean_dFF)
@@ -215,7 +215,7 @@ def diffmeanmaxdFF_behav_perbout(behavprocess_df, list_BOI, mouse, group, batch)
     Same as diffmeanmaxdFF_behav but with detailed data for each bout
 
     Args:
-    - behavprocess_df (DataFrame): DataFrame containing bout onsets/offsets and 'Denoised dFF'.
+    - behavprocess_df (DataFrame): DataFrame containing bout onsets/offsets and 'dFF'.
     - list_BOI (list): List of behaviors of interest to analyze.
     - mouse (str): The mouse identifier.
     - group (str): The group identifier.
@@ -251,8 +251,8 @@ def diffmeanmaxdFF_behav_perbout(behavprocess_df, list_BOI, mouse, group, batch)
         for start_idx, stop_idx in zip(list_starts, list_stops):
             try:
                 # Calculate mean dFF around start and stop (±5 frames) while handling index overflow
-                start_window = behavprocess_df.loc[max(0, start_idx-5):min(start_idx+5, len(behavprocess_df)-1), 'Denoised dFF']
-                stop_window = behavprocess_df.loc[max(0, stop_idx-5):min(stop_idx+5, len(behavprocess_df)-1), 'Denoised dFF']
+                start_window = behavprocess_df.loc[max(0, start_idx-5):min(start_idx+5, len(behavprocess_df)-1), 'dFF']
+                stop_window = behavprocess_df.loc[max(0, stop_idx-5):min(stop_idx+5, len(behavprocess_df)-1), 'dFF']
                 
                 mean_start = start_window.mean() if not start_window.empty else np.nan
                 mean_stop = stop_window.mean() if not stop_window.empty else np.nan
@@ -262,7 +262,7 @@ def diffmeanmaxdFF_behav_perbout(behavprocess_df, list_BOI, mouse, group, batch)
                 
                 # Calculate mean and max dFF during the behavior bout
                 if start_idx < stop_idx:  # To avoid inverted intervals
-                    bout_window = behavprocess_df.loc[start_idx:stop_idx, 'Denoised dFF']
+                    bout_window = behavprocess_df.loc[start_idx:stop_idx, 'dFF']
                     mean_dFF = bout_window.mean() if not bout_window.empty else np.nan
                     max_dFF = bout_window.max() if not bout_window.empty else np.nan
                 else:
@@ -311,7 +311,7 @@ def variance_transients(fiberbehav_df, list_BOI, mouse, group, exp, batch, thres
     """
     
     # Calculate variance during whole trace, baseline and post-baseline periods
-    variance = np.var(fiberbehav_df['Denoised dFF'])
+    variance = np.var(fiberbehav_df['dFF'])
     
     # Calculate transients for whole trace, baseline and post-baseline periods
     peaks_df, peak_frequency, peak_amplitude, transients_fig = tr.transients(fiberbehav_df, threshold)
@@ -364,12 +364,12 @@ def process_event(fiberbehav_df, ind_event, TIME_MEANMAX):
     try:
         sr=pp.samplerate(fiberbehav_df)
         # Calculate mean and max dFF after the event
-        dFF_after_event = fiberbehav_df.loc[ind_event : ind_event + TIME_MEANMAX * sr, 'Denoised dFF']
+        dFF_after_event = fiberbehav_df.loc[ind_event : ind_event + TIME_MEANMAX * sr, 'dFF']
         mean_dFF_after = dFF_after_event.mean()
         max_dFF_after = dFF_after_event.max()
         
         # Calculate mean and max dFF before the event
-        dFF_before_event = fiberbehav_df.loc[ind_event - TIME_MEANMAX * sr : ind_event, 'Denoised dFF']
+        dFF_before_event = fiberbehav_df.loc[ind_event - TIME_MEANMAX * sr : ind_event, 'dFF']
         mean_dFF_before = dFF_before_event.mean()
         max_dFF_before = dFF_before_event.max()
         
@@ -451,18 +451,18 @@ def meandFF_sniffs(fiberbehav_df, exp, session, mouse, group, batch, joined=True
     # If `joined=True`, group 'stim' and 'sniff' with the same odor together
     if joined:
         fiberbehavsnip_df = fiberbehavsnip_df.rename(
-            columns=lambda col: col[:-2] if col not in ['Time(s)', 'Denoised dFF'] else col
+            columns=lambda col: col[:-2] if col not in ['Time(s)', 'dFF'] else col
         )
         fiberbehavsnip_df = fiberbehavsnip_df.groupby(level=0, axis=1, sort=False).sum()
         print(f'Joined columns: {fiberbehavsnip_df.columns}')  # Debugging print to verify joined columns
     
     # Calculate the mean dFF for each behavior
-    for behavior in fiberbehavsnip_df.columns[3:]:  # Skip first 3 columns: ['Time(s)', 'Denoised dFF', ...]
+    for behavior in fiberbehavsnip_df.columns[3:]:  # Skip first 3 columns: ['Time(s)', 'dFF', ...]
         # Group by the binary presence of the behavior and compute the mean
         mean_dFF_behav_df = fiberbehavsnip_df.groupby([behavior], as_index=False).mean()
         
         # Extract the mean dFF where the behavior is present (behavior == 1)
-        mean_dFF = mean_dFF_behav_df.loc[mean_dFF_behav_df[behavior] == 1, 'Denoised dFF']
+        mean_dFF = mean_dFF_behav_df.loc[mean_dFF_behav_df[behavior] == 1, 'dFF']
         
         if not mean_dFF.empty:
             mean_dFF_list.append(mean_dFF.values[0])
@@ -485,7 +485,7 @@ def meanmax_dFF_stims(behavprocess_df, list_BOI, mouse, group, TIME_MEANMAX, sr,
     Parameters:
     -----------
     behavprocess_df : DataFrame
-        DataFrame containing behavioral information and denoised dFF signal.
+        DataFrame containing behavioral information and dFF signal.
     list_BOI : list
         List of behaviors of interest (columns to analyze).
     mouse : str
@@ -533,8 +533,8 @@ def meanmax_dFF_stims(behavprocess_df, list_BOI, mouse, group, TIME_MEANMAX, sr,
         end_after = min(len(behavprocess_df), start_idx + TIME_MEANMAX * sr)
         
         # Extract dFF data for before and after behavior onset
-        dFF_before = behavprocess_df.iloc[start_before:start_after]['Denoised dFF']
-        dFF_after = behavprocess_df.iloc[start_after:end_after]['Denoised dFF']
+        dFF_before = behavprocess_df.iloc[start_before:start_after]['dFF']
+        dFF_after = behavprocess_df.iloc[start_after:end_after]['dFF']
         
         # Calculate statistics for before and after
         mean_dFF_before.append(dFF_before.mean() if not dFF_before.empty else np.nan)

@@ -17,7 +17,7 @@ def bandpass_filter(data, lowcut, highcut, order=3):
     print('samplerate:', sr)
     print('lowcut:', lowcut)
     print('highcut:', highcut)
-    signal = data['Denoised dFF'].values
+    signal = data['dFF'].values
     print('signal:', signal)
     nyquist = 0.5 * sr
     low = lowcut/nyquist
@@ -31,7 +31,7 @@ def bandpass_filter(data, lowcut, highcut, order=3):
 def plot_signal_and_spectrum(dfiber_df):
     plt.figure(figsize=(20, 5))
     time = dfiber_df['Time(s)']
-    signal = dfiber_df['Denoised dFF']
+    signal = dfiber_df['dFF']
     filtered_signal = dfiber_df['Filtered dFF']
     sr = pp.samplerate(dfiber_df)
 
