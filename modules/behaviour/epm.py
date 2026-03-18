@@ -33,7 +33,7 @@ def analyze_mouse_position(coords, epm_coordinates, arena_scale, bodypart='head'
     dist_scale = arena_scale['Scale_cm_per_px']
     
     coords_byzone_df = classify_position(coords_x, coords_y, epm_coordinates)
-    speed_df = mp.compute_speed(coords, dist_scale, bodypart)
+    speed_df = mp.compute_speed(coords, dist_scale)
     
     behav_df = pd.concat([coords, coords_byzone_df, speed_df], axis=1)
     return behav_df
@@ -81,6 +81,7 @@ def classify_position(coords_x, coords_y, epm_coordinates):
     closed_arm = np.zeros(n_frames, dtype=int)
     open_arm = np.zeros(n_frames, dtype=int)
     center = np.zeros(n_frames, dtype=int)
+    head_dips = np.zeros(n_frames, dtype=int)
     
     # Extract coordinates for each zone
     open_box = {
@@ -106,23 +107,27 @@ def classify_position(coords_x, coords_y, epm_coordinates):
     
     # Classify each frame
     for i, (x, y) in enumerate(zip(coords_x, coords_y)):
-        if is_in_zone(x, y, closed_box):
+        if is_in_zone(x, y, center_box):
+            center[i] = 1
+        elif is_in_zone(x, y, closed_box):
             closed_arm[i] = 1
         elif is_in_zone(x, y, open_box):
             open_arm[i] = 1
-        elif is_in_zone(x, y, center_box):
-            center[i] = 1
+        else:
+            head_dips[i] = 1
+
         # If not in any zone, all remain 0 (edge/undefined area)
     
     coords_byzone_df = pd.DataFrame({
         'Closed arm': closed_arm,
         'Open arm': open_arm,
-        'Center': center
+        'Center': center,
+        'Head dipping' : head_dips
     })
     
     return coords_byzone_df
 
-def plot_epm_behavior(behav_df, epm_coordinates, bodypart='head', 
+def plot_epm_behavior(behav_df, epm_coordinates, mouse, batch, bodypart='nose', 
                       n_bins=1, bins=(50, 50), save_dir=None, figsize=None):
     """
     Create behavioral plots for EPM test: pie chart and heatmap(s).
@@ -159,7 +164,7 @@ def plot_epm_behavior(behav_df, epm_coordinates, bodypart='head',
     fig_pie, ax_pie = plt.subplots(figsize=(8, 6))
     
     closed_time = behav_df['Closed arm'].sum()
-    open_time = behav_df['Open arm'].sum()
+    open_time = behav_df['Open arm'].sum() + behav_df['Head dipping'].sum()
     center_time = behav_df['Center'].sum()
     
     # Handle cases where mouse doesn't visit all zones
@@ -184,22 +189,20 @@ def plot_epm_behavior(behav_df, epm_coordinates, bodypart='head',
     if save_dir is not None:
         save_dir = pathlib.Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
-        fig_pie.savefig(save_dir / 'epm_pie_chart.png', dpi=300, bbox_inches='tight')
-        fig_pie.savefig(save_dir / 'epm_pie_chart.pdf', bbox_inches='tight')
-    
-    plt.show()
+        fig_pie.savefig(save_dir / f'{batch}_{mouse}_epm_pie_chart.png', dpi=300, bbox_inches='tight')
+        fig_pie.savefig(save_dir / f'{batch}_{mouse}_epm_pie_chart.pdf', bbox_inches='tight')
     
     # =====================================================
     # Plot 2: Heatmap(s) of trajectory and occupancy
     # =====================================================
     fig_heatmap = plot_epm_heatmap(
-        behav_df, epm_coordinates, bodypart=bodypart,
+        behav_df, epm_coordinates, mouse, batch, bodypart=bodypart,
         n_bins=n_bins, bins=bins, save_dir=save_dir, figsize=figsize
     )
     
     return fig_pie, fig_heatmap
 
-def plot_epm_heatmap(behav_df, epm_coordinates, bodypart='head',
+def plot_epm_heatmap(behav_df, epm_coordinates, mouse, batch, bodypart='nose',
                      n_bins=1, bins=(50, 50), save_dir=None, figsize=None):
     """
     Plot mouse trajectory and occupancy heatmap with EPM zone outlines.
@@ -319,10 +322,8 @@ def plot_epm_heatmap(behav_df, epm_coordinates, bodypart='head',
         import pathlib
         save_dir = pathlib.Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
-        fig.savefig(save_dir / f'epm_heatmap_{n_bins}bins.png', dpi=300, bbox_inches='tight')
-        fig.savefig(save_dir / f'epm_heatmap_{n_bins}bins.pdf', bbox_inches='tight')
-    
-    plt.show()
+        fig.savefig(save_dir / f'{batch}_{mouse}_epm_heatmap_{n_bins}bins.png', dpi=300, bbox_inches='tight')
+        fig.savefig(save_dir / f'{batch}_{mouse}_epm_heatmap_{n_bins}bins.pdf', bbox_inches='tight')
     
     return fig
  

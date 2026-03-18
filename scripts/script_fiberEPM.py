@@ -137,51 +137,56 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print("-----------------------------") 
     print(f'BATCH : {batch}, MOUSE : {mouse}')
     print("-----------------------------")
+
+    data_path_exp = datapath_exp_dict[batch]
+    pp_path = data_path_exp / 'Preprocessing'
+    behav_path_exp = data_path_exp / 'Behaviour'
+
+    # Define paths for raw, behavioral, and fiberphotometry data
+    camera_flashes_path = data_path_exp / f'camera_flashes_{mouse}.csv'
+    rawdata_path = data_path_exp / f'{mouse}_0000.doric'
+    led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
+    deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
+    dlc_path = behav_path_exp / f'{mouse}DLC_Resnet50_EPM_quality50Feb10shuffle1_snapshot_110_filtered.csv'
+    fiberpho_path = pp_path / f'{mouse}_dFF_corrected.csv'
+    
+    # Arena boundaries
     try:
-        data_path_exp = datapath_exp_dict[batch]
-        pp_path = data_path_exp / 'Preprocessing'
-        behav_path_exp = data_path_exp / 'Behaviour'
+        arena_json = behav_path_exp / f"{mouse}_epm_coordinates.json"
+        with open(arena_json, 'r') as f:
+            arena_coordinates = json.load(f)
+    except Exception as e:
+        print(f'[!] Arena boundary file missing or invalid for {mouse}: {e}')
+        arena_coordinates = {}
 
-        # Define paths for raw, behavioral, and fiberphotometry data
-        camera_flashes_path = data_path_exp / f'camera_flashes_{mouse}.csv'
-        rawdata_path = data_path_exp / f'{mouse}_0000.doric'
-        led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
-        deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
-        dlc_path = behav_path_exp / f'{mouse}DLC_Resnet50_EPM_quality50Feb10shuffle1_snapshot_110_filtered.csv'
-        fiberpho_path = pp_path / f'{mouse}_dFF_corrected.csv'
-        
-        # Arena boundaries
-        try:
-            arena_json = behav_path_exp / f"{mouse}_epm_coordinates.json"
-            with open(arena_json, 'r') as f:
-                arena_coordinates = json.load(f)
-        except Exception as e:
-            print(f'[!] Arena boundary file missing or invalid for {mouse}: {e}')
-            arena_coordinates = {}
+    # Arena scale
+    try:
+        scale_json = behav_path_exp / f"{mouse}_scale_and_arena_coordinates.json"
+        with open(scale_json, 'r') as f:
+            arena_scale = json.load(f)
+    except Exception as e:
+        print(f'[!] Scale file missing or invalid for {mouse}: {e}')
+        arena_scale = {}
 
-        # Arena scale
-        try:
-            scale_json = behav_path_exp / f"{mouse}_scale_and_arena_coordinates.json"
-            with open(scale_json, 'r') as f:
-                arena_scale = json.load(f)
-        except Exception as e:
-            print(f'[!] Scale file missing or invalid for {mouse}: {e}')
-            arena_scale = {}
+    # DLC data
+    coordinates_df = None
+    try:
+        print('Get DLC data')
+        coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.90)
+    except Exception as e:
+        print(f'[!] DLC file error for {mouse}: {e}')
 
-        # DLC data
-        coordinates_df = None
-        try:
-            print('Get DLC data')
-            coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.95)
-        except Exception as e:
-            print(f'[!] DLC file error for {mouse}: {e}')
-
-        # Time alignment
-        behav_df = None
+    # Time alignment
+    behav_df = None
+    try:
         if bonsai_setup:
                 led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
                 deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
                 time_gap = cp.time_gap(deinterleaved_df, led_df)
+
+                frame_times_df = cp.get_timestamps_from_bonsai_csv(camera_flashes_path)
+                frame_times_df = cp.correct_behav_timestamps(frame_times_df, time_gap)
+                coordinates_df = cp.align_camera_flashes(coordinates_df, frame_times_df)
 
                 fiberpho_df = pd.read_csv(fiberpho_path)
 
@@ -199,13 +204,16 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             else:
                 print('[!] No camera flashes found, falling back to automated alignment.')
                 automated_alignment = True
+    except Exception as e:
+        print(f'[!] DLC file error for {mouse}: {e}')
 
-        # Analyze EPM position
+    # Analyze EPM position
+    try:
         if 'EPM' in exp and coordinates_df is not None:
             print(f'Analyzing mouse position for {mouse}')
-            list_BOI = ['Open arm', 'Closed arm', 'Center']
-            
-            behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, bodypart='nose')
+            list_BOI = ['Open arm', 'Closed arm', 'Center', 'Head dipping']
+
+            behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, arena_scale, bodypart='nose')
 
         if behav_df is None:
             raise ValueError("Behavior dataframe is missing or invalid.")
@@ -217,7 +225,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         # Fiber photometry
         fiberpho = pd.read_csv(fiberpho_path)
         if CUT_FREQ is not None:
-            fiberpho = pp.butterfilt(fiberpho, ORDER, CUT_FREQ)
+            fiberpho = cs.lowpass_dFF(fiberpho, ORDER, CUT_FREQ)
 
         # Align behavior and fiber data
         print('Aligning fiberphotometry and behaviour data')
@@ -232,18 +240,25 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
         dfiberbehav_df.to_csv(fiberbehav_path, index=False)
 
-        # Plotting
+        # Plotting fiberphotometry data and behavioural data
         fig = bp.plot_fiberpho_behav(
             dfiberbehav_df, list_BOI, exp, mouse,
             THRESH_S, EVENT_TIME_THRESHOLD, batch,
-            scaled = True
+            scaled = False
         )
         fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.pdf')
         fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
         plt.close(fig)
 
+        # Plotting behavioural data
+        plt = smb.with_qt5agg()
+        epm.plot_epm_behavior(behav_df, arena_coordinates, mouse, batch, bodypart='nose', 
+                      n_bins=1, bins=(50, 50), save_dir=repo_path)
+        plt.close('all')
+        plt = smb.with_agg()
+
     except Exception as e:
-        print(f'[!] Error while processing mouse {mouse}: {e}')
+        print(f'[!] DLC file error for {mouse}: {e}')
 
 print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
                     
