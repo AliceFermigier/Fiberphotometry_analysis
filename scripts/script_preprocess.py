@@ -43,8 +43,9 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'EPM'
-dual_color = False
+exp = 'RewardHab2'
+dual_color = True
+batches = [1]
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
@@ -85,7 +86,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         if dual_color:
             # Load deinterleaved raw data and clean data.
             deinterleaved_df = pp.load_lockin_dualcolor_doric(raw_data_path)
-            cleaned_df = cs.remove_high_artifacts_dualcolor(deinterleaved_path)
+            downsampled_df = pp.downsample(deinterleaved_df, target_frequency=20)
+            cleaned_df = cs.remove_high_artifacts_dualcolor(downsampled_df)
 
             # Save to CSV
             deinterleaved_df.to_csv(deinterleaved_path, index=False)

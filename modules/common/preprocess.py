@@ -15,6 +15,7 @@ Functions for preprocessing fiberphotometry data
 import pandas as pd
 import numpy as np
 from scipy import signal
+import warnings
 from ast import literal_eval
 import h5py
 from sklearn.linear_model import LinearRegression
@@ -437,3 +438,64 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
         })
 
     return dFFdata_df
+
+def downsample(rawdata_df, target_frequency=20):
+    """
+    Downsample a fiberphotometry DataFrame using an anti-aliased decimation filter.
+
+    Parameters
+    ----------
+    rawdata_df : pd.DataFrame
+        Must contain a 'Time(s)' column plus one or more signal columns.
+    target_frequency : float
+        Desired output sampling frequency in Hz.
+
+    Returns
+    -------
+    pd.DataFrame
+        Downsampled DataFrame with the same column layout.
+    """
+    # 1. Calculate current frequency from the 'Time' column
+    # We use median diff to be robust against occasional dropped frames
+    dt = np.median(np.diff(rawdata_df['Time(s)'].values))
+    current_fs = 1.0 / dt
+    print(f'Current frequency : {current_fs}Hz. Target frequency : {target_frequency}Hz')
+
+    # 2. Calculate integer downsampling factor (q)
+    # decimate requires an integer; we round to the nearest whole number
+    # if the rounded downsampling factor is too far from the exact factor, raises warning
+    exact_factor = current_fs / target_frequency
+    downsampling_factor = int(round(exact_factor))
+
+    if abs(exact_factor - downsampling_factor) > 0.05:
+        warnings.warn(
+            f"Downsampling factor {exact_factor:.2f} rounded to {downsampling_factor}. "
+            f"Effective output frequency: {current_fs / downsampling_factor:.2f} Hz "
+            f"(target was {target_frequency} Hz)."
+        )
+
+    if downsampling_factor <= 1:
+        print("Target frequency is higher than or equal to current frequency. Returning original.")
+        return rawdata_df
+    
+    downsampled_data = {}
+    # 3. Apply decimate to all columns except 'Time'
+    # We iterate through all columns and skip 'Time' specifically
+    signal_cols = [c for c in rawdata_df.columns if c != 'Time(s)']
+    for col in signal_cols:
+        # decimate applies an anti-aliasing low-pass filter before downsampling
+        # we use zero-phase to avoid phase distortion
+        downsampled_data[col] = signal.decimate(rawdata_df[col].values, 
+                                               downsampling_factor, 
+                                               ftype='fir',
+                                               zero_phase=True)
+
+    # 4. Reconstruct DataFrame
+    downsampled_df = pd.DataFrame(downsampled_data)
+
+    # 5. Re-create the Time column
+    downsampled_df['Time(s)'] = rawdata_df['Time(s)'].values[::downsampling_factor][:len(downsampled_df)]
+
+    # Reorder columns to put 'Time' first (standard for Doric/Fiber data)
+    cols = ['Time(s)'] + [c for c in downsampled_df.columns if c != 'Time(s)']
+    return downsampled_df[cols]
