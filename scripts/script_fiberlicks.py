@@ -62,7 +62,7 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Reward_Hab'
+exp = 'RewardHab2'
 list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
@@ -77,7 +77,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     
     data_path_exp = datapath_exp_dict[batch]
     behav_path_exp = data_path_exp / 'Behaviour'
-    video_path = data_path_exp / f"{mouse}.avi"
+    video_path = behav_path_exp / f"{mouse}.avi"
     output_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
 
     #Indicate the emplacement of the lickport and the two airpuff ports
@@ -100,7 +100,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     
     data_path_exp = datapath_exp_dict[batch]
     behav_path_exp = data_path_exp / 'Behaviour'
-    video_path = data_path_exp / f"{mouse}.avi"
+    video_path = behav_path_exp / f"{mouse}.avi"
     arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
     real_world_distance_cm=20
 
@@ -121,6 +121,7 @@ print(f'EXPERIMENT : {exp}')
 print('###################')
 
 dlc_data = True
+dual_color = True
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
@@ -131,50 +132,56 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print("-----------------------------") 
     print(f'BATCH : {batch}, MOUSE : {mouse}')
     print("-----------------------------")
-    try:
-        data_path_exp = datapath_exp_dict[batch]
-        pp_path = data_path_exp / 'Preprocessing'
-        behav_path_exp = data_path_exp / 'Behaviour'
+    data_path_exp = datapath_exp_dict[batch]
+    pp_path = data_path_exp / 'Preprocessing'
+    behav_path_exp = data_path_exp / 'Behaviour'
 
-        # Define paths for raw, behavioral, and fiberphotometry data
+    # Define paths for raw, behavioral, and fiberphotometry data
+    camera_flashes_path = data_path_exp / f'camera_flashes_{mouse}.csv'
+    licks_path = data_path_exp / f'licks_{mouse}.csv'
+    airpuff_path = data_path_exp / f'airpuffs_{mouse}.csv'
+    deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
+    fiberpho_path = pp_path / f'{mouse}_dFF_corrected.csv'
+    dlc_path = behav_path_exp / f'{mouse}DLC_Resnet50_RewardAirpuff_20260217Feb17shuffle1_snapshot_100_filtered.csv'
+    output_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
+
+    if dual_color:
+        # gets led start and stop from miniscope_mouse.csv
+        led_start_stop_path = data_path_exp / f'miniscope_{mouse}.csv'
+        led_df = cp.get_start_stop_timestamps_from_bonsai_csv(led_start_stop_path) 
+    else:
+        # gets led flashes from Bonsai files
         led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
-        camera_flashes_path = data_path_exp / f'camera_flashes_{mouse}.csv'
-        licks_path = data_path_exp / f'licks_{mouse}.csv'
-        airpuff_path = data_path_exp / f'airpuffs_{mouse}.csv'
-        deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
-        fiberpho_path = pp_path / f'{mouse}_dFF_corrected.csv'
-        dlc_path = behav_path_exp / f'{mouse}DLC_resnet50_RewardBoxNov18shuffle1_100000.csv'
-        output_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
+        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) 
+    deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+    slope, intercept = cp.time_gap(deinterleaved_df, led_df)
 
-        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
-        deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-        time_gap = cp.time_gap(deinterleaved_df, led_df)
+    fiberpho_df = pd.read_csv(fiberpho_path)
 
-        fiberpho_df = pd.read_csv(fiberpho_path)
+    # Align licks and airpuff timestamps to dFF data
+    licks_df = cp.get_timestamps_from_bonsai_csv(licks_path)
+    licks_df = cp.correct_behav_timestamps(licks_df, slope, intercept)
+    fiberbehav_df = cp.align_behav_timestamps(fiberpho_df, licks_df, "Licks")
 
-        # Align licks and airpuff timestamps to dFF data
-        licks_df = cp.get_timestamps_from_bonsai_csv(licks_path)
-        licks_df = cp.correct_behav_timestamps(licks_df, time_gap)
-        fiberbehav_df = cp.align_behav_timestamps(fiberpho_df, licks_df, "Licks")
+    if airpuff_path.exists():
+        airpuff_df = cp.get_timestamps_from_bonsai_csv(airpuff_path)
+        airpuff_df = cp.correct_behav_timestamps(airpuff_df, slope, intercept)
+        fiberbehav_df = cp.align_behav_timestamps(fiberbehav_df, airpuff_df, "Airpuffs")
 
-        if airpuff_path.exists():
-            airpuff_df = cp.get_timestamps_from_bonsai_csv(airpuff_path)
-            airpuff_df = cp.correct_behav_timestamps(airpuff_df, time_gap)
-            fiberbehav_df = cp.align_behav_timestamps(fiberbehav_df, airpuff_df, "Airpuffs")
-
-        # DLC data
-        frame_times_df = cp.get_timestamps_from_bonsai_csv(camera_flashes_path)
-        frame_times_df = cp.correct_behav_timestamps(frame_times_df, time_gap)
-        coordinates_df = None
-        if dlc_data:
-            try:
-                print('Get DLC data')
-                coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.95)
-                coordinates_df = cp.align_camera_flashes(coordinates_df, frame_times_df)
-            except Exception as e:
-                print(f'[!] DLC file error for {mouse}: {e}')
+    # DLC data
+    frame_times_df = cp.get_timestamps_from_bonsai_csv(camera_flashes_path)
+    frame_times_df = cp.correct_behav_timestamps(frame_times_df, slope, intercept)
+    coordinates_df = None
+    if dlc_data:
+        try:
+            print('Get DLC data')
+            coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.95)
+            coordinates_df = cp.align_camera_flashes(coordinates_df, frame_times_df)
+        except Exception as e:
+            print(f'[!] DLC file error for {mouse}: {e}')
 
         # Align DLC and fiber data
+        # Also takes out any fiber data that wasn't taken in video
         print('Aligning fiberphotometry and behaviour data')
         fiberbehav_df = bp.align_dlc_to_fiber(fiberbehav_df, coordinates_df)
 
@@ -186,33 +193,31 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         # Scoring nose-in-airport time
         fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, radius=120)
 
-        # Post-process data (fuse behaviours that are too close and delete the ones that are too short)
-        fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
+    # Post-process data (fuse behaviours that are too close and delete the ones that are too short)
+    fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
 
-        # Save outputs
-        fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
-        fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
-        fiberbehav_df.to_csv(fiberbehav_notderived_path, index=False)
+    # Save outputs
+    fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+    fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+    fiberbehav_df.to_csv(fiberbehav_notderived_path, index=False)
 
-        dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
-        print(f'n_licks {mouse} : {len(np.where(dfiberbehav_df["Licks"]==1)[0])}')
+    dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
+    print(f'n_licks {mouse} : {len(np.where(dfiberbehav_df["Licks"]==1)[0])}')
+    if dlc_data:
         print(f'n_licks_filtered {mouse} : {len(np.where(dfiberbehav_df["Licks_filtered"]==1)[0])}')
-        if airpuff_path.exists():
-            print(f'n_airpuffs {mouse} : {len(np.where(dfiberbehav_df["Airpuffs"]==1)[0])}')
-        dfiberbehav_df.to_csv(fiberbehav_path, index=False)
+    if airpuff_path.exists():
+        print(f'n_airpuffs {mouse} : {len(np.where(dfiberbehav_df["Airpuffs"]==1)[0])}')
+    dfiberbehav_df.to_csv(fiberbehav_path, index=False)
 
-        # Plotting
-        fig = bp.plot_fiberpho_behav(
-            dfiberbehav_df, list_BOI, exp, mouse,
-            THRESH_S, EVENT_TIME_THRESHOLD, batch,
-            scaled = False
-        )
-        fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.pdf')
-        fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
-        plt.close(fig)
-
-    except Exception as e:
-        print(f'[!] Error while processing mouse {mouse}: {e}')
+    # Plotting
+    fig = bp.plot_fiberpho_behav(
+        dfiberbehav_df, list_BOI, exp, mouse,
+        THRESH_S, EVENT_TIME_THRESHOLD, batch,
+        scaled = False)
+    
+    fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.pdf')
+    fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
+    plt.close(fig)
 
 print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 

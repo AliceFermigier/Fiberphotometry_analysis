@@ -35,15 +35,44 @@ def get_timestamps_from_bonsai_csv(file_path):
     output_df = df[df['Event'] == True][['Time(s)']].reset_index(drop=True)
     return output_df
 
+def get_start_stop_timestamps_from_bonsai_csv(file_path):
+    df = pd.read_csv(file_path)
+    # Ensure correct column names
+    df.columns = ['Time(s)', 'Event']
+    # Filter rows where Event == True
+    start_df = df[df['Event'] == True][['Time(s)']].reset_index(drop=True)
+    stop_df = df[df['Event'] == False][['Time(s)']].reset_index(drop=True)
+    start_time = start_df.values[0][0]
+    stop_time = stop_df.values[0][0]
+    output_df = pd.DataFrame({'Time(s)':[start_time,stop_time]})
+    return output_df
+
 def time_gap(deinterleaved_df, led_df):
-    time_led = led_df['Time(s)']
-    time_fiber = deinterleaved_df['Time(s)']
+    """
+    Computes linear mapping from Doric time → Bonsai time using
+    LED on (session start) and LED off (session end) as two sync points.
+    
+    Returns:
+        slope, intercept : such that bonsai_time ≈ slope * doric_time + intercept
+    """
+    doric_start  = deinterleaved_df['Time(s)'].iloc[0]
+    doric_end    = deinterleaved_df['Time(s)'].iloc[-1]
+    bonsai_start = led_df['Time(s)'].iloc[0]
+    bonsai_end   = led_df['Time(s)'].iloc[-1]
 
-    time_gap = time_led[0]-time_fiber[0]
-    return time_gap
+    slope     = (bonsai_end - bonsai_start) / (doric_end - doric_start)
+    intercept = bonsai_start - (slope * doric_start)
 
-def correct_behav_timestamps(behaviour_timestamps_df, time_gap):
-    behaviour_timestamps_df["Time(s)"] = (behaviour_timestamps_df["Time(s)"] - time_gap)
+    session_duration = doric_end - doric_start
+    drift_ms = (slope - 1.0) * session_duration * 1000
+    print(f"Alignment: slope={slope:.6f}, intercept={intercept:.4f}s")
+    print(f"Accumulated drift over session: {drift_ms:.1f} ms")
+
+    return slope, intercept
+
+def correct_behav_timestamps(behaviour_timestamps_df, slope, intercept, time_col='Time(s)'):
+    behaviour_timestamps_df = behaviour_timestamps_df.copy()
+    behaviour_timestamps_df[time_col] = (behaviour_timestamps_df[time_col] - intercept) / slope
     return behaviour_timestamps_df
 
 def align_behav_timestamps(fiberpho_df, behaviour_timestamps_df, behavior_col, time_col='Time(s)'):    

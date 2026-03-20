@@ -41,7 +41,10 @@ def align_dlc_to_fiber(fiberpho_df, dlc_df, time_col="Time(s)"):
     fp_times = fiberpho_df[time_col].values
     dlc_times = dlc_df[time_col].values
     
-    aligned = fiberpho_df.copy()
+    # Trim fiberpho to DLC time window
+    mask = (fp_times >= dlc_times[0]) & (fp_times <= dlc_times[-1])
+    aligned = fiberpho_df[mask].copy()
+    fp_times = aligned[time_col].values
 
     # For each DLC coordinate column
     for col in dlc_df.columns:
@@ -172,21 +175,34 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     has_560 = '560 dFF' in behavprocesssnip_df.columns
 
     if has_speed and has_560:
+        print('Plotting 465 dFF, 560 dFF and speed')
         fig = plt.figure(figsize=(20, 15))
         ax1 = fig.add_subplot(311)
     
+    elif has_560:
+        print('Plotting 465 dFF and 560 dFF')
+        fig = plt.figure(figsize=(20, 10))
+        ax1 = fig.add_subplot(211)
+    
     elif has_speed:
+        print('Plotting 465 dFF and speed')
         fig = plt.figure(figsize=(20, 10))
         ax1 = fig.add_subplot(211)
 
     else:
+        print('Plotting 465 dFF')
         fig = plt.figure(figsize=(20, 5))
         ax1 = fig.add_subplot(111)       
 
     # Plot dFF trace
     ax1.plot('Time(s)', 'dFF', linewidth=1, color='black', label='_GCaMP', data=behavprocesssnip_df)
+    
     if has_speed and has_560:
         ax2 = fig.add_subplot(312)
+        ax2.plot('Time(s)', '560 dFF', linewidth=1, color='black', label='560 dFF', data=behavprocesssnip_df)
+    
+    elif has_560:
+        ax2 = fig.add_subplot(212)
         ax2.plot('Time(s)', '560 dFF', linewidth=1, color='black', label='560 dFF', data=behavprocesssnip_df)
 
     # Highlight behaviors
@@ -198,7 +214,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         if behavior in behavprocesssnip_df.columns:
             color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
             highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
-            if has_speed and has_560:
+            if (has_speed and has_560) or has_560:
                 highlight_behavior_areas(ax2, behavprocesssnip_df, behavior, color, alpha)
 
     # Add event lines
@@ -224,7 +240,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     if scaled:
         ax1.set_ylim([-0.27, 0.75])
     
-    if has_speed and has_560:
+    if (has_speed and has_560) or has_560:
     # Labels and formatting
         fs_mult = 4
         ax2.set_ylabel(r'$\Delta$F/F', fontsize=5 * fs_mult)

@@ -45,7 +45,6 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 
 exp = 'RewardHab2'
 dual_color = True
-batches = [1]
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
@@ -86,7 +85,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         if dual_color:
             # Load deinterleaved raw data and clean data.
             deinterleaved_df = pp.load_lockin_dualcolor_doric(raw_data_path)
-            downsampled_df = pp.downsample(deinterleaved_df, target_frequency=20)
+            downsampled_df = pp.downsample(deinterleaved_df, target_frequency=40)
             cleaned_df = cs.remove_high_artifacts_dualcolor(downsampled_df)
 
             # Save to CSV
@@ -244,7 +243,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         
         # calculate dFF with artifacts removal, then interpolate missing data
         if dual_color:
-            dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=True)
+            dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=False)
         else:
             dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method)
 

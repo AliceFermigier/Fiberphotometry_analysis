@@ -403,6 +403,16 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
         dFFdata[4] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
         dFFdata[5] = ((dFFdata[3] - dFFdata[2]) / dFFdata[2]) * 100
 
+        # Replace first and last 10 frames with 1st quartile 
+        # to remove high artifacts at the very beginning and end of recording
+        q1_465 = np.nanpercentile(dFFdata[4], 25)
+        dFFdata[4][:10]  = q1_465
+        dFFdata[4][-10:] = q1_465
+
+        q1_560 = np.nanpercentile(dFFdata[4], 25)
+        dFFdata[5][:10]  = q1_560
+        dFFdata[5][-10:] = q1_560
+
         dFFdata_df = pd.DataFrame({
             'Time(s)': data_df['Time(s)'],
             '405 Fitted': dFFdata[0],
@@ -428,6 +438,16 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
 
         # Calculate Denoised dFF
         dFFdata[3] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
+        
+        # Replace first and last 10 frames with 1st quartile
+        # to remove high artifacts at the very beginning and end of recording
+        q1_465 = np.nanpercentile(dFFdata[3], 25)
+        dFFdata[3][:10]  = q1_465
+        dFFdata[3][-10:] = q1_465
+
+        q1_560 = np.nanpercentile(dFFdata[2], 25)
+        dFFdata[2][:10]  = q1_560
+        dFFdata[2][-10:] = q1_560
 
         dFFdata_df = pd.DataFrame({
             'Time(s)': data_df['Time(s)'],

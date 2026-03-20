@@ -6,6 +6,8 @@ from scipy.ndimage import gaussian_filter
 from scipy.signal import savgol_filter
 import importlib
 
+import modules.common.preprocess as pp
+importlib.reload(pp)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
 
@@ -14,7 +16,7 @@ def get_dlc_data(data_path, threshold=0.99, interpolate=True):
     Gets DLC data and filters it based on likelihood (default = 0.99)
     Creates new filtered csv with 
     '''
-    dlc_df = pd.read_csv(data_path, header=[1])
+    dlc_df = pd.read_csv(data_path, header=[1], low_memory=False)
     coords_array=[]
     for bodypart in dlc_df.columns.tolist()[1::3]:
         x_filtered = []
@@ -50,11 +52,12 @@ def load_video_frame(video_path):
     else:
         raise FileNotFoundError("Video frame could not be read.")   
     
-def compute_speed(coordinates_df, dist_scale=0.1322, frame_rate=19, bodypart='center'):
+def compute_speed(coordinates_df, dist_scale=0.1322, bodypart='center'):
     '''
     dist_scale in cm/px
     frame_rate in fps
     '''
+    frame_rate=pp.samplerate(coordinates_df)
     dx = np.diff(coordinates_df[f'{bodypart}_x'])
     dy = np.diff(coordinates_df[f'{bodypart}_y'])
     distance = dist_scale * np.sqrt(dx**2 + dy**2)
