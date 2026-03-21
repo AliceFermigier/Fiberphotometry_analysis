@@ -68,6 +68,7 @@ def get_scale_and_arena_rect(video_path, real_world_distance_cm, real_world_dist
     # Load frame
     # ---------------------------
     cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
     success, frame = cap.read()
     cap.release()
@@ -109,6 +110,7 @@ def get_scale_and_arena_rect(video_path, real_world_distance_cm, real_world_dist
     # Prepare output
     # ---------------------------
     output = {
+        "Video_fps": float(fps),
         "Scale_cm_per_px": float(scale),
         "Scale_points_px": {
             "P1": {"x": float(x1), "y": float(y1)},

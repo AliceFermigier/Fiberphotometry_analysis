@@ -52,12 +52,11 @@ def load_video_frame(video_path):
     else:
         raise FileNotFoundError("Video frame could not be read.")   
     
-def compute_speed(coordinates_df, dist_scale=0.1322, bodypart='center'):
+def compute_speed(coordinates_df, frame_rate, dist_scale=0.1322, bodypart='center'):
     '''
     dist_scale in cm/px
     frame_rate in fps
     '''
-    frame_rate=pp.samplerate(coordinates_df)
     dx = np.diff(coordinates_df[f'{bodypart}_x'])
     dy = np.diff(coordinates_df[f'{bodypart}_y'])
     distance = dist_scale * np.sqrt(dx**2 + dy**2)

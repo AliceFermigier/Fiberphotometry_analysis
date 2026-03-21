@@ -31,9 +31,10 @@ def analyze_mouse_position(coords, epm_coordinates, arena_scale, bodypart='head'
     coords_y = coords[f'{bodypart}_y']
 
     dist_scale = arena_scale['Scale_cm_per_px']
+    video_fps = arena_scale['Video_fps']
     
     coords_byzone_df = classify_position(coords_x, coords_y, epm_coordinates)
-    speed_df = mp.compute_speed(coords, dist_scale)
+    speed_df = mp.compute_speed(coords, video_fps, dist_scale)
     
     behav_df = pd.concat([coords, coords_byzone_df, speed_df], axis=1)
     return behav_df
