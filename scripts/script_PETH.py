@@ -61,7 +61,7 @@ EVENT_LIST = ['onset']
 TIME_WINDOWS = [[3, 8]]  # Time window for PETH calculation (pre, post), for each event
 Y_LIM = [-2,8]
 
-for exp in ['RewardAirpuff2']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
+for exp in ['RewardAirpuff']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -149,7 +149,7 @@ for exp in ['RewardAirpuff2']: #[f.name for f in analysis_path.iterdir() if f.is
 
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuff2'
+exp = 'RewardAirpuff'
 BOI = 'Airpuffs'
 baseline = False
 MAXBOUTSNUMBER = 10

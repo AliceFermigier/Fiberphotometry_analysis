@@ -62,7 +62,7 @@ THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'RewardAirpuff2'
+exp = 'RewardAirpuff'
 list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport', 'Airpuffs']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
