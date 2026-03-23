@@ -537,21 +537,19 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 #%%
 
 if __name__ == "__main__":
-    batch = 3
-    #'822','844','827','828','829','821'
-    for mouse in ['822','844','827','829']:
+    batch = 2
+    for mouse in ['1009']:
         print(f"{mouse}")
         exp='Reward_Airpuffs'
         behavior = "Airpuffs"
-        data_path_exp='20251030_FiberMEC_RewardAirpuff'
+        exp_path='F:\202602_FiberMEC-GRABACh-FlexRGECO\Data\20260220_RewardAirpuff'
         video_name = f'{mouse}.avi'
 
-        exp_path = Path(r'F:\202510_FiberMEC\Data') / f'{data_path_exp}'
         pp_path = exp_path / 'Preprocessing'
-        analysis_path = Path(r'F:\202510_FiberMEC\Analysis') / f'{exp}' / 'length0_interbout0_o4fNone'
-        video_path = exp_path / f'{video_name}'
+        analysis_path = Path(r'F:\202510_FiberMEC\Analysis') / f'{exp}' / 'length0_interbout1_o4fNone'
+        video_path = exp_path / 'Behaviour' / f'{video_name}'
         raw_file_path = exp_path / f'{mouse}_0000.doric'
-        deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
+        deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved_cleaned.csv'
         fiberbehav_df = pd.read_csv(analysis_path / f'{batch}_{mouse}_fiberbehavnotderived.csv')
         output_path = analysis_path / f'Videos_{behavior}/{batch}_{mouse}' / f'{video_name[:-4]}_combined'
         camera_csv_path = exp_path / f'camera_flashes_{mouse}.csv'

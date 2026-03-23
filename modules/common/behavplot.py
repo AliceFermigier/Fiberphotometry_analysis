@@ -274,7 +274,9 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     plt.tight_layout()
     return fig
 
-def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVENT_TIME=0, maxboutsnumber=None, baselinewindow=False):
+def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, 
+         PRE_EVENT_TIME=0, maxboutsnumber=None, baselinewindow=False,
+         dFF_column = 'dFF'):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI.
     
@@ -332,20 +334,20 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
     PETH_array = np.zeros((n_bouts, n_timepoints))
     
     # Initialize mean and std on whole trace
-    F0 = behavprocess_df['dFF'].mean()
-    std0 = behavprocess_df['dFF'].std()
+    F0 = behavprocess_df[dFF_column].mean()
+    std0 = behavprocess_df[dFF_column].std()
 
     # Loop through each event and extract the fiberpho trace centered on the event
     for i, ind_event in enumerate(list_ind_event):
         try: 
             if baselinewindow:
                 # Calculate baseline mean (F0) and standard deviation (std0) for the time window before the event
-                dFF_baseline = behavprocess_df.loc[ind_event - 1 * sr : ind_event - PRE_EVENT_TIME * sr, 'dFF']
+                dFF_baseline = behavprocess_df.loc[ind_event - 1 * sr : ind_event - PRE_EVENT_TIME * sr, dFF_column]
                 F0 = dFF_baseline.mean() 
                 std0 = dFF_baseline.std()
 
             # Extract the fiberpho trace for the time window around the event
-            event_window = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event + POST_TIME * sr, 'dFF']
+            event_window = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event + POST_TIME * sr, dFF_column]
             
             # Ensure the event window has the correct length to avoid shape mismatch
             if len(event_window) == n_timepoints:
@@ -356,10 +358,9 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
     return PETH_array
 
 def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim = None,
-              trace_color='black', fill_alpha=0.2, trace_linewidth=2, heatmap_cmap='magma'):
-    import matplotlib.pyplot as plt
-    import numpy as np
-
+              trace_color='black', fill_alpha=0.2, trace_linewidth=2, heatmap_cmap='magma',
+              dff_column = '465'):
+    
     # Unpack time window
     PRE_TIME, POST_TIME = timewindow
 
@@ -394,8 +395,8 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim 
     )
     ax_heatmap.axvline(x=0, linewidth=2, color='black', linestyle='--', label=f'{event.capitalize()} event')
     ax_heatmap.set_ylabel('Bout #', fontsize=text_size)
-    ax_heatmap.set_yticks(np.arange(0.5, len(PETH_data), 2))
-    ax_heatmap.set_yticklabels(np.arange(0, len(PETH_data), 2), fontsize=text_size * 0.9)
+    ax_heatmap.set_yticks([0.5, len(PETH_data) - 0.5])
+    ax_heatmap.set_yticklabels([1, len(PETH_data)], fontsize=text_size * 0.9)
     ax_heatmap.set_title(f'{BOI} {event.capitalize()} - {exp}, Mouse: {mouse}, Batch: {batch}, Group: {group}', fontsize=text_size*0.6)
     ax_heatmap.set_xticks([])
     ax_heatmap.set_xticklabels([])
@@ -404,7 +405,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim 
     # Add colorbar
     cbar_ax = fig.add_axes([0.85, 0.54, 0.02, 0.34])  # Custom position for colorbar
     cbar = fig.colorbar(im, cax=cbar_ax)
-    cbar.set_label('Z-scored ΔF/F', fontsize=text_size)
+    cbar.set_label(f'Z-scored {dff_column} ΔF/F', fontsize=text_size)
     cbar.ax.tick_params(labelsize=text_size * 0.9)
 
     ## ----------------- Trace Plot ----------------- ##
@@ -434,7 +435,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim 
     ax_trace.axvline(x=0, linewidth=2, color='slategray', linestyle='--', label=f'{event.capitalize()} {BOI}')
 
     ax_trace.set_xlabel('Time (s)', fontsize=text_size)
-    ax_trace.set_ylabel('Z-scored ΔF/F', fontsize=text_size)
+    ax_trace.set_ylabel(f'Z-scored {dff_column} ΔF/F', fontsize=text_size)
     ax_trace.tick_params(labelsize=text_size * 0.9)
     ax_trace.legend(loc='upper left', fontsize=text_size * 0.9)
     ax_trace.margins(0, 0.01)
@@ -448,7 +449,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim 
 
 def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, group, ylim=None,
                      trace_color='cornflowerblue', trace_alpha=0.3, fill_alpha=0.5,
-                     line_width=1, fill=True):
+                     line_width=1, fill=True, dff_column='465'):
     """
     Plots PETH averaged over 1 group
 
@@ -539,7 +540,7 @@ def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, group, ylim=None,
     
     ## ----------------- Axis Labels and Limits ----------------- ##
     ax.set_xlabel('Time(s)')
-    ax.set_ylabel(r'z-scored $\Delta$F/F')
+    ax.set_ylabel(f'z-scored {dff_column} ΔF/F')
     ax.legend(loc='upper right', fontsize='medium')
     if ylim != None:
         ax.set_ylim(ylim[0],ylim[1])

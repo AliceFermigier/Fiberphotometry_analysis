@@ -48,6 +48,16 @@ def get_start_stop_timestamps_from_bonsai_csv(file_path):
     return output_df
 
 def time_gap(deinterleaved_df, led_df):
+    time_led = led_df['Time(s)']
+    time_fiber = deinterleaved_df['Time(s)']
+
+    print(f"Bonsai : {time_led.iloc[0]}-{time_led.iloc[-1]}s ; Start Doric : {time_fiber.iloc[0]}-{time_fiber.iloc[-1]}s")
+
+    time_gap = time_led[0]-time_fiber[0]
+    slope = 1.0 #sets slope to 1 by default
+    return slope, time_gap
+
+def time_mapping(deinterleaved_df, led_df):
     """
     Computes linear mapping from Doric time → Bonsai time using
     LED on (session start) and LED off (session end) as two sync points.
@@ -73,6 +83,8 @@ def time_gap(deinterleaved_df, led_df):
 def correct_behav_timestamps(behaviour_timestamps_df, slope, intercept, time_col='Time(s)'):
     behaviour_timestamps_df = behaviour_timestamps_df.copy()
     behaviour_timestamps_df[time_col] = (behaviour_timestamps_df[time_col] - intercept) / slope
+    time = behaviour_timestamps_df[time_col].values
+    print(f'Behavioural timestamps between {time[0]} and {time[-1]}')
     return behaviour_timestamps_df
 
 def align_behav_timestamps(fiberpho_df, behaviour_timestamps_df, behavior_col, time_col='Time(s)'):    

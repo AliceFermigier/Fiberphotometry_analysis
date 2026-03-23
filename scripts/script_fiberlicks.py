@@ -58,12 +58,12 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'RewardHab2'
-list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport']
+exp = 'RewardAirpuff'
+list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport', 'Airpuffs']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
@@ -144,31 +144,29 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     fiberpho_path = pp_path / f'{mouse}_dFF_corrected.csv'
     dlc_path = behav_path_exp / f'{mouse}DLC_Resnet50_RewardAirpuff_20260217Feb17shuffle1_snapshot_100_filtered.csv'
     output_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
+    arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
 
-    if dual_color:
-        # gets led start and stop from miniscope_mouse.csv
-        led_start_stop_path = data_path_exp / f'miniscope_{mouse}.csv'
-        led_df = cp.get_start_stop_timestamps_from_bonsai_csv(led_start_stop_path) 
-    else:
-        # gets led flashes from Bonsai files
-        led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
-        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) 
+    led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
+    led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) 
     deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
     slope, intercept = cp.time_gap(deinterleaved_df, led_df)
 
     fiberpho_df = pd.read_csv(fiberpho_path)
 
     # Align licks and airpuff timestamps to dFF data
+    print("Aligning licks")
     licks_df = cp.get_timestamps_from_bonsai_csv(licks_path)
     licks_df = cp.correct_behav_timestamps(licks_df, slope, intercept)
     fiberbehav_df = cp.align_behav_timestamps(fiberpho_df, licks_df, "Licks")
 
     if airpuff_path.exists():
+        print("Aligning airpuffs")
         airpuff_df = cp.get_timestamps_from_bonsai_csv(airpuff_path)
         airpuff_df = cp.correct_behav_timestamps(airpuff_df, slope, intercept)
         fiberbehav_df = cp.align_behav_timestamps(fiberbehav_df, airpuff_df, "Airpuffs")
 
     # DLC data
+    print("Aligning camera frames")
     frame_times_df = cp.get_timestamps_from_bonsai_csv(camera_flashes_path)
     frame_times_df = cp.correct_behav_timestamps(frame_times_df, slope, intercept)
     coordinates_df = None
@@ -188,6 +186,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         # Clean licking data. Radius in cm.
         print('Cleaning licking data')
         ports = json.load(open(output_json, "r"))
+        scale_and_coords = json.load(open(arena_json, "r"))
         fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, scale_and_coords, lick_col="Licks", lick_radius_cm=0.5)
 
         # Scoring nose-in-airport time. Radius in cm.
@@ -223,7 +222,7 @@ print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 
 #%% 2.3 - Plot behavioural metrics
 
-exp = 'Reward_Extinction'
+exp = 'RewardAirpuff'
 
 print('###################')
 print(f'EXPERIMENT : {exp}')
@@ -235,7 +234,8 @@ HEATMAP_BINS = (50, 50)  # x, y bins
 
 behaviors_to_plot = [
     "Licks_filtered",
-    "Nose_in_any_airport"
+    "Nose_in_any_airport",
+    "Airpuffs"
 ]
 
 # Create repository path where data will be stored

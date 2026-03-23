@@ -32,14 +32,17 @@ importlib.reload(cp)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
 
-#%%
 from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batches
+
+#%%
+
+dual_color = True
 
 #filter characteristics
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -47,18 +50,18 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = 14
+MAXBOUTSNUMBER = 30
 if baseline:
     tag = "windowedbaseline"
 else:
     tag = "wholetrace"
 
 # Plot parameters
-EVENT_LIST = ['onset','withdrawal']
-TIME_WINDOWS = [[5, 10],[5, 10]]  # Time window for PETH calculation (pre, post), for each event
+EVENT_LIST = ['onset']
+TIME_WINDOWS = [[2, 3]]  # Time window for PETH calculation (pre, post), for each event
 Y_LIM = [-2,8]
 
-for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
+for exp in ['RewardAirpuff']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -89,12 +92,14 @@ for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.i
                 continue
 
             # List all behaviors of interest (BOI) by excluding specific behaviors
-            behaviors_of_interest = ['Licks_filtered', 'Airpuffs']
+            behaviors_of_interest = ['Licks_filtered','Airpuffs']
             
             for behavior in behaviors_of_interest:
                 for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
                     # Generate the PETH data for the current behavior, event, and time window
-                    peth_data = bp.PETH(dfiberbehav_df, behavior, event, time_window, EVENT_TIME_THRESHOLD, baselinewindow = baseline, maxboutsnumber=MAXBOUTSNUMBER)
+                    peth_data = bp.PETH(dfiberbehav_df.reset_index(drop=True), behavior, event, time_window, 
+                                        EVENT_TIME_THRESHOLD, baselinewindow = baseline, 
+                                        maxboutsnumber=MAXBOUTSNUMBER)
                     
                     # Create a DataFrame from the PETH data
                     sr = round(pp.samplerate(dfiberbehav_df))
@@ -106,25 +111,48 @@ for exp in ['Reward_Airpuffs']: #[f.name for f in analysis_path.iterdir() if f.i
                     
                     # Plot the PETH and save the figure 
                     peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, exp, batch, mouse, group, ylim=Y_LIM)
-                    peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
-                    peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
+                    peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_465_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
+                    peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_465_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
                     plt.close(peth_plot)
+            
+                    if dual_color:
+                        # Generate the PETH data for the current behavior, event, and time window
+                        peth_data = bp.PETH(dfiberbehav_df.reset_index(drop=True), behavior, event, time_window, 
+                                            EVENT_TIME_THRESHOLD, baselinewindow = baseline, 
+                                            maxboutsnumber=MAXBOUTSNUMBER, dFF_column = '560 dFF')
+                        
+                        # Create a DataFrame from the PETH data
+                        sr = round(pp.samplerate(dfiberbehav_df))
+                        PRE_TIME, POST_TIME = time_window
+                        n_timepoints = (PRE_TIME + POST_TIME) * sr + 1
+                        time_index = np.linspace(-PRE_TIME, POST_TIME, n_timepoints)
+
+                        peth_df = pd.DataFrame(np.transpose(peth_data), index=time_index)
+                        
+                        # Plot the PETH and save the figure 
+                        peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, 
+                                                 exp, batch, mouse, group, ylim=Y_LIM,
+                                                 dff_column = '560')
+                        peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_560_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
+                        peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_560_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
+                        plt.close(peth_plot)
+                
                     
                         
  #%% Plot PETH for each group and extract mean and max Z-scored data
 
 # ----------------------------- #
 # PETH parameters
-exp = 'Reward_Airpuffs'
-BOI = 'Licks_filtered'
+exp = 'RewardAirpuff'
+BOI = 'Airpuffs'
 baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = 14
+MAXBOUTSNUMBER = 22
 event='onset'
 
 #'Licks_filtered' 'Nose_in_any_airport'
 
 # Plot parameters
-TIME_WINDOW = [5, 10]  # In seconds
+TIME_WINDOW = [2, 3]  # In seconds
 Y_LIM = [-2, 8]
 
 if baseline:
@@ -160,17 +188,17 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         print(f"File not found: {fiberbehav_file}")
         continue
     
-    fiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
-    sr = pp.samplerate(fiberbehav_df)
+    dfiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
+    sr = pp.samplerate(dfiberbehav_df)
     
-    if BOI in fiberbehav_df.columns[2:].tolist():
+    if BOI in dfiberbehav_df.columns[2:].tolist():
         subject_list.append(mouse)
         group_list.append(group)
         print(f'PETH {BOI} for {mouse}')
         
         # Calculate mean PETH for the current mouse
         PETH_mouse = bp.PETH(
-        fiberbehav_df, BOI, 'onset', TIME_WINDOW, EVENT_TIME_THRESHOLD,
+        dfiberbehav_df.reset_index(drop=True), BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
         baselinewindow = baseline, maxboutsnumber=MAXBOUTSNUMBER
         )
         #print(f'PETH mouse : {PETH_mouse}, lenght = {len(PETH_mouse)}')
@@ -209,7 +237,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         meanmaxPETH_df.to_excel(peth_path / f'{BOI}_{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETHmeanmax.xlsx')
 
 # Plot PETH for each group
-included_groups = ['Saline', 'MEC 20uM']
+included_groups = ['NaCl', 'MEC 20uM']
 for group in included_groups:
     # Filter PETH data for the current group
     group_indices = [i for i, g in enumerate(group_list) if g == group]

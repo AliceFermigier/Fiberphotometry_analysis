@@ -42,8 +42,7 @@ nom.create_or_load_artifacts_file(artifact_file, option='create_only')
 #time to crop at the beginning of the trial for, in seconds
 TIME_BEGIN = 0
 #------------------#
-batches = [1]
-#list(set(subjects_df['Batch']))
+batches = list(set(subjects_df['Batch']))
 #------------------#
 
 
