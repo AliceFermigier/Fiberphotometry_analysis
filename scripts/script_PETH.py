@@ -40,7 +40,7 @@ dual_color = True
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = None #in Hz
+CUT_FREQ = 8 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
@@ -50,7 +50,7 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = 30
+MAXBOUTSNUMBER = 10
 if baseline:
     tag = "windowedbaseline"
 else:
@@ -58,10 +58,10 @@ else:
 
 # Plot parameters
 EVENT_LIST = ['onset']
-TIME_WINDOWS = [[2, 3]]  # Time window for PETH calculation (pre, post), for each event
+TIME_WINDOWS = [[3, 8]]  # Time window for PETH calculation (pre, post), for each event
 Y_LIM = [-2,8]
 
-for exp in ['RewardAirpuff']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
+for exp in ['RewardAirpuff2']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -95,9 +95,15 @@ for exp in ['RewardAirpuff']: #[f.name for f in analysis_path.iterdir() if f.is_
             behaviors_of_interest = ['Licks_filtered','Airpuffs']
             
             for behavior in behaviors_of_interest:
+
+                if behavior == 'Airpuffs':
+                    dfiberbehav_clean = bp.remove_first_bout(dfiberbehav_df.reset_index(drop=True), behavior)
+                else:
+                    dfiberbehav_clean = dfiberbehav_df.reset_index(drop=True)
+
                 for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
                     # Generate the PETH data for the current behavior, event, and time window
-                    peth_data = bp.PETH(dfiberbehav_df.reset_index(drop=True), behavior, event, time_window, 
+                    peth_data = bp.PETH(dfiberbehav_clean, behavior, event, time_window, 
                                         EVENT_TIME_THRESHOLD, baselinewindow = baseline, 
                                         maxboutsnumber=MAXBOUTSNUMBER)
                     
@@ -117,7 +123,7 @@ for exp in ['RewardAirpuff']: #[f.name for f in analysis_path.iterdir() if f.is_
             
                     if dual_color:
                         # Generate the PETH data for the current behavior, event, and time window
-                        peth_data = bp.PETH(dfiberbehav_df.reset_index(drop=True), behavior, event, time_window, 
+                        peth_data = bp.PETH(dfiberbehav_clean, behavior, event, time_window, 
                                             EVENT_TIME_THRESHOLD, baselinewindow = baseline, 
                                             maxboutsnumber=MAXBOUTSNUMBER, dFF_column = '560 dFF')
                         
@@ -139,21 +145,19 @@ for exp in ['RewardAirpuff']: #[f.name for f in analysis_path.iterdir() if f.is_
                 
                     
                         
- #%% Plot PETH for each group and extract mean and max Z-scored data
+#%% Plot PETH for each group and extract mean and max Z-scored data
 
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuff'
+exp = 'RewardAirpuff2'
 BOI = 'Airpuffs'
-baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = 22
-event='onset'
-
-#'Licks_filtered' 'Nose_in_any_airport'
+baseline = False
+MAXBOUTSNUMBER = 10
+event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [2, 3]  # In seconds
-Y_LIM = [-2, 8]
+TIME_WINDOW = [3, 8]
+Y_LIM = [-2, 5]
 
 if baseline:
     tag = "windowedbaseline"
@@ -167,86 +171,135 @@ print('##########################################')
 
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
 peth_path = repo_path / f'PETH_grouped_{tag}'
-peth_path.mkdir(parents=True, exist_ok=True)  # Create PETH directory if it doesn't exist
+peth_path.mkdir(parents=True, exist_ok=True)
 
 # Initialize data storage lists
 subject_list = []
 group_list = []
 PETH_array = None
+PETH_array_560 = None
 PETH_mean_list = []
 PETH_max_list = []
+PETH_mean_list_560 = []
+PETH_max_list_560 = []
 
 # Loop over each subject (mouse)
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
     print("--------------")
     print(f'MOUSE: {mouse} {batch}')
     print("--------------")
-    
+
     fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
-    
+
     if not fiberbehav_file.exists():
         print(f"File not found: {fiberbehav_file}")
         continue
-    
+
     dfiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
-    sr = pp.samplerate(dfiberbehav_df)
-    
+    if BOI == 'Airpuffs':
+        dfiberbehav_clean = bp.remove_first_bout(dfiberbehav_df.reset_index(drop=True), BOI)
+    else:
+        dfiberbehav_clean = dfiberbehav_df.reset_index(drop=True)
+
+    sr = pp.samplerate(dfiberbehav_clean)
+
     if BOI in dfiberbehav_df.columns[2:].tolist():
         subject_list.append(mouse)
         group_list.append(group)
         print(f'PETH {BOI} for {mouse}')
-        
-        # Calculate mean PETH for the current mouse
-        PETH_mouse = bp.PETH(
-        dfiberbehav_df.reset_index(drop=True), BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
-        baselinewindow = baseline, maxboutsnumber=MAXBOUTSNUMBER
-        )
-        #print(f'PETH mouse : {PETH_mouse}, lenght = {len(PETH_mouse)}')
-        PETH_mouse_mean = np.mean(PETH_mouse, axis=0, keepdims=True)
-        #PETH_mouse_mean = gaussian_filter1d(PETH_mouse_mean, sigma=0.7)
 
+        # --- 465 channel ---
+        PETH_mouse = bp.PETH(
+            dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
+            baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER
+        )
+        PETH_mouse_mean = np.mean(PETH_mouse, axis=0, keepdims=True)
 
         if PETH_array is None:
             PETH_array = PETH_mouse_mean
             print('Initialized PETH_array successfully')
         else:
-            PETH_array = np.concatenate((PETH_array, PETH_mouse_mean))  # Stack new data
+            PETH_array = np.concatenate((PETH_array, PETH_mouse_mean))
+
+        # --- 560 channel ---
+        if dual_color:
+            PETH_mouse_560 = bp.PETH(
+                dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
+                baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER, dFF_column='560 dFF'
+            )
+            PETH_mouse_mean_560 = np.mean(PETH_mouse_560, axis=0, keepdims=True)
+
+            if PETH_array_560 is None:
+                PETH_array_560 = PETH_mouse_mean_560
+                print('Initialized PETH_array_560 successfully')
+            else:
+                PETH_array_560 = np.concatenate((PETH_array_560, PETH_mouse_mean_560))
 
         if len(PETH_mouse) <= TIME_WINDOW[0]:
             print(f"Skipping {mouse}: PETH length {len(PETH_mouse)} too short for TIME_WINDOW={TIME_WINDOW}")
             continue
-                
-        # Calculate mean and max dFF before and after the event (PETH)
-        mean_before = np.mean(PETH_mouse[:TIME_WINDOW[0]])  # Mean before event
-        mean_after = np.mean(PETH_mouse[TIME_WINDOW[0]:])   # Mean after event
-        max_before = np.max(PETH_mouse[:TIME_WINDOW[0]])    # Max before event
-        max_after = np.max(PETH_mouse[TIME_WINDOW[0]:])     # Max after event
-        
+
+        # --- 465 channel: mean and max dFF before and after the event ---
+        mean_before = np.mean(PETH_mouse[:TIME_WINDOW[0]])
+        mean_after  = np.mean(PETH_mouse[TIME_WINDOW[0]:])
+        max_before  = np.max(PETH_mouse[:TIME_WINDOW[0]])
+        max_after   = np.max(PETH_mouse[TIME_WINDOW[0]:])
+
         PETH_mean_list.append((mean_before, mean_after))
         PETH_max_list.append((max_before, max_after))
 
+        # --- 560 channel: mean and max dFF before and after the event ---
+        if dual_color:
+            mean_before_560 = np.mean(PETH_mouse_560[:TIME_WINDOW[0]])
+            mean_after_560  = np.mean(PETH_mouse_560[TIME_WINDOW[0]:])
+            max_before_560  = np.max(PETH_mouse_560[:TIME_WINDOW[0]])
+            max_after_560   = np.max(PETH_mouse_560[TIME_WINDOW[0]:])
+
+            PETH_mean_list_560.append((mean_before_560, mean_after_560))
+            PETH_max_list_560.append((max_before_560, max_after_560))
+
         # Export mean/max PETH data to Excel
-        meanmaxPETH_df = pd.DataFrame({
+        export_dict = {
             'Subject': subject_list,
             'Group': group_list,
-            f'Mean dFF before {BOI}': [x[0] for x in PETH_mean_list],
-            f'Mean dFF after {BOI}': [x[1] for x in PETH_mean_list],
-            f'Max dFF before {BOI}': [x[0] for x in PETH_max_list],
-            f'Max dFF after {BOI}': [x[1] for x in PETH_max_list]
-        })
+            f'465 Mean dFF before {BOI}': [x[0] for x in PETH_mean_list],
+            f'465 Mean dFF after {BOI}':  [x[1] for x in PETH_mean_list],
+            f'465 Max dFF before {BOI}':  [x[0] for x in PETH_max_list],
+            f'465 Max dFF after {BOI}':   [x[1] for x in PETH_max_list],
+        }
+        if dual_color:
+            export_dict.update({
+                f'560 Mean dFF before {BOI}': [x[0] for x in PETH_mean_list_560],
+                f'560 Mean dFF after {BOI}':  [x[1] for x in PETH_mean_list_560],
+                f'560 Max dFF before {BOI}':  [x[0] for x in PETH_max_list_560],
+                f'560 Max dFF after {BOI}':   [x[1] for x in PETH_max_list_560],
+            })
+
+        meanmaxPETH_df = pd.DataFrame(export_dict)
         meanmaxPETH_df.to_excel(peth_path / f'{BOI}_{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETHmeanmax.xlsx')
 
 # Plot PETH for each group
 included_groups = ['NaCl', 'MEC 20uM']
 for group in included_groups:
-    # Filter PETH data for the current group
     group_indices = [i for i, g in enumerate(group_list) if g == group]
-    PETH_array_group = PETH_array[group_indices]
-    
-    print(f"Group {group} PETH data size: {PETH_array_group.shape}")
 
-    # Plot pooled PETH for the group
+    # --- 465 channel ---
+    PETH_array_group = PETH_array[group_indices]
+    print(f"Group {group} 465 PETH data size: {PETH_array_group.shape}")
+
     fig_PETHpooled = bp.plot_PETH_pooled(PETH_array_group, BOI, event, TIME_WINDOW, exp, group, ylim=Y_LIM)
     fig_PETHpooled.savefig(peth_path / f'{group}_{BOI}_{TIME_WINDOW[1]}_PETH.pdf')
     fig_PETHpooled.savefig(peth_path / f'{group}_{BOI}_{TIME_WINDOW[1]}_PETH.png')
+    plt.close(fig_PETHpooled)
+
+    # --- 560 channel ---
+    if dual_color and PETH_array_560 is not None:
+        PETH_array_group_560 = PETH_array_560[group_indices]
+        print(f"Group {group} 560 PETH data size: {PETH_array_group_560.shape}")
+
+        fig_PETHpooled_560 = bp.plot_PETH_pooled(PETH_array_group_560, BOI, event, TIME_WINDOW, exp, group,
+                                                  ylim=Y_LIM, dff_column='560')
+        fig_PETHpooled_560.savefig(peth_path / f'{group}_{BOI}_{TIME_WINDOW[1]}_560_PETH.pdf')
+        fig_PETHpooled_560.savefig(peth_path / f'{group}_{BOI}_{TIME_WINDOW[1]}_560_PETH.png')
+        plt.close(fig_PETHpooled_560)
 # %%

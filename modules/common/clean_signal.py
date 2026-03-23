@@ -329,15 +329,22 @@ def exponential_detrend(dff_df, dualcolor = False):
 
     return dff_df
 
-def lowpass_dFF(dff, order = 2, cut_freq = 10):
+def lowpass_dFF(dff, dual_color = False, order = 2, cut_freq = 10):
 
     sampling_rate = pp.samplerate(dff)
-    time = dff['Time(s)']
     raw_dff = dff['dFF']
 
     # Lowpass filter - zero phase filtering (with filtfilt) is used to avoid distorting the signal.
     b,a = butter(order, cut_freq, btype='low', fs=sampling_rate)
     dFF_lowpass = filtfilt(b,a, raw_dff)
 
-    dff['Denoised dFF'] = dFF_lowpass
+    dff['dFF'] = dFF_lowpass
+
+    if dual_color:
+        raw_dff = dff['560 dFF']
+        
+        b,a = butter(order, cut_freq, btype='low', fs=sampling_rate)
+        dFF_lowpass_560 = filtfilt(b,a, raw_dff)
+        dff['560 dFF'] = dFF_lowpass_560
+
     return dff

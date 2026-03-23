@@ -548,3 +548,21 @@ def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, group, ylim=None,
     ax.set_title(f'{BOI} - {exp} {group}')
     
     return fig
+
+def remove_first_bout(dfiberbehav_df, behavior):
+    """Zero out the first bout of a behavior to exclude it from PETH."""
+    dfiberbehav_df = dfiberbehav_df.copy()
+    diff = dfiberbehav_df[behavior]
+    onsets  = diff[diff == 1].index
+    offsets = diff[diff == -1].index
+
+    if len(onsets) == 0:
+        return dfiberbehav_df  # No bout found, return unchanged
+
+    first_onset = onsets[0]
+    # Find the first offset that comes after the first onset
+    subsequent_offsets = offsets[offsets > first_onset]
+    first_offset = subsequent_offsets[0] if len(subsequent_offsets) > 0 else dfiberbehav_df.index[-1]
+
+    dfiberbehav_df.loc[first_onset:first_offset, behavior] = 0
+    return dfiberbehav_df

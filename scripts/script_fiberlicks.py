@@ -55,14 +55,14 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = None #in Hz
+CUT_FREQ = 8 #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'RewardAirpuff'
+exp = 'RewardAirpuff2'
 list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport', 'Airpuffs']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
@@ -153,6 +153,11 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
     fiberpho_df = pd.read_csv(fiberpho_path)
 
+    # Filter dFF data if specified
+    if CUT_FREQ != None:
+        print(f"Filtering dFF data : order = {ORDER}; cutting frequency = {CUT_FREQ}")
+        fiberpho_df = cs.lowpass_dFF(fiberpho_df, dual_color, order = 2, cut_freq = 6)
+
     # Align licks and airpuff timestamps to dFF data
     print("Aligning licks")
     licks_df = cp.get_timestamps_from_bonsai_csv(licks_path)
@@ -222,7 +227,7 @@ print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 
 #%% 2.3 - Plot behavioural metrics
 
-exp = 'RewardAirpuff'
+exp = 'RewardAirpuff2'
 
 print('###################')
 print(f'EXPERIMENT : {exp}')
