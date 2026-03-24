@@ -17,6 +17,7 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 import warnings
+import scipy
 
 import modules.common.genplot as gp
 
@@ -26,6 +27,23 @@ import modules.common.genplot as gp
 ###################
 
 ## For BONSAI setup
+
+def extract_sync_channel(raw_path, sync_channel = "DIO04"):
+    '''
+    Extracts the onset times of TTLs (0→1 transitions) of fiber/miniscope sync to Bonsai.
+    '''
+    with h5py.File(raw_path, 'r') as f:
+        base = "DataAcquisition/FPConsole/Signals/Series0001/"
+
+        time_sync = f[base + "DigitalIO/Time"][:]
+        ttl_sync = f[base + f"DigitalIO/{sync_channel}"][:]
+
+    # Find rising edges
+    rising_edges = np.where(np.diff(ttl_sync) == 1)[0] + 1
+
+    ttl_sync_df = pd.DataFrame({'Time(s)': time_sync[rising_edges]})
+
+    return ttl_sync_df
 
 def get_timestamps_from_bonsai_csv(file_path):
     df = pd.read_csv(file_path)
@@ -57,26 +75,39 @@ def time_gap(deinterleaved_df, led_df):
     slope = 1.0 #sets slope to 1 by default
     return slope, time_gap
 
-def time_mapping(deinterleaved_df, led_df):
+def time_mapping(ttl_sync_df, led_df):
     """
-    Computes linear mapping from Doric time → Bonsai time using
-    LED on (session start) and LED off (session end) as two sync points.
-    
+    Computes mapping from Doric time → Bonsai time using linear regression
+    across all 10Hz TTL sync pulses, correcting for clock drift.
+
+    Args:
+        ttl_sync_df : DataFrame with 'Time(s)' column — onset times in Doric time
+        led_df      : DataFrame with 'Time(s)' column — reception times in Bonsai time
+
     Returns:
         slope, intercept : such that bonsai_time ≈ slope * doric_time + intercept
     """
-    doric_start  = deinterleaved_df['Time(s)'].iloc[0]
-    doric_end    = deinterleaved_df['Time(s)'].iloc[-1]
-    bonsai_start = led_df['Time(s)'].iloc[0]
-    bonsai_end   = led_df['Time(s)'].iloc[-1]
+    ttl_times_doric  = ttl_sync_df['Time(s)'].values
+    ttl_times_bonsai = led_df['Time(s)'].values
 
-    slope     = (bonsai_end - bonsai_start) / (doric_end - doric_start)
-    intercept = bonsai_start - (slope * doric_start)
+    # Trim to the same number of pulses in case of mismatches
+    n = min(len(ttl_times_doric), len(ttl_times_bonsai))
+    ttl_times_doric  = ttl_times_doric[:n]
+    ttl_times_bonsai = ttl_times_bonsai[:n]
 
-    session_duration = doric_end - doric_start
+    # Linear regression: bonsai_time = slope * doric_time + intercept
+    slope, intercept, r_value, _, _ = scipy.stats.linregress(ttl_times_doric, ttl_times_bonsai)
+
+    session_duration = ttl_times_doric[-1] - ttl_times_doric[0]
     drift_ms = (slope - 1.0) * session_duration * 1000
-    print(f"Alignment: slope={slope:.6f}, intercept={intercept:.4f}s")
-    print(f"Accumulated drift over session: {drift_ms:.1f} ms")
+
+    print(f"Pulses used       : {n}")
+    print(f"R²                : {r_value**2:.8f}")
+    print(f"Slope             : {slope:.6f}")
+    print(f"Intercept         : {intercept:.4f} s")
+    print(f"Accumulated drift : {drift_ms:.1f} ms")
+    if abs(drift_ms) > 50:
+        warnings.warn(f"Large drift detected: {drift_ms:.1f} ms. Check for missed/extra pulses.")
 
     return slope, intercept
 
