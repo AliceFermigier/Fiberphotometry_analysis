@@ -55,14 +55,14 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = 8 #in Hz
+CUT_FREQ = 5 #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'RewardAirpuff'
+exp = 'RewardAirpuff2'
 list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport', 'Airpuffs']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
@@ -137,6 +137,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     behav_path_exp = data_path_exp / 'Behaviour'
 
     # Define paths for raw, behavioral, and fiberphotometry data
+    raw_doric_path = data_path_exp / f'{mouse}_0000.doric'
     camera_flashes_path = data_path_exp / f'camera_flashes_{mouse}.csv'
     licks_path = data_path_exp / f'licks_{mouse}.csv'
     airpuff_path = data_path_exp / f'airpuffs_{mouse}.csv'
@@ -146,14 +147,17 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     output_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
     arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
 
+    # Extract sync channel from Doric raw data and Bonsai corresponding sync data
+    ttl_sync_df = cp.extract_sync_channel(raw_doric_path, sync_channel = "DIO04")
     led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
     led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) 
     deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-    slope, intercept = cp.time_gap(deinterleaved_df, led_df)
+    # Compute linear regression to correct for differences between clocks
+    print(f"Syncing Doric and Bonsai clocks")
+    slope, intercept = cp.time_mapping(ttl_sync_df, led_df)
 
+    # Read dFF data and filter dFF data if specified
     fiberpho_df = pd.read_csv(fiberpho_path)
-
-    # Filter dFF data if specified
     if CUT_FREQ != None:
         print(f"Filtering dFF data : order = {ORDER}; cutting frequency = {CUT_FREQ}")
         fiberpho_df = cs.lowpass_dFF(fiberpho_df, dual_color, order = 2, cut_freq = 6)

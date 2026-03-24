@@ -76,17 +76,6 @@ def time_gap(deinterleaved_df, led_df):
     return slope, time_gap
 
 def time_mapping(ttl_sync_df, led_df):
-    """
-    Computes mapping from Doric time → Bonsai time using linear regression
-    across all 10Hz TTL sync pulses, correcting for clock drift.
-
-    Args:
-        ttl_sync_df : DataFrame with 'Time(s)' column — onset times in Doric time
-        led_df      : DataFrame with 'Time(s)' column — reception times in Bonsai time
-
-    Returns:
-        slope, intercept : such that bonsai_time ≈ slope * doric_time + intercept
-    """
     ttl_times_doric  = ttl_sync_df['Time(s)'].values
     ttl_times_bonsai = led_df['Time(s)'].values
 
@@ -95,8 +84,19 @@ def time_mapping(ttl_sync_df, led_df):
     ttl_times_doric  = ttl_times_doric[:n]
     ttl_times_bonsai = ttl_times_bonsai[:n]
 
-    # Linear regression: bonsai_time = slope * doric_time + intercept
-    slope, intercept, r_value, _, _ = scipy.stats.linregress(ttl_times_doric, ttl_times_bonsai)
+    # Work in relative time to avoid large offset absorbing the slope
+    t0_doric  = ttl_times_doric[0]
+    t0_bonsai = ttl_times_bonsai[0]
+    doric_rel  = ttl_times_doric  - t0_doric
+    bonsai_rel = ttl_times_bonsai - t0_bonsai
+
+    # Linear regression on relative times: drift only
+    slope, intercept_rel, r_value, _, _ = scipy.stats.linregress(doric_rel, bonsai_rel)
+
+    # Reproject intercept back to absolute Bonsai time
+    # bonsai = slope * (doric - t0_doric) + t0_bonsai + intercept_rel
+    #        = slope * doric + (t0_bonsai - slope * t0_doric + intercept_rel)
+    intercept = t0_bonsai - slope * t0_doric + intercept_rel
 
     session_duration = ttl_times_doric[-1] - ttl_times_doric[0]
     drift_ms = (slope - 1.0) * session_duration * 1000
@@ -107,7 +107,7 @@ def time_mapping(ttl_sync_df, led_df):
     print(f"Intercept         : {intercept:.4f} s")
     print(f"Accumulated drift : {drift_ms:.1f} ms")
     if abs(drift_ms) > 50:
-        warnings.warn(f"Large drift detected: {drift_ms:.1f} ms. Check for missed/extra pulses.")
+        warnings.warn(f"Large drift detected. Check for missed/extra pulses.")
 
     return slope, intercept
 
