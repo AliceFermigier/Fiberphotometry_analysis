@@ -191,7 +191,7 @@ def update_artifacts_file(file_path, filecode, artifacts):
     df.to_excel(file_path, index=False)
     print(f"Updated Excel file at: {file_path}")
 
-def linearfit_sklearn(sig_405, sig_465, trim=[10,-10]):
+def linearfit_sklearn(sig_405, sig_465, filt_405, filt_465, trim=[10,-10]):
     model = LinearRegression()
 
     if isinstance(sig_405, np.ndarray):
@@ -201,17 +201,18 @@ def linearfit_sklearn(sig_405, sig_465, trim=[10,-10]):
         sig_465 = sig_465.to_numpy()
 
     # Fit only on the trimmed middle portion, predict on full signal
-    model.fit(sig_405[trim[0]:trim[1]], sig_465[trim[0]:trim[1]])
+    model.fit(filt_405[trim[0]:trim[1]], filt_465[trim[0]:trim[1]])
     fitted_405 = model.predict(sig_405)
 
     return fitted_405
 
-def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
+def remove_artifacts(data_df, filtered_data_df, artifact_intervals, col, method='fit'):
     """
     Helper function to remove artifacts from a specific column of the data.
     
     Parameters:
     - data_df (pd.DataFrame): Input data
+    - filtered_data_df (pd.DataFrame): median filtered data
     - artifact_intervals (list of tuples): List of artifact intervals as [(start, stop), ...]
     - col (str): Column to process ('405 Deinterleaved' or '470 Deinterleaved')
     - begin (int): Starting index for the segment
@@ -260,6 +261,8 @@ def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
 
                 dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
                                             data_df.iloc[begin+1:end][col].values,
+                                            filtered_data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
+                                            filtered_data_df.iloc[begin+1:end][col].values,
                                             trim=trim)
                 if len(dFF_values) == len(dFF_segment[begin+1:end]):
                     dFF_segment[begin+1:end] = dFF_values
@@ -275,7 +278,7 @@ def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
     
     return dFF_segment
 
-def dFF(data_df, artifacts_df, filecode, method='fit'):
+def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = True):
     """
     Calculates dFF (delta F over F) and removes artifacts from 405nm and 465nm photometry data.
     
@@ -296,19 +299,32 @@ def dFF(data_df, artifacts_df, filecode, method='fit'):
             if filecode in artifacts_df['Filecode'].values:
                 artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
                 artifact_intervals = literal_eval(artifact_intervals[0])
-                dFFdata[i] = remove_artifacts(data_df, artifact_intervals, col, method='mean')
+                dFFdata[i] = remove_artifacts(data_df, data_df, artifact_intervals, col, method='mean')
             else:
                 mean_fluorescence = np.nanmean(data_df[col])
                 dFFdata[i] = ((data_df[col] - mean_fluorescence) / mean_fluorescence) * 100
     
     elif method == 'fit':
+        if apply_median_filter == True:
+
+            # find best window from 465 nm and filter
+            result_df, best_win_s = mf.iterative_median_filter(data_df, '465 Deinterleaved')
+            filtered_465 = result_df['465 Deinterleaved']
+            # filter 405 nm with the same window
+            filtered_405 = mf.median_filter_dff(data_df, '405 Deinterleaved', best_win_s)['405 Deinterleaved']
+            filtered_data_df = pd.concat(data_df['Time(s)'],filtered_465,filtered_405)
+        else:
+            filtered_data_df = data_df.copy()
+
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', method='fit')
+            dFFdata[0] = remove_artifacts(data_df, filtered_data_df, artifact_intervals, '465 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
         else:
-            dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
+            dFFdata[0] = linearfit_sklearn(
+                filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'],
+                data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
 
         # Calculate Denoised dFF

@@ -50,9 +50,14 @@ def median_filter(signal, sample_rate, window_s) -> np.ndarray:
     """
     if isinstance(signal, pd.Series):
         signal = signal.to_numpy()
- 
+    
     kernel = _force_odd_kernel(round(window_s * sample_rate))
-    return medfilt(signal.astype(float), kernel)
+    # Pad by half kernel to avoid edge zero-padding artifacts
+    half = kernel // 2
+    padded = np.pad(signal, half, mode='edge')
+    filtered = medfilt(padded.astype(float), kernel)
+
+    return filtered[half:-half]  
 
 def median_filter_dff(fiberpho_df, column_name, window_s, sample_rate = None) -> pd.DataFrame:
     """
@@ -79,7 +84,7 @@ def median_filter_dff(fiberpho_df, column_name, window_s, sample_rate = None) ->
  
     return pd.DataFrame({
         "Time(s)": fiberpho_df["Time(s)"].to_numpy(),
-        f"{column_name} Baseline" : filtered_signal,
+        f"{column_name}" : filtered_signal,
     })
 
 def iterative_median_filter(fiberpho_df, column_name, step_size = 1.0) -> pd.DataFrame:
@@ -276,9 +281,7 @@ def iterative_median_filter(fiberpho_df, column_name, step_size = 1.0) -> pd.Dat
     # ── Return result DataFrame ───────────────────────────────────────────
     result_df = pd.DataFrame({
         "Time(s)":          time,
-        f"{column_name}": raw_signal,
-        f"{column_name} Best Baseline": best_baseline,
-        f"{column_name} Baseline": hybrid_baseline,
+        f"{column_name}": hybrid_baseline,
     })
  
     print(
