@@ -211,7 +211,7 @@ def iterative_median_filter(fiberpho_df, column_name, step_size = 1.0) -> pd.Dat
         ax_residuals.scatter(
             time[warmup_idx:],
             stack_offset + residual[warmup_idx:],
-            s=4, c=residual[warmup_idx:], cmap="jet", vmin=-0.005, vmax=0.005,
+            s=2, c=residual[warmup_idx:], cmap="jet", vmin=-0.02, vmax=0.02,
         )
         ax_residuals.text(time[-1], stack_offset,
                           f"{window_s:.1f}s", color=colour, fontsize=6)
@@ -276,7 +276,7 @@ def iterative_median_filter(fiberpho_df, column_name, step_size = 1.0) -> pd.Dat
     ax_signals.legend(fontsize=6)
  
     plt.tight_layout()
-    plt.show()
+    plt.close(fig)
  
     # ── Return result DataFrame ───────────────────────────────────────────
     result_df = pd.DataFrame({
