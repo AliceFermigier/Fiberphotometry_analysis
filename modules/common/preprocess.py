@@ -191,18 +191,19 @@ def update_artifacts_file(file_path, filecode, artifacts):
     df.to_excel(file_path, index=False)
     print(f"Updated Excel file at: {file_path}")
 
-def linearfit_sklearn(sig_405, sig_465, filt_405, filt_465, trim=[10,-10]):
+def linearfit_sklearn(sig_405, sig_465, filt_405, filt_465, trim=[10, -10]):
     model = LinearRegression()
 
-    if isinstance(sig_405, np.ndarray):
-        sig_405 = sig_405.reshape(-1, 1)
-    else:
-        sig_405 = sig_405.to_numpy().reshape(-1, 1)
-        sig_465 = sig_465.to_numpy()
+    # Convert all inputs to numpy
+    if not isinstance(sig_405,  np.ndarray): sig_405  = sig_405.to_numpy()
+    if not isinstance(sig_465,  np.ndarray): sig_465  = sig_465.to_numpy()
+    if not isinstance(filt_405, np.ndarray): filt_405 = filt_405.to_numpy()
+    if not isinstance(filt_465, np.ndarray): filt_465 = filt_465.to_numpy()
 
-    # Fit only on the trimmed middle portion, predict on full signal
-    model.fit(filt_405[trim[0]:trim[1]], filt_465[trim[0]:trim[1]])
-    fitted_405 = model.predict(sig_405)
+    # Fit on trimmed filtered signals, predict on full raw signal
+    model.fit(filt_405[trim[0]:trim[1]].reshape(-1, 1),
+              filt_465[trim[0]:trim[1]])
+    fitted_405 = model.predict(sig_405.reshape(-1, 1))
 
     return fitted_405
 
@@ -308,11 +309,13 @@ def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = Tru
         if apply_median_filter == True:
 
             # find best window from 465 nm and filter
-            result_df, best_win_s = mf.iterative_median_filter(data_df, '465 Deinterleaved')
+            result_df, best_win_s, _ = mf.iterative_median_filter(data_df, '465 Deinterleaved')
             filtered_465 = result_df['465 Deinterleaved']
             # filter 405 nm with the same window
             filtered_405 = mf.median_filter_dff(data_df, '405 Deinterleaved', best_win_s)['405 Deinterleaved']
-            filtered_data_df = pd.concat(data_df['Time(s)'],filtered_465,filtered_405)
+            filtered_data_df = pd.DataFrame({'Time(s)'           : data_df['Time(s)'].values,
+                                                '465 Deinterleaved' : filtered_465.values,
+                                                '405 Deinterleaved' : filtered_405.values})
         else:
             filtered_data_df = data_df.copy()
 
@@ -322,9 +325,8 @@ def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = Tru
             dFFdata[0] = remove_artifacts(data_df, filtered_data_df, artifact_intervals, '465 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
         else:
-            dFFdata[0] = linearfit_sklearn(
-                filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'],
-                data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
+            dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'],
+                                            filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'])
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
 
         # Calculate Denoised dFF

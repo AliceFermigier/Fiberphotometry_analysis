@@ -206,7 +206,7 @@ def iterative_median_filter(fiberpho_df, column_name, step_size = 1.0) -> pd.Dat
                             f"{window_s:.1f}s", color=colour, fontsize=6)
  
         # --- Stacked residual plot ---
-        stack_offset = (win_idx + 1) * 0.001
+        stack_offset = (win_idx + 1) * 0.01
         ax_residuals.axhline(stack_offset, color=[0.5, 0.5, 0.5], linestyle=":")
         ax_residuals.scatter(
             time[warmup_idx:],
@@ -291,4 +291,4 @@ def iterative_median_filter(fiberpho_df, column_name, step_size = 1.0) -> pd.Dat
         f"best_ratio={best_ratio:.4f}"
     )
  
-    return result_df, best_win_s
+    return result_df, best_win_s, fig

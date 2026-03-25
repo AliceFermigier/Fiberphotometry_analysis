@@ -36,6 +36,8 @@ import modules.common.nomenclature as nom
 importlib.reload(nom)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
+import modules.common.median_filtering as mf
+importlib.reload(mf)
 
 from scripts.loader import experiment_path, analysis_path, data_path, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
 
@@ -44,7 +46,7 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 #####################
 
 exp = 'EPM'
-dual_color = True
+dual_color = False
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
@@ -245,7 +247,9 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         if dual_color:
             dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=False)
         else:
-            dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method)
+            dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method,apply_median_filter=True)
+            _, _, median_fig = mf.iterative_median_filter(cleaned_df, '465 Deinterleaved')
+            median_fig.savefig(pp_path/f'{mouse}_median_filtering.png')
 
         # interpolate missing data
         interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
