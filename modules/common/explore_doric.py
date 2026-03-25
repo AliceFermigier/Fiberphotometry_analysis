@@ -8,7 +8,6 @@ import sys
 import h5py
 import numpy as np
 
-
 def print_structure(name, obj):
     """Visitor callback: prints every group and dataset."""
     indent = "  " * name.count("/")

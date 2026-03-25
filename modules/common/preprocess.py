@@ -21,6 +21,7 @@ import h5py
 from sklearn.linear_model import LinearRegression
 
 import modules.common.nomenclature as nom
+import modules.common.median_filtering as mf
 
 
 #%%
@@ -157,7 +158,8 @@ def load_lockin_dualcolor_doric(file_path):
 
 def samplerate(data_df):
     
-    sr = len(data_df)/(data_df['Time(s)'].max()-data_df['Time(s)'].min())
+    time = data_df["Time(s)"].to_numpy()
+    sr = 1.0 / np.median(np.diff(time))
     
     return sr
 
@@ -220,10 +222,11 @@ def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
     Returns:
     - Tuple: Updated dFF segment, updated 'begin' index, and 'end' index
     """
-    begin=0
-    dFF_segment = np.full(len(data_df), np.nan)  # Create an array filled with NaNs of the same length as data_df
-    artifact_intervals.append([len(data_df), 'End'])
-    
+
+    begin = 0
+    dFF_segment = np.full(len(data_df), np.nan)
+    artifact_intervals = artifact_intervals + [[len(data_df), 'End']]
+
     for x_start, x_stop in artifact_intervals:
         try:
             # Calculate 'end' as the first index where 'Time(s)' is greater than x_start, -1 to not overlap with artifact
@@ -233,7 +236,13 @@ def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
             segment = data_df.iloc[begin+1:end][col].values  # Use iloc for absolute indexing
             
             if method == 'mean':
-                mean_fluorescence = np.nanmean(segment)
+                if begin==0:
+                    trim=[10,-1]
+                elif x_stop=='End':
+                    trim=[0,-10]
+                else:
+                    trim=[0,-1]
+                mean_fluorescence = np.nanmean(segment[trim[0]:trim[1]])
                 dFF_values = ((segment - mean_fluorescence) / mean_fluorescence) * 100
                 # Check for length match before assignment
                 if len(dFF_values) == len(dFF_segment[begin+1:end]):
@@ -250,7 +259,7 @@ def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
                     trim=[0,-1]
 
                 dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
-                                            data_df.iloc[begin+1:end]['465 Deinterleaved'].values,
+                                            data_df.iloc[begin+1:end][col].values,
                                             trim=trim)
                 if len(dFF_values) == len(dFF_segment[begin+1:end]):
                     dFF_segment[begin+1:end] = dFF_values
@@ -356,32 +365,6 @@ def interpolate_dFFdata(data_df, method='linear'):
         
     return data_df
 
-def remove_artifacts_dualcolor(data_df, artifact_intervals, col):
-    begin=0
-    dFF_segment = np.full(len(data_df), np.nan)  # Create an array filled with NaNs of the same length as data_df
-    artifact_intervals.append([len(data_df), 'End'])
-    
-    for x_start, x_stop in artifact_intervals:
-        try:
-            # Calculate 'end' as the first index where 'Time(s)' is greater than x_start, -1 to not overlap with artifact
-            end = data_df.index[data_df['Time(s)'] < x_start][-1]
-            
-            dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
-                                        data_df.iloc[begin+1:end][col].values)
-            if len(dFF_values) == len(dFF_segment[begin+1:end]):
-                dFF_segment[begin+1:end] = dFF_values
-            else:
-                print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
-            
-            # Update 'begin' to the index just before the stop of the artifact
-            if x_stop != 'End':
-                begin = data_df.index[data_df['Time(s)'] > x_stop][0]
-                
-        except Exception as e:
-            print(f"Error processing artifact interval ({x_start}, {x_stop}): {e}")
-    
-    return dFF_segment
-
 def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
 
     if fitted560:
@@ -389,9 +372,9 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts_dualcolor(data_df, artifact_intervals, '465 Deinterleaved')
+            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '465 Deinterleaved')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            dFFdata[2] = remove_artifacts_dualcolor(data_df, artifact_intervals, '560 Deinterleaved')
+            dFFdata[2] = remove_artifacts(data_df, artifact_intervals, '560 Deinterleaved')
             dFFdata[3] = data_df['560 Deinterleaved'].to_numpy()
         else:
             dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
@@ -409,7 +392,7 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
         dFFdata[4][:10]  = q1_465
         dFFdata[4][-10:] = q1_465
 
-        q1_560 = np.nanpercentile(dFFdata[4], 25)
+        q1_560 = np.nanpercentile(dFFdata[5], 25)
         dFFdata[5][:10]  = q1_560
         dFFdata[5][-10:] = q1_560
 
@@ -430,11 +413,13 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
             artifact_intervals = literal_eval(artifact_intervals[0])
             dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            dFFdata[2] = data_df['560 Deinterleaved'].to_numpy()
+            dFFdata[2] = remove_artifacts(data_df, artifact_intervals, '560 Deinterleaved', method='mean')
         else:
             dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            dFFdata[2] = data_df['560 Deinterleaved'].to_numpy()
+            # normalize 560dFF on its own mean
+            mean_fluorescence_560 = np.nanmean(data_df['560 Deinterleaved'][10:-10])
+            dFFdata[2] = ((data_df['560 Deinterleaved'] - mean_fluorescence_560) / mean_fluorescence_560) * 100
 
         # Calculate Denoised dFF
         dFFdata[3] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100

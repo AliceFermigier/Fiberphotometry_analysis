@@ -1,151 +1,291 @@
 import matplotlib.pyplot as plt
 from scipy.signal import medfilt
 import numpy as np
+import pandas as pd
 
 import modules.common.preprocess as pp
+import modules.common.clean_signal as cs
 
-def smooth(x: np.ndarray, window: int) -> np.ndarray:
-    """Moving-average smoothing"""
-    if window < 1:
-        return x.copy()
-    return np.convolve(x, np.ones(window) / window, mode="same")
+def _force_odd_kernel(kernel: int) -> int:
+    """scipy.signal.medfilt requires an odd kernel length."""
+    return kernel if kernel % 2 != 0 else kernel + 1
 
-def iterative_median_filter(fiberpho_df, column_name, n = 1):
+def _hampel_filter(signal: np.ndarray, half_win: int, n_sigma: float = 3.0) -> np.ndarray:
     """
-    fiberpho_df = fiberphototry data with column names
-    n = Median-filter granularity: n=1 -> 1 s steps, n=2 -> 0.5 s steps, etc.
-        (1/n must produce an integer number of samples)
+    Hampel identifier: replace outliers with the local median.
+ 
+    Parameters
+    ----------
+    signal   : 1-D array
+    half_win : number of samples on each side of the centre point
+    n_sigma  : detection threshold (default 3 σ, same as MATLAB's hampel)
     """
-    n_windows = 20*n
-    time = fiberpho_df['Time(s)'].to_numpy()
+    signal = signal.copy().astype(float)
+    n = len(signal)
+    k = 1.4826  # MAD → σ consistency constant for Gaussian data
+ 
+    for i in range(n):
+        lo = max(0, i - half_win)
+        hi = min(n, i + half_win + 1)
+        neighbourhood = signal[lo:hi]
+        local_median = np.median(neighbourhood)
+        local_mad = k * np.median(np.abs(neighbourhood - local_median))
+        if np.abs(signal[i] - local_median) > n_sigma * local_mad:
+            signal[i] = local_median
+    return signal
 
-    sr = pp.samplerate(fiberpho_df)
+def median_filter(signal, sample_rate, window_s) -> np.ndarray:
+    """
+    Apply a median filter to a 1-D signal.
+ 
+    Parameters
+    ----------
+    signal      : 1-D NumPy array or pandas Series
+    sample_rate : sampling frequency in Hz
+    window_s    : filter window duration in seconds
+ 
+    Returns
+    -------
+    filtered_signal : np.ndarray of the same length as `signal`
+    """
+    if isinstance(signal, pd.Series):
+        signal = signal.to_numpy()
+ 
+    kernel = _force_odd_kernel(round(window_s * sample_rate))
+    return medfilt(signal.astype(float), kernel)
 
-    raw_465 = fiberpho_df['465 Deinterleaved'].to_numpy()
+def median_filter_dff(fiberpho_df, column_name, window_s, sample_rate = None) -> pd.DataFrame:
+    """
+    Apply a median filter to one channel of a fiber-photometry DataFrame.
+ 
+    Parameters
+    ----------
+    fiberpho_df : DataFrame with a 'Time(s)' column and signal columns
+    column_name : name of the column to filter
+                  (e.g. '465 Deinterleaved')
+    window_s    : filter window in seconds
+    sample_rate : sampling frequency in Hz; inferred from 'Time(s)' if None
+ 
+    Returns
+    -------
+    medianfilter_fiberpho_df : DataFrame with columns ['Time(s)', column_name]
+                               where column_name contains the filtered signal
+    """
+    if sample_rate is None:
+        sample_rate = pp.samplerate(fiberpho_df)
+ 
+    raw_signal = fiberpho_df[column_name].to_numpy()
+    filtered_signal = median_filter(raw_signal, sample_rate, window_s)
+ 
+    return pd.DataFrame({
+        "Time(s)": fiberpho_df["Time(s)"].to_numpy(),
+        f"{column_name} Baseline" : filtered_signal,
+    })
 
-    col = plt.cm.jet(np.linspace(0, 1, n_windows))
-    
-    medfit      = np.zeros((len(time), n_windows))
-    neg         = np.zeros(n_windows)
-    pos         = np.zeros(n_windows)
-    rationegpos = np.zeros(n_windows)
-    
-    hist_bins = np.arange(-0.0025, 0.0025 + 0.0001, 0.0001)
-    n_bins    = len(hist_bins) - 1
-    DeltaH    = np.zeros((n_bins, n_windows))
-    
-    start_idx = sr * 20
-    
+def iterative_median_filter(fiberpho_df, column_name, step_size = 1.0) -> pd.DataFrame:
+    """
+    Sweep median-filter window sizes to find the optimal baseline, then
+    return a hybrid-fit baseline as a DataFrame.
+ 
+    The sweep tests windows from `step_size` seconds up to 20 seconds in
+    steps of `step_size`.  For each window the residual (signal - baseline)
+    is computed and a neg/pos ratio is derived:
+ 
+        ratio = (sum_positive / |sum_negative|) / fraction_of_time_below_zero
+ 
+    The window that maximises this ratio best isolates fast positive
+    transients while tracking slow baseline drift.  A hybrid fit is then
+    built: the best-window baseline is used for positive segments (usually outside of high transients); 
+    the longest (20-s) baseline is substituted wherever it lies below the
+    best-window baseline (usually during high physiological transients).
+ 
+    Parameters
+    ----------
+    fiberpho_df : DataFrame with 'Time(s)' and signal columns
+    column_name : column to process (e.g. '465 Deinterleaved')
+    step_size   : window step in seconds (default 1.0)
+                  Smaller values → finer sweep but longer runtime.
+                  Must divide evenly into the sample period.
+ 
+    Returns
+    -------
+    result_df : DataFrame with columns:
+                  'Time(s)'          — original time vector
+                  'raw_signal'       — input signal unchanged
+                  'best_baseline'    — median-filtered baseline (best window)
+                  'hybrid_baseline'  — hybrid fit (best + long-filter blend)
+                  'residual'         — raw_signal − hybrid_baseline
+    """
+    # ── Setup ────────────────────────────────────────────────────────────
+    sample_rate = pp.samplerate(fiberpho_df)
+    time        = fiberpho_df["Time(s)"].to_numpy()
+    raw_signal  = fiberpho_df[column_name].to_numpy().astype(float)
+ 
+    # Number of windows tested: e.g. step_size=1 → 20 windows (1 s … 20 s)
+    #                                step_size=0.5 → 40 windows (0.5 s … 20 s)
+    n_windows   = round(20.0 / step_size)
+
+    # Skip the first 10 s (recording artefacts / LED stabilisation)
+    warmup_idx  = round(sample_rate * 10)
+ 
+    # Pre-allocate result matrices
+    all_baselines = np.zeros((len(time), n_windows))   # one column per window
+    all_residuals = np.zeros((len(time), n_windows))
+    neg_sum       = np.zeros(n_windows)
+    pos_sum       = np.zeros(n_windows)
+    negpos_ratio  = np.zeros(n_windows)
+ 
+    hist_edges = np.arange(-0.0025, 0.0025 + 0.0001, 0.0001)
+    n_bins     = len(hist_edges) - 1
+    residual_histograms = np.zeros((n_bins, n_windows))
+ 
+    # ── Plotting setup ────────────────────────────────────────────────────
+    colour_map   = plt.cm.jet(np.linspace(0, 1, n_windows))
+    signal_min   = raw_signal[warmup_idx:].min()
+    signal_max   = raw_signal[warmup_idx:].max()
+    label_step   = (signal_max - signal_min) / n_windows
+    label_levels = np.arange(signal_min, signal_max + label_step, label_step)
+ 
     fig = plt.figure(figsize=(18, 10))
-    ax_top   = fig.add_subplot(2, 4, (1, 3))
-    ax_res   = fig.add_subplot(2, 4, (5, 7))
-    ax_hist  = fig.add_subplot(2, 4, 4)
-    ax_ratio = fig.add_subplot(2, 4, 8)
-    
-    ax_top.set_title("Raw + filtered baselines")
-    ax_res.set_title("Residual signals")
-    ax_hist.set_title("Residual distributions")
-    ax_ratio.set_title("Neg / Pos ratio")
-    
-    ax_top.plot(time[start_idx:], raw_465[start_idx:], "m", label="raw")
-    ax_top.text(time[-1], raw_465[start_idx:].max(), "raw",
-                color="m", fontweight="bold", fontsize=6)
-    
-    p_min  = raw_465[start_idx:].min()
-    p_max  = raw_465[start_idx:].max()
-    stepz  = (p_max - p_min) / n_windows
-    minmax = np.arange(p_min, p_max + stepz, stepz)
-    
-    for i in range(1, n_windows + 1):
-        idx0 = i - 1   # 0-based index
-    
-        # scipy.signal.medfilt requires an odd kernel length
-        kernel = int(i * sr / n)
-        if kernel % 2 == 0:
-            kernel += 1
-        base = medfilt(raw_465, kernel)
-        medfit[:, idx0] = base
-    
-        d = raw_465 - base
-
-        Delta = np.zeros((len(time), n_windows)) 
-        Delta[:, idx0] = d
-    
-        neg[idx0] = d[d < 0].sum()
-        pos[idx0] = d[d >= 0].sum()
-    
-        frac_neg = (smooth(d, int(2 * sr)) < 0).sum() / len(d)
-        if frac_neg > 0 and neg[idx0] != 0:
-            rationegpos[idx0] = (pos[idx0] / abs(neg[idx0])) / frac_neg
-    
-        counts, _ = np.histogram(d, bins=hist_bins)
-        DeltaH[:, idx0] = counts
-    
-        # Filtered baseline
-        ax_top.plot(time[start_idx:], base[start_idx:], color=col[idx0])
-        if idx0 < len(minmax):
-            ax_top.text(time[-1], minmax[idx0],
-                        f"{i/n:.0f}s", color=col[idx0], fontsize=6)
-    
-        # Stacked residual
-        offset = i * 0.001
-        ax_res.axhline(offset, color=[0.5, 0.5, 0.5], linestyle=":")
-        sc = ax_res.scatter(time[start_idx:], offset + d[start_idx:],
-                            s=4, c=d[start_idx:], cmap="jet", vmin=-0.005, vmax=0.005)
-        ax_res.text(time[-1], offset, f"{i*n:.0f}s", color=col[idx0], fontsize=6)
-    
-        ax_hist.plot(counts, color=col[idx0])
-    
-        ax_ratio.plot(i, pos[idx0], "o", color=col[idx0])
-        ax_ratio.plot(i, neg[idx0], "o", color=col[idx0])
-        ax_ratio.plot(i, rationegpos[idx0], "*", color=col[idx0])
-    
-    ax_top.axis("tight")
-    ax_res.axis("tight")
+    ax_signals    = fig.add_subplot(2, 4, (1, 3))   # raw + all baselines
+    ax_residuals  = fig.add_subplot(2, 4, (5, 7))   # stacked residuals
+    ax_histograms = fig.add_subplot(2, 4, 4)         # residual distributions
+    ax_ratio      = fig.add_subplot(2, 4, 8)         # neg/pos ratio per window
  
-    best_idx   = int(np.argmax(rationegpos))
-    best_val   = rationegpos[best_idx]
-    best_win_s = (best_idx + 1) / n
-
-    ax_ratio.plot(best_idx + 1, best_val, "ko")
-
-    ax_top.plot(time[start_idx:], medfit[start_idx:, best_idx],
-                "k", linewidth=2)
-    if best_idx < len(minmax):
-        ax_top.text(time[-1], minmax[best_idx],
-                    f"{best_win_s:.0f}s (best)", color="k",
-                    fontweight="bold", fontsize=6)
-
-    ax_res.plot(time[start_idx:],
-                (best_idx + 1) * 0.001 + Delta[start_idx:, best_idx], "k")
-    ax_res.text(time[-1], (best_idx + 1) * 0.001,
-                f"{best_win_s:.0f}s (best)", color="k", fontweight="bold", fontsize=6)
+    ax_signals.set_title(f"Raw signal + filtered baselines  [{column_name}]")
+    ax_residuals.set_title("Residuals (signal − baseline), stacked by window")
+    ax_histograms.set_title("Residual distributions")
+    ax_ratio.set_title("Neg / Pos ratio  (★ = best window)")
  
-def hybrid_median_filter(fiberpho_df):
-# Use best-window baseline except where the long (20-s) filter is lower,
-# which avoids over-subtracting genuine negative transients.
-    filt_diff = np.where(medfit[:, -1] - medfit[:, best_idx] < 0)[0]
-    
-    physiofit          = medfit[:, best_idx].copy()
-    physiofit[filt_diff] = medfit[filt_diff, -1]
-    physiofit          = hampel_filter(physiofit, 5)
-    
-def median_filter(fiberpho_df, column_name = '405 Deinterleaved'):
-    iso_kernel = int((best_idx + 1) * sr / n)
-    if iso_kernel % 2 == 0:
-        iso_kernel += 1
-    isofit = medfilt(iso, iso_kernel), 5
-
-    return filtered_df
-
-def plot_median_filter_results(fiberpho_df, column_name = '405 Deinterleaved'):
-    ax_top.plot(time[start_idx:], physiofit[start_idx:], "g",
-                linewidth=2, label="hybrid fit")
-    ax_top.plot(time[start_idx:], iso[start_idx:] / 2.05, "k",
-                label="iso / 2.05")
-    ax_top.plot(time[start_idx:], isofit[start_idx:] / 2.05, "g",
-                linewidth=1, label="isofit / 2.05")
-    
-    ax_top.legend(fontsize=6)
+    # Plot raw signal
+    ax_signals.plot(time[warmup_idx:], raw_signal[warmup_idx:],
+                    color="m", linewidth=0.8, label="raw")
+    ax_signals.text(time[-1], raw_signal[warmup_idx:].max(), "raw",
+                    color="m", fontweight="bold", fontsize=6)
+ 
+    # ── Window sweep ──────────────────────────────────────────────────────
+    for win_idx in range(n_windows):           # 0-based
+        window_s = (win_idx + 1) * step_size   # actual window in seconds
+ 
+        # --- Median filter baseline ---
+        kernel = _force_odd_kernel(round(window_s * sample_rate))
+        baseline = medfilt(raw_signal, kernel)
+        all_baselines[:, win_idx] = baseline
+ 
+        # --- Residual ---
+        residual = raw_signal - baseline
+        all_residuals[:, win_idx] = residual
+ 
+        # --- Neg / Pos statistics ---
+        neg_sum[win_idx] = residual[residual < 0].sum()
+        pos_sum[win_idx] = residual[residual >= 0].sum()
+ 
+        smoothed_residual = cs.smoothing_moving_average(residual, int(2 * sample_rate))
+        fraction_below_zero = (smoothed_residual < 0).sum() / len(residual)
+ 
+        if fraction_below_zero > 0 and neg_sum[win_idx] != 0:
+            negpos_ratio[win_idx] = (
+                pos_sum[win_idx] / abs(neg_sum[win_idx])
+            ) / fraction_below_zero
+ 
+        # --- Residual histogram ---
+        counts, _ = np.histogram(residual, bins=hist_edges)
+        residual_histograms[:, win_idx] = counts
+ 
+        # --- Plot filtered baseline ---
+        colour = colour_map[win_idx]
+        ax_signals.plot(time[warmup_idx:], baseline[warmup_idx:],
+                        color=colour, linewidth=0.6)
+        if win_idx < len(label_levels):
+            ax_signals.text(time[-1], label_levels[win_idx],
+                            f"{window_s:.1f}s", color=colour, fontsize=6)
+ 
+        # --- Stacked residual plot ---
+        stack_offset = (win_idx + 1) * 0.001
+        ax_residuals.axhline(stack_offset, color=[0.5, 0.5, 0.5], linestyle=":")
+        ax_residuals.scatter(
+            time[warmup_idx:],
+            stack_offset + residual[warmup_idx:],
+            s=4, c=residual[warmup_idx:], cmap="jet", vmin=-0.005, vmax=0.005,
+        )
+        ax_residuals.text(time[-1], stack_offset,
+                          f"{window_s:.1f}s", color=colour, fontsize=6)
+ 
+        ax_histograms.plot(counts, color=colour)
+ 
+        ax_ratio.plot(win_idx + 1, pos_sum[win_idx],  "o", color=colour)
+        ax_ratio.plot(win_idx + 1, neg_sum[win_idx],  "o", color=colour)
+        ax_ratio.plot(win_idx + 1, negpos_ratio[win_idx], "*", color=colour)
+ 
+    ax_signals.axis("tight")
+    ax_residuals.axis("tight")
+ 
+    # ── Best window selection ─────────────────────────────────────────────
+    best_idx   = int(np.argmax(negpos_ratio))
+    best_ratio = negpos_ratio[best_idx]
+    best_win_s = (best_idx + 1) * step_size
+ 
+    ax_ratio.plot(best_idx + 1, best_ratio, "ko", markersize=10,
+                  label=f"best: {best_win_s:.1f}s")
+    ax_ratio.legend(fontsize=7)
+ 
+    # Overlay best baseline
+    ax_signals.plot(time[warmup_idx:], all_baselines[warmup_idx:, best_idx],
+                    "k", linewidth=2.0)
+    if best_idx < len(label_levels):
+        ax_signals.text(time[-1], label_levels[best_idx],
+                        f"{best_win_s:.1f}s (best)", color="k",
+                        fontweight="bold", fontsize=6)
+ 
+    # Overlay best residual
+    best_stack_offset = (best_idx + 1) * 0.001
+    ax_residuals.plot(
+        time[warmup_idx:],
+        best_stack_offset + all_residuals[warmup_idx:, best_idx],
+        "k", linewidth=1.2,
+    )
+    ax_residuals.text(time[-1], best_stack_offset,
+                      f"{best_win_s:.1f}s (best)", color="k",
+                      fontweight="bold", fontsize=6)
+ 
+    # ── Hybrid fit ────────────────────────────────────────────────────────
+    # Rule: use the best-window baseline everywhere EXCEPT where the long
+    # (20-s) baseline dips below it — those dips correspond to real negative
+    # transients that we do not want to subtract away.
+    long_baseline = all_baselines[:, -1]        # last column = longest window
+    best_baseline = all_baselines[:, best_idx]
+ 
+    hybrid_baseline = best_baseline.copy()
+    substitute_mask = long_baseline < best_baseline   # where long is lower
+    hybrid_baseline[substitute_mask] = long_baseline[substitute_mask]
+ 
+    # Light Hampel pass to smooth any discontinuities at the join
+    hybrid_baseline = _hampel_filter(hybrid_baseline, half_win=5)
+ 
+    # Final residual against the hybrid baseline
+    final_residual = raw_signal - hybrid_baseline
+ 
+    # Overlay hybrid baseline on signal plot
+    ax_signals.plot(time[warmup_idx:], hybrid_baseline[warmup_idx:],
+                    color="g", linewidth=2.0, label="hybrid baseline")
+    ax_signals.legend(fontsize=6)
+ 
     plt.tight_layout()
     plt.show()
+ 
+    # ── Return result DataFrame ───────────────────────────────────────────
+    result_df = pd.DataFrame({
+        "Time(s)":          time,
+        f"{column_name}": raw_signal,
+        f"{column_name} Best Baseline": best_baseline,
+        f"{column_name} Baseline": hybrid_baseline,
+    })
+ 
+    print(
+        f"[iterative_median_filter] column='{column_name}'  "
+        f"step_size={step_size}s  "
+        f"best_window={best_win_s:.1f}s  "
+        f"best_ratio={best_ratio:.4f}"
+    )
+ 
+    return result_df, best_win_s

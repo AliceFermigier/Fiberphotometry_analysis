@@ -348,3 +348,14 @@ def lowpass_dFF(dff, dual_color = False, order = 2, cut_freq = 10):
         dff['560 dFF'] = dFF_lowpass_560
 
     return dff
+
+def smoothing_moving_average(signal: np.ndarray, window_samples: int) -> np.ndarray:
+    """
+    Simple symmetric moving-average smoothing.
+    Mirrors MATLAB's smooth(x, window) default behaviour.
+    Edge values are computed with a progressively smaller window
+    (same as np.convolve mode='same').
+    """
+    if window_samples < 1:
+        return signal.copy()
+    return np.convolve(signal, np.ones(window_samples) / window_samples, mode="same")
