@@ -258,22 +258,28 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
         if correct_photobleach_method == 'highpass':
             #high-pass filter to remove slow oscillations
-            filtered_dFFdata = cs.highpass_filter_dff(interpdFFdata_df, dual_color, cutoff_freq = 0.006)
-            filtered_dFFdata.to_csv(pp_path/f'{mouse}_dFF_corrected.csv')
+            filtered_dFFdata_df = cs.highpass_filter_dff(interpdFFdata_df, dual_color, cutoff_freq = 0.006)
 
         elif correct_photobleach_method == 'exponential':
             #exponential detrend to remove slow oscillations
-            filtered_dFFdata = cs.exponential_detrend(interpdFFdata_df, dual_color)
-            filtered_dFFdata.to_csv(pp_path/f'{mouse}_dFF_corrected.csv')
-
-        #plotted GCaMP and isosbestic curves after dFF and photobleanch correction
+            filtered_dFFdata_df = cs.exponential_detrend(interpdFFdata_df, dual_color)
+            
+        # Z-score filtered dFF for specific use (z-scored data is stored in a specific 'Z-scored dFF' column)
+        filtered_dFFdata_df = pp.zscore_dFF(filtered_dFFdata_df)
         if dual_color:
-            fig_dFF = gp.plot_fiberpho_dualcolor(filtered_dFFdata,exp,mouse,method)
+            filtered_dFFdata_df = pp.zscore_dFF(filtered_dFFdata_df, column_name='560 dFF')
+
+        # Save output to csv
+        filtered_dFFdata_df.to_csv(pp_path/f'{mouse}_dFF_corrected.csv')
+
+        #plotted GCaMP and isosbestic curves after dFF and photobleach correction
+        if dual_color:
+            fig_dFF = gp.plot_fiberpho_dualcolor(filtered_dFFdata_df,exp,mouse,method)
             fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF_corrected.png')
             plt.close(fig_dFF) 
 
         else:
-            fig_dFF = gp.plot_fiberpho(filtered_dFFdata,exp,mouse,method)
+            fig_dFF = gp.plot_fiberpho(filtered_dFFdata_df,exp,mouse,method)
             fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF_corrected.png')
             plt.close(fig_dFF) 
 

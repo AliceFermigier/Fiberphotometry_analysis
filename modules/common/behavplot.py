@@ -58,27 +58,42 @@ def align_dlc_to_fiber(fiberpho_df, dlc_df, time_col="Time(s)"):
 def align_behav(behav_df, fiberpho, list_BOI):
     """
     Aligns fiber photometry data with behavioral data from Boris or DLC on a time vector.
+    Binary BOI columns use nearest-neighbor interpolation to preserve clean 0/1 values.
+    Continuous columns (dFF, speed, etc.) use linear interpolation.
     """
+    start, stop = behav_df['Time(s)'].values[0], behav_df['Time(s)'].values[-1]
+    behav_time  = fiberpho.loc[
+        (fiberpho['Time(s)'] >= start) & (fiberpho['Time(s)'] <= stop), 'Time(s)'
+    ]
 
-    [start,stop]=[behav_df['Time(s)'].values[0],  behav_df['Time(s)'].values[-1]]
-    behav_time = fiberpho.loc[(fiberpho['Time(s)'] >= start) & (fiberpho['Time(s)'] <= stop), 'Time(s)']
+    n_before = len(fiberpho.loc[fiberpho['Time(s)'] < start])
+    n_after  = len(fiberpho) - (len(behav_time) + n_before)
 
-    pad_begin = np.empty(len(fiberpho.loc[fiberpho['Time(s)'] < start]), dtype=float)
-    pad_end = np.empty(len(fiberpho['Time(s)'])-(len(behav_time)+len(pad_begin)), dtype=float)
+    pad_begin = np.empty(n_before, dtype=float)
+    pad_end   = np.empty(n_after,  dtype=float)
+
+    behav_times_arr = behav_df['Time(s)'].values
+    fiber_times_arr = behav_time.values
 
     for col in behav_df.columns[1:]:
         if col in list_BOI:
             pad_begin.fill(0.0)
             pad_end.fill(0.0)
+
+            # ── Nearest-neighbor: find the closest behav frame for each fiber frame ──
+            indices      = np.searchsorted(behav_times_arr, fiber_times_arr, side='left')
+            indices      = np.clip(indices, 0, len(behav_df) - 1)
+            interpolated = behav_df[col].values[indices].astype(float)
+
         else:
-            pad_end.fill(np.nan)
             pad_begin.fill(np.nan)
-        fiberpho[col] = np.concatenate(
-            [pad_begin,
-            np.interp(behav_time.values, behav_df['Time(s)'].values, behav_df[col].values),
-            pad_end]
-            )
-    
+            pad_end.fill(np.nan)
+
+            # ── Linear interpolation for continuous signals ────────────────────────
+            interpolated = np.interp(fiber_times_arr, behav_times_arr, behav_df[col].values)
+
+        fiberpho[col] = np.concatenate([pad_begin, interpolated, pad_end])
+
     return fiberpho
 
 def behav_process(df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
@@ -170,7 +185,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     """
     Plots denoised deltaF/F aligned with behaviour (includes baseline). Adds Speed subplot only if present.
     """
-    behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 2]
+    behavprocesssnip_df = behavprocess_df.dropna()
     has_speed = 'Speed' in behavprocesssnip_df.columns
     has_560 = '560 dFF' in behavprocesssnip_df.columns
 
@@ -195,7 +210,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         ax1 = fig.add_subplot(111)       
 
     # Plot dFF trace
-    ax1.plot('Time(s)', 'dFF', linewidth=1, color='black', label='_GCaMP', data=behavprocesssnip_df)
+    ax1.plot('Time(s)', 'dFF', linewidth=1, color='black', label='465 dFF', data=behavprocesssnip_df)
     
     if has_speed and has_560:
         ax2 = fig.add_subplot(312)
@@ -212,8 +227,11 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     
     for behavior in list_BOI:
         if behavior in behavprocesssnip_df.columns:
+            print(f'{behavior} in data')
             color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
             highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
+        else:
+            print(f'{behavior} not found in data')
             if (has_speed and has_560) or has_560:
                 highlight_behavior_areas(ax2, behavprocesssnip_df, behavior, color, alpha)
 
