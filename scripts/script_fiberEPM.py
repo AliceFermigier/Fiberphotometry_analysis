@@ -16,9 +16,9 @@ import numpy as np
 from pathlib import Path
 import json
 import importlib
+import matplotlib.pyplot as plt
 import modules.common.switch_matplotlib_backends as smb
 importlib.reload(smb)
-plt = smb.with_agg() #imports matplotlib.pyplot with Agg backend
 import json
 
 #import functions
@@ -62,7 +62,7 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -247,11 +247,11 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         fig = bp.plot_fiberpho_behav(
             dfiberbehav_df, list_BOI, exp, mouse,
             THRESH_S, EVENT_TIME_THRESHOLD, batch,
-            scaled = False
-        )
+            scaled = False)
+        plt.show()
         fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.pdf')
         fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
-        plt.close(fig)
+        plt.close('all')
 
     except Exception as e:
         print(f'[!] DLC file error for {mouse}: {e}')
@@ -263,10 +263,10 @@ print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 ###### TO SET ######
 bodypart = 'center'
 use_zscore = True
-included_groups = set(subjects_df['Group'])
 
 # ── Data collection ───────────────────────────────────────────────────────────
 subjects_df['Group'] = subjects_df['Group'].fillna('')
+included_groups = set(subjects_df['Group'])
 subject_list = []
 group_list   = []
 x_list       = []
@@ -320,7 +320,7 @@ dFF_records_zscored = []
 
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
     print(f"--- {mouse} {batch} {group} ---")
-    behav_file = repo_path / f'{batch}_{mouse}_behav.csv'
+    behav_file = behav_path_exp / f'behav_{mouse}.csv'
     fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
 
     if not behav_file.exists():
@@ -343,10 +343,9 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         batch      = batch,
         group      = group,
         fps        = arena_scale['Video_fps'],
-        scale      = arena_scale['Scale_cm_per_px'],
-        zone_cols  = ['Closed arm', 'Open arm', 'Center'],   # EPM-specific zones
-        behav_cols = ['Head dipping'],                        # extra binary behaviours
+        behav_cols = ['Closed arm', 'Open arm', 'Center','Head dipping'],
         speed_col  = 'Speed',
+        immobility_threshold=0.1
     )
     behav_records.append(record)
 
@@ -355,7 +354,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         print(f"  File not found, skipping.")
         continue
 
-    fiberbehav_df = pd.read_csv(dfiberbehav_file, index_col=0)
+    fiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
 
     for records, use_zscore in [(dFF_records_raw, False), (dFF_records_zscored, True)]:
         record = quantif.extract_dff_summary(
@@ -383,3 +382,5 @@ pd.DataFrame(dFF_records_raw).to_excel(
 pd.DataFrame(dFF_records_zscored).to_excel(
     repo_path / 'dFF_summary_zscored.xlsx', index=False)
 print(f"Saved {len(dFF_records_raw)} mice to dFF_summary.xlsx and dFF_summary_zscored.xlsx")
+
+# %%

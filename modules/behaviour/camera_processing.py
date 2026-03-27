@@ -107,7 +107,7 @@ def time_mapping(ttl_sync_df, led_df):
     print(f"Intercept         : {intercept:.4f} s")
     print(f"Accumulated drift : {drift_ms:.1f} ms")
     if abs(drift_ms) > 50:
-        warnings.warn(f"Large drift detected (>50ms). Check for missed/extra pulses.")
+        print(f"Large drift detected (>50ms).")
 
     return slope, intercept
 

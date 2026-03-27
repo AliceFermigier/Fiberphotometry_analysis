@@ -158,8 +158,9 @@ def load_lockin_dualcolor_doric(file_path):
 
 def samplerate(data_df):
     
-    time = data_df["Time(s)"].to_numpy()
-    sr = 1.0 / np.median(np.diff(time))
+    time_diffs = np.diff(data_df['Time(s)'].dropna().values)
+    time_diffs = time_diffs[time_diffs > 0]  # guard against duplicates
+    sr = 1.0 / np.median(time_diffs)  # median is robust to outliers
     
     return sr
 

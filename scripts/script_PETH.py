@@ -36,13 +36,13 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 
 #%%
 
-dual_color = True
+dual_color = False
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = 5 #in Hz
+CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 5
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -50,7 +50,7 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = 10
+MAXBOUTSNUMBER = None
 if baseline:
     tag = "windowedbaseline"
 else:
@@ -61,7 +61,7 @@ EVENT_LIST = ['onset']
 TIME_WINDOWS = [[3, 8]]  # Time window for PETH calculation (pre, post), for each event
 Y_LIM = [-2,8]
 
-for exp in ['RewardAirpuff2']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
+for exp in ['EPM']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -92,7 +92,7 @@ for exp in ['RewardAirpuff2']: #[f.name for f in analysis_path.iterdir() if f.is
                 continue
 
             # List all behaviors of interest (BOI) by excluding specific behaviors
-            behaviors_of_interest = ['Licks_filtered','Airpuffs']
+            behaviors_of_interest = ['Open arm','Closed arm','Head dipping','Center']
             
             for behavior in behaviors_of_interest:
 
@@ -149,20 +149,24 @@ for exp in ['RewardAirpuff2']: #[f.name for f in analysis_path.iterdir() if f.is
 
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuff'
-BOI = 'Airpuffs'
+exp = 'EPM'
+BOI = 'Center'
 baseline = False
-MAXBOUTSNUMBER = 10
+MAXBOUTSNUMBER = None
 event = 'onset'
 
 # Plot parameters
 TIME_WINDOW = [3, 8]
-Y_LIM = [-2, 5]
+Y_LIM = [-1, 3]
 
 if baseline:
     tag = "windowedbaseline"
 else:
     tag = "wholetrace"
+
+# Set groups
+subjects_df['Group'] = subjects_df['Group'].fillna('')
+included_groups = set(subjects_df['Group'])
 # ----------------------------- #
 
 print('##########################################')
@@ -279,7 +283,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         meanmaxPETH_df.to_excel(peth_path / f'{BOI}_{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETHmeanmax.xlsx')
 
 # Plot PETH for each group
-included_groups = ['NaCl', 'MEC 20uM']
+
 for group in included_groups:
     group_indices = [i for i, g in enumerate(group_list) if g == group]
 

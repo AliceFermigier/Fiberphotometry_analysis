@@ -101,46 +101,47 @@ def behav_process(df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
 
     for BOI in list_BOI:
         if BOI not in df.columns:
-            print(f"[!] BOI '{BOI}' not in dataframe")
+            print(f"  [!] BOI '{BOI}' not in dataframe")
             continue
+
         x = df[BOI].round().values.astype(int)
 
         # --- 1. Detect starts and ends of bouts ---
-        diff = np.diff(np.r_[0, x, 0])
-        starts = np.where(diff == 1)[0]
+        diff   = np.diff(np.r_[0, x, 0])
+        starts = np.where(diff ==  1)[0]
         ends   = np.where(diff == -1)[0]
+        bouts  = list(zip(starts, ends))
+        print(f"{BOI} — raw bouts : {len(bouts)} ")
 
-        bouts = list(zip(starts, ends))  
         if len(bouts) == 0:
-            print(f"[i] No bouts detected for {BOI}")
+            print(f"  [i] No bouts detected for {BOI}")
             continue
 
         # --- 2. Merge bouts separated by < THRESH_S seconds ---
         merged = []
         prev_start, prev_end = bouts[0]
-
         for start, end in bouts[1:]:
             gap = (start - prev_end) / sr
             if gap <= THRESH_S:
-                # merge with previous
                 prev_end = end
             else:
                 merged.append((prev_start, prev_end))
                 prev_start, prev_end = start, end
-
         merged.append((prev_start, prev_end))
+        print(f"{BOI} — after merging (THRESH_S={THRESH_S}s): {len(merged)} bouts")
 
         # --- 3. Remove short bouts ---
         cleaned = [
-            (s, e) for (s, e) in merged 
+            (s, e) for (s, e) in merged
             if (e - s) / sr >= EVENT_TIME_THRESHOLD
         ]
+        print(f"{BOI} — after filtering (EVENT_TIME_THRESHOLD={EVENT_TIME_THRESHOLD}s): "
+              f"{len(cleaned)} bouts")
 
         # --- 4. Rewrite the BOI column ---
         new_x = np.zeros_like(x)
         for s, e in cleaned:
             new_x[s:e] = 1
-
         df[BOI] = new_x
 
     return df
@@ -227,7 +228,6 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     
     for behavior in list_BOI:
         if behavior in behavprocesssnip_df.columns:
-            print(f'{behavior} in data')
             color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
             highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
         else:
