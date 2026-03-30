@@ -11,3 +11,5 @@ openpyxl
 tqdm
 seaborn
 PyQt5
+nbformat
+warnings

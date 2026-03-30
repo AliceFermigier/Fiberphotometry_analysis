@@ -41,7 +41,10 @@ def align_dlc_to_fiber(fiberpho_df, dlc_df, time_col="Time(s)"):
     fp_times = fiberpho_df[time_col].values
     dlc_times = dlc_df[time_col].values
     
-    aligned = fiberpho_df.copy()
+    # Trim fiberpho to DLC time window
+    mask = (fp_times >= dlc_times[0]) & (fp_times <= dlc_times[-1])
+    aligned = fiberpho_df[mask].copy()
+    fp_times = aligned[time_col].values
 
     # For each DLC coordinate column
     for col in dlc_df.columns:
@@ -55,27 +58,42 @@ def align_dlc_to_fiber(fiberpho_df, dlc_df, time_col="Time(s)"):
 def align_behav(behav_df, fiberpho, list_BOI):
     """
     Aligns fiber photometry data with behavioral data from Boris or DLC on a time vector.
+    Binary BOI columns use nearest-neighbor interpolation to preserve clean 0/1 values.
+    Continuous columns (dFF, speed, etc.) use linear interpolation.
     """
+    start, stop = behav_df['Time(s)'].values[0], behav_df['Time(s)'].values[-1]
+    behav_time  = fiberpho.loc[
+        (fiberpho['Time(s)'] >= start) & (fiberpho['Time(s)'] <= stop), 'Time(s)'
+    ]
 
-    [start,stop]=[behav_df['Time(s)'].values[0],  behav_df['Time(s)'].values[-1]]
-    behav_time = fiberpho.loc[(fiberpho['Time(s)'] >= start) & (fiberpho['Time(s)'] <= stop), 'Time(s)']
+    n_before = len(fiberpho.loc[fiberpho['Time(s)'] < start])
+    n_after  = len(fiberpho) - (len(behav_time) + n_before)
 
-    pad_begin = np.empty(len(fiberpho.loc[fiberpho['Time(s)'] < start]), dtype=float)
-    pad_end = np.empty(len(fiberpho['Time(s)'])-(len(behav_time)+len(pad_begin)), dtype=float)
+    pad_begin = np.empty(n_before, dtype=float)
+    pad_end   = np.empty(n_after,  dtype=float)
+
+    behav_times_arr = behav_df['Time(s)'].values
+    fiber_times_arr = behav_time.values
 
     for col in behav_df.columns[1:]:
         if col in list_BOI:
             pad_begin.fill(0.0)
             pad_end.fill(0.0)
+
+            # ── Nearest-neighbor: find the closest behav frame for each fiber frame ──
+            indices      = np.searchsorted(behav_times_arr, fiber_times_arr, side='left')
+            indices      = np.clip(indices, 0, len(behav_df) - 1)
+            interpolated = behav_df[col].values[indices].astype(float)
+
         else:
-            pad_end.fill(np.nan)
             pad_begin.fill(np.nan)
-        fiberpho[col] = np.concatenate(
-            [pad_begin,
-            np.interp(behav_time.values, behav_df['Time(s)'].values, behav_df[col].values),
-            pad_end]
-            )
-    
+            pad_end.fill(np.nan)
+
+            # ── Linear interpolation for continuous signals ────────────────────────
+            interpolated = np.interp(fiber_times_arr, behav_times_arr, behav_df[col].values)
+
+        fiberpho[col] = np.concatenate([pad_begin, interpolated, pad_end])
+
     return fiberpho
 
 def behav_process(df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
@@ -83,46 +101,47 @@ def behav_process(df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD):
 
     for BOI in list_BOI:
         if BOI not in df.columns:
-            print(f"[!] BOI '{BOI}' not in dataframe")
+            print(f"  [!] BOI '{BOI}' not in dataframe")
             continue
+
         x = df[BOI].round().values.astype(int)
 
         # --- 1. Detect starts and ends of bouts ---
-        diff = np.diff(np.r_[0, x, 0])
-        starts = np.where(diff == 1)[0]
+        diff   = np.diff(np.r_[0, x, 0])
+        starts = np.where(diff ==  1)[0]
         ends   = np.where(diff == -1)[0]
+        bouts  = list(zip(starts, ends))
+        print(f"{BOI} — raw bouts : {len(bouts)} ")
 
-        bouts = list(zip(starts, ends))  
         if len(bouts) == 0:
-            print(f"[i] No bouts detected for {BOI}")
+            print(f"  [i] No bouts detected for {BOI}")
             continue
 
         # --- 2. Merge bouts separated by < THRESH_S seconds ---
         merged = []
         prev_start, prev_end = bouts[0]
-
         for start, end in bouts[1:]:
             gap = (start - prev_end) / sr
             if gap <= THRESH_S:
-                # merge with previous
                 prev_end = end
             else:
                 merged.append((prev_start, prev_end))
                 prev_start, prev_end = start, end
-
         merged.append((prev_start, prev_end))
+        print(f"{BOI} — after merging (THRESH_S={THRESH_S}s): {len(merged)} bouts")
 
         # --- 3. Remove short bouts ---
         cleaned = [
-            (s, e) for (s, e) in merged 
+            (s, e) for (s, e) in merged
             if (e - s) / sr >= EVENT_TIME_THRESHOLD
         ]
+        print(f"{BOI} — after filtering (EVENT_TIME_THRESHOLD={EVENT_TIME_THRESHOLD}s): "
+              f"{len(cleaned)} bouts")
 
         # --- 4. Rewrite the BOI column ---
         new_x = np.zeros_like(x)
         for s, e in cleaned:
             new_x[s:e] = 1
-
         df[BOI] = new_x
 
     return df
@@ -167,27 +186,40 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     """
     Plots denoised deltaF/F aligned with behaviour (includes baseline). Adds Speed subplot only if present.
     """
-    behavprocesssnip_df = behavprocess_df[behavprocess_df['Time(s)'] > 2]
+    behavprocesssnip_df = behavprocess_df.dropna()
     has_speed = 'Speed' in behavprocesssnip_df.columns
-    has_560 = 'Denoised 560 dFF' in behavprocesssnip_df.columns
+    has_560 = '560 dFF' in behavprocesssnip_df.columns
 
     if has_speed and has_560:
+        print('Plotting 465 dFF, 560 dFF and speed')
         fig = plt.figure(figsize=(20, 15))
         ax1 = fig.add_subplot(311)
     
+    elif has_560:
+        print('Plotting 465 dFF and 560 dFF')
+        fig = plt.figure(figsize=(20, 10))
+        ax1 = fig.add_subplot(211)
+    
     elif has_speed:
+        print('Plotting 465 dFF and speed')
         fig = plt.figure(figsize=(20, 10))
         ax1 = fig.add_subplot(211)
 
     else:
+        print('Plotting 465 dFF')
         fig = plt.figure(figsize=(20, 5))
         ax1 = fig.add_subplot(111)       
 
     # Plot dFF trace
-    ax1.plot('Time(s)', 'Denoised dFF', linewidth=1, color='black', label='_GCaMP', data=behavprocesssnip_df)
+    ax1.plot('Time(s)', 'dFF', linewidth=1, color='black', label='465 dFF', data=behavprocesssnip_df)
+    
     if has_speed and has_560:
         ax2 = fig.add_subplot(312)
-        ax2.plot('Time(s)', 'Denoised 560 dFF', linewidth=1, color='black', label='560 dFF', data=behavprocesssnip_df)
+        ax2.plot('Time(s)', '560 dFF', linewidth=1, color='black', label='560 dFF', data=behavprocesssnip_df)
+    
+    elif has_560:
+        ax2 = fig.add_subplot(212)
+        ax2.plot('Time(s)', '560 dFF', linewidth=1, color='black', label='560 dFF', data=behavprocesssnip_df)
 
     # Highlight behaviors
     behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
@@ -198,7 +230,9 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         if behavior in behavprocesssnip_df.columns:
             color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
             highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
-            if has_speed and has_560:
+        else:
+            print(f'{behavior} not found in data')
+            if (has_speed and has_560) or has_560:
                 highlight_behavior_areas(ax2, behavprocesssnip_df, behavior, color, alpha)
 
     # Add event lines
@@ -224,7 +258,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     if scaled:
         ax1.set_ylim([-0.27, 0.75])
     
-    if has_speed and has_560:
+    if (has_speed and has_560) or has_560:
     # Labels and formatting
         fs_mult = 4
         ax2.set_ylabel(r'$\Delta$F/F', fontsize=5 * fs_mult)
@@ -258,7 +292,9 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     plt.tight_layout()
     return fig
 
-def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVENT_TIME=0, maxboutsnumber=None, baselinewindow=False):
+def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, 
+         PRE_EVENT_TIME=0, maxboutsnumber=None, baselinewindow=False,
+         dFF_column = 'dFF'):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI.
     
@@ -316,20 +352,20 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
     PETH_array = np.zeros((n_bouts, n_timepoints))
     
     # Initialize mean and std on whole trace
-    F0 = behavprocess_df['Denoised dFF'].mean()
-    std0 = behavprocess_df['Denoised dFF'].std()
+    F0 = behavprocess_df[dFF_column].mean()
+    std0 = behavprocess_df[dFF_column].std()
 
     # Loop through each event and extract the fiberpho trace centered on the event
     for i, ind_event in enumerate(list_ind_event):
         try: 
             if baselinewindow:
                 # Calculate baseline mean (F0) and standard deviation (std0) for the time window before the event
-                dFF_baseline = behavprocess_df.loc[ind_event - 1 * sr : ind_event - PRE_EVENT_TIME * sr, 'Denoised dFF']
+                dFF_baseline = behavprocess_df.loc[ind_event - 1 * sr : ind_event - PRE_EVENT_TIME * sr, dFF_column]
                 F0 = dFF_baseline.mean() 
                 std0 = dFF_baseline.std()
 
             # Extract the fiberpho trace for the time window around the event
-            event_window = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event + POST_TIME * sr, 'Denoised dFF']
+            event_window = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event + POST_TIME * sr, dFF_column]
             
             # Ensure the event window has the correct length to avoid shape mismatch
             if len(event_window) == n_timepoints:
@@ -340,10 +376,9 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, PRE_EVEN
     return PETH_array
 
 def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim = None,
-              trace_color='black', fill_alpha=0.2, trace_linewidth=2, heatmap_cmap='magma'):
-    import matplotlib.pyplot as plt
-    import numpy as np
-
+              trace_color='black', fill_alpha=0.2, trace_linewidth=2, heatmap_cmap='magma',
+              dff_column = '465'):
+    
     # Unpack time window
     PRE_TIME, POST_TIME = timewindow
 
@@ -378,8 +413,8 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim 
     )
     ax_heatmap.axvline(x=0, linewidth=2, color='black', linestyle='--', label=f'{event.capitalize()} event')
     ax_heatmap.set_ylabel('Bout #', fontsize=text_size)
-    ax_heatmap.set_yticks(np.arange(0.5, len(PETH_data), 2))
-    ax_heatmap.set_yticklabels(np.arange(0, len(PETH_data), 2), fontsize=text_size * 0.9)
+    ax_heatmap.set_yticks([0.5, len(PETH_data) - 0.5])
+    ax_heatmap.set_yticklabels([1, len(PETH_data)], fontsize=text_size * 0.9)
     ax_heatmap.set_title(f'{BOI} {event.capitalize()} - {exp}, Mouse: {mouse}, Batch: {batch}, Group: {group}', fontsize=text_size*0.6)
     ax_heatmap.set_xticks([])
     ax_heatmap.set_xticklabels([])
@@ -388,7 +423,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim 
     # Add colorbar
     cbar_ax = fig.add_axes([0.85, 0.54, 0.02, 0.34])  # Custom position for colorbar
     cbar = fig.colorbar(im, cax=cbar_ax)
-    cbar.set_label('Z-scored ΔF/F', fontsize=text_size)
+    cbar.set_label(f'Z-scored {dff_column} ΔF/F', fontsize=text_size)
     cbar.ax.tick_params(labelsize=text_size * 0.9)
 
     ## ----------------- Trace Plot ----------------- ##
@@ -418,7 +453,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim 
     ax_trace.axvline(x=0, linewidth=2, color='slategray', linestyle='--', label=f'{event.capitalize()} {BOI}')
 
     ax_trace.set_xlabel('Time (s)', fontsize=text_size)
-    ax_trace.set_ylabel('Z-scored ΔF/F', fontsize=text_size)
+    ax_trace.set_ylabel(f'Z-scored {dff_column} ΔF/F', fontsize=text_size)
     ax_trace.tick_params(labelsize=text_size * 0.9)
     ax_trace.legend(loc='upper left', fontsize=text_size * 0.9)
     ax_trace.margins(0, 0.01)
@@ -432,7 +467,7 @@ def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim 
 
 def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, group, ylim=None,
                      trace_color='cornflowerblue', trace_alpha=0.3, fill_alpha=0.5,
-                     line_width=1, fill=True):
+                     line_width=1, fill=True, dff_column='465'):
     """
     Plots PETH averaged over 1 group
 
@@ -523,7 +558,7 @@ def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, group, ylim=None,
     
     ## ----------------- Axis Labels and Limits ----------------- ##
     ax.set_xlabel('Time(s)')
-    ax.set_ylabel(r'z-scored $\Delta$F/F')
+    ax.set_ylabel(f'z-scored {dff_column} ΔF/F')
     ax.legend(loc='upper right', fontsize='medium')
     if ylim != None:
         ax.set_ylim(ylim[0],ylim[1])
@@ -531,3 +566,21 @@ def plot_PETH_pooled(PETH_array, BOI, event, timewindow, exp, group, ylim=None,
     ax.set_title(f'{BOI} - {exp} {group}')
     
     return fig
+
+def remove_first_bout(dfiberbehav_df, behavior):
+    """Zero out the first bout of a behavior to exclude it from PETH."""
+    dfiberbehav_df = dfiberbehav_df.copy()
+    diff = dfiberbehav_df[behavior]
+    onsets  = diff[diff == 1].index
+    offsets = diff[diff == -1].index
+
+    if len(onsets) == 0:
+        return dfiberbehav_df  # No bout found, return unchanged
+
+    first_onset = onsets[0]
+    # Find the first offset that comes after the first onset
+    subsequent_offsets = offsets[offsets > first_onset]
+    first_offset = subsequent_offsets[0] if len(subsequent_offsets) > 0 else dfiberbehav_df.index[-1]
+
+    dfiberbehav_df.loc[first_onset:first_offset, behavior] = 0
+    return dfiberbehav_df

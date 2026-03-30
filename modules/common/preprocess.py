@@ -15,11 +15,13 @@ Functions for preprocessing fiberphotometry data
 import pandas as pd
 import numpy as np
 from scipy import signal
+import warnings
 from ast import literal_eval
 import h5py
 from sklearn.linear_model import LinearRegression
 
 import modules.common.nomenclature as nom
+import modules.common.median_filtering as mf
 
 
 #%%
@@ -156,7 +158,9 @@ def load_lockin_dualcolor_doric(file_path):
 
 def samplerate(data_df):
     
-    sr = len(data_df)/(data_df['Time(s)'].max()-data_df['Time(s)'].min())
+    time_diffs = np.diff(data_df['Time(s)'].dropna().values)
+    time_diffs = time_diffs[time_diffs > 0]  # guard against duplicates
+    sr = 1.0 / np.median(time_diffs)  # median is robust to outliers
     
     return sr
 
@@ -188,27 +192,29 @@ def update_artifacts_file(file_path, filecode, artifacts):
     df.to_excel(file_path, index=False)
     print(f"Updated Excel file at: {file_path}")
 
-def linearfit_sklearn(sig_405, sig_465, trim=[10,-10]):
+def linearfit_sklearn(sig_405, sig_465, filt_405, filt_465, trim=[10, -10]):
     model = LinearRegression()
 
-    if isinstance(sig_405, np.ndarray):
-        sig_405 = sig_405.reshape(-1, 1)
-    else:
-        sig_405 = sig_405.to_numpy().reshape(-1, 1)
-        sig_465 = sig_465.to_numpy()
+    # Convert all inputs to numpy
+    if not isinstance(sig_405,  np.ndarray): sig_405  = sig_405.to_numpy()
+    if not isinstance(sig_465,  np.ndarray): sig_465  = sig_465.to_numpy()
+    if not isinstance(filt_405, np.ndarray): filt_405 = filt_405.to_numpy()
+    if not isinstance(filt_465, np.ndarray): filt_465 = filt_465.to_numpy()
 
-    # Fit only on the trimmed middle portion, predict on full signal
-    model.fit(sig_405[trim[0]:trim[1]], sig_465[trim[0]:trim[1]])
-    fitted_405 = model.predict(sig_405)
+    # Fit on trimmed filtered signals, predict on full raw signal
+    model.fit(filt_405[trim[0]:trim[1]].reshape(-1, 1),
+              filt_465[trim[0]:trim[1]])
+    fitted_405 = model.predict(sig_405.reshape(-1, 1))
 
     return fitted_405
 
-def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
+def remove_artifacts(data_df, filtered_data_df, artifact_intervals, col, method='fit'):
     """
     Helper function to remove artifacts from a specific column of the data.
     
     Parameters:
     - data_df (pd.DataFrame): Input data
+    - filtered_data_df (pd.DataFrame): median filtered data
     - artifact_intervals (list of tuples): List of artifact intervals as [(start, stop), ...]
     - col (str): Column to process ('405 Deinterleaved' or '470 Deinterleaved')
     - begin (int): Starting index for the segment
@@ -219,10 +225,11 @@ def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
     Returns:
     - Tuple: Updated dFF segment, updated 'begin' index, and 'end' index
     """
-    begin=0
-    dFF_segment = np.full(len(data_df), np.nan)  # Create an array filled with NaNs of the same length as data_df
-    artifact_intervals.append([len(data_df), 'End'])
-    
+
+    begin = 0
+    dFF_segment = np.full(len(data_df), np.nan)
+    artifact_intervals = artifact_intervals + [[len(data_df), 'End']]
+
     for x_start, x_stop in artifact_intervals:
         try:
             # Calculate 'end' as the first index where 'Time(s)' is greater than x_start, -1 to not overlap with artifact
@@ -232,7 +239,13 @@ def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
             segment = data_df.iloc[begin+1:end][col].values  # Use iloc for absolute indexing
             
             if method == 'mean':
-                mean_fluorescence = np.nanmean(segment)
+                if begin==0:
+                    trim=[10,-1]
+                elif x_stop=='End':
+                    trim=[0,-10]
+                else:
+                    trim=[0,-1]
+                mean_fluorescence = np.nanmean(segment[trim[0]:trim[1]])
                 dFF_values = ((segment - mean_fluorescence) / mean_fluorescence) * 100
                 # Check for length match before assignment
                 if len(dFF_values) == len(dFF_segment[begin+1:end]):
@@ -249,7 +262,9 @@ def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
                     trim=[0,-1]
 
                 dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
-                                            data_df.iloc[begin+1:end]['465 Deinterleaved'].values,
+                                            data_df.iloc[begin+1:end][col].values,
+                                            filtered_data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
+                                            filtered_data_df.iloc[begin+1:end][col].values,
                                             trim=trim)
                 if len(dFF_values) == len(dFF_segment[begin+1:end]):
                     dFF_segment[begin+1:end] = dFF_values
@@ -265,7 +280,7 @@ def remove_artifacts(data_df, artifact_intervals, col, method='fit'):
     
     return dFF_segment
 
-def dFF(data_df, artifacts_df, filecode, method='fit'):
+def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = True):
     """
     Calculates dFF (delta F over F) and removes artifacts from 405nm and 465nm photometry data.
     
@@ -286,19 +301,33 @@ def dFF(data_df, artifacts_df, filecode, method='fit'):
             if filecode in artifacts_df['Filecode'].values:
                 artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
                 artifact_intervals = literal_eval(artifact_intervals[0])
-                dFFdata[i] = remove_artifacts(data_df, artifact_intervals, col, method='mean')
+                dFFdata[i] = remove_artifacts(data_df, data_df, artifact_intervals, col, method='mean')
             else:
                 mean_fluorescence = np.nanmean(data_df[col])
                 dFFdata[i] = ((data_df[col] - mean_fluorescence) / mean_fluorescence) * 100
     
     elif method == 'fit':
+        if apply_median_filter == True:
+
+            # find best window from 465 nm and filter
+            result_df, best_win_s, _ = mf.iterative_median_filter(data_df, '465 Deinterleaved')
+            filtered_465 = result_df['465 Deinterleaved']
+            # filter 405 nm with the same window
+            filtered_405 = mf.median_filter_dff(data_df, '405 Deinterleaved', best_win_s)['405 Deinterleaved']
+            filtered_data_df = pd.DataFrame({'Time(s)'           : data_df['Time(s)'].values,
+                                                '465 Deinterleaved' : filtered_465.values,
+                                                '405 Deinterleaved' : filtered_405.values})
+        else:
+            filtered_data_df = data_df.copy()
+
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', method='fit')
+            dFFdata[0] = remove_artifacts(data_df, filtered_data_df, artifact_intervals, '465 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
         else:
-            dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
+            dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'],
+                                            filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'])
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
 
         # Calculate Denoised dFF
@@ -355,32 +384,6 @@ def interpolate_dFFdata(data_df, method='linear'):
         
     return data_df
 
-def remove_artifacts_dualcolor(data_df, artifact_intervals, col):
-    begin=0
-    dFF_segment = np.full(len(data_df), np.nan)  # Create an array filled with NaNs of the same length as data_df
-    artifact_intervals.append([len(data_df), 'End'])
-    
-    for x_start, x_stop in artifact_intervals:
-        try:
-            # Calculate 'end' as the first index where 'Time(s)' is greater than x_start, -1 to not overlap with artifact
-            end = data_df.index[data_df['Time(s)'] < x_start][-1]
-            
-            dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
-                                        data_df.iloc[begin+1:end][col].values)
-            if len(dFF_values) == len(dFF_segment[begin+1:end]):
-                dFF_segment[begin+1:end] = dFF_values
-            else:
-                print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
-            
-            # Update 'begin' to the index just before the stop of the artifact
-            if x_stop != 'End':
-                begin = data_df.index[data_df['Time(s)'] > x_stop][0]
-                
-        except Exception as e:
-            print(f"Error processing artifact interval ({x_start}, {x_stop}): {e}")
-    
-    return dFF_segment
-
 def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
 
     if fitted560:
@@ -388,9 +391,9 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts_dualcolor(data_df, artifact_intervals, '465 Deinterleaved')
+            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '465 Deinterleaved')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            dFFdata[2] = remove_artifacts_dualcolor(data_df, artifact_intervals, '560 Deinterleaved')
+            dFFdata[2] = remove_artifacts(data_df, artifact_intervals, '560 Deinterleaved')
             dFFdata[3] = data_df['560 Deinterleaved'].to_numpy()
         else:
             dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
@@ -401,6 +404,16 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
         # Calculate Denoised dFF
         dFFdata[4] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
         dFFdata[5] = ((dFFdata[3] - dFFdata[2]) / dFFdata[2]) * 100
+
+        # Replace first and last 10 frames with 1st quartile 
+        # to remove high artifacts at the very beginning and end of recording
+        q1_465 = np.nanpercentile(dFFdata[4], 25)
+        dFFdata[4][:10]  = q1_465
+        dFFdata[4][-10:] = q1_465
+
+        q1_560 = np.nanpercentile(dFFdata[5], 25)
+        dFFdata[5][:10]  = q1_560
+        dFFdata[5][-10:] = q1_560
 
         dFFdata_df = pd.DataFrame({
             'Time(s)': data_df['Time(s)'],
@@ -419,14 +432,26 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
             artifact_intervals = literal_eval(artifact_intervals[0])
             dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            dFFdata[2] = data_df['560 Deinterleaved'].to_numpy()
+            dFFdata[2] = remove_artifacts(data_df, artifact_intervals, '560 Deinterleaved', method='mean')
         else:
             dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            dFFdata[2] = data_df['560 Deinterleaved'].to_numpy()
+            # normalize 560dFF on its own mean
+            mean_fluorescence_560 = np.nanmean(data_df['560 Deinterleaved'][10:-10])
+            dFFdata[2] = ((data_df['560 Deinterleaved'] - mean_fluorescence_560) / mean_fluorescence_560) * 100
 
         # Calculate Denoised dFF
         dFFdata[3] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
+        
+        # Replace first and last 10 frames with 1st quartile
+        # to remove high artifacts at the very beginning and end of recording
+        q1_465 = np.nanpercentile(dFFdata[3], 25)
+        dFFdata[3][:10]  = q1_465
+        dFFdata[3][-10:] = q1_465
+
+        q1_560 = np.nanpercentile(dFFdata[2], 25)
+        dFFdata[2][:10]  = q1_560
+        dFFdata[2][-10:] = q1_560
 
         dFFdata_df = pd.DataFrame({
             'Time(s)': data_df['Time(s)'],
@@ -437,3 +462,64 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
         })
 
     return dFFdata_df
+
+def downsample(rawdata_df, target_frequency=20):
+    """
+    Downsample a fiberphotometry DataFrame using an anti-aliased decimation filter.
+
+    Parameters
+    ----------
+    rawdata_df : pd.DataFrame
+        Must contain a 'Time(s)' column plus one or more signal columns.
+    target_frequency : float
+        Desired output sampling frequency in Hz.
+
+    Returns
+    -------
+    pd.DataFrame
+        Downsampled DataFrame with the same column layout.
+    """
+    # 1. Calculate current frequency from the 'Time' column
+    # We use median diff to be robust against occasional dropped frames
+    dt = np.median(np.diff(rawdata_df['Time(s)'].values))
+    current_fs = 1.0 / dt
+    print(f'Current frequency : {current_fs}Hz. Target frequency : {target_frequency}Hz')
+
+    # 2. Calculate integer downsampling factor (q)
+    # decimate requires an integer; we round to the nearest whole number
+    # if the rounded downsampling factor is too far from the exact factor, raises warning
+    exact_factor = current_fs / target_frequency
+    downsampling_factor = int(round(exact_factor))
+
+    if abs(exact_factor - downsampling_factor) > 0.05:
+        warnings.warn(
+            f"Downsampling factor {exact_factor:.2f} rounded to {downsampling_factor}. "
+            f"Effective output frequency: {current_fs / downsampling_factor:.2f} Hz "
+            f"(target was {target_frequency} Hz)."
+        )
+
+    if downsampling_factor <= 1:
+        print("Target frequency is higher than or equal to current frequency. Returning original.")
+        return rawdata_df
+    
+    downsampled_data = {}
+    # 3. Apply decimate to all columns except 'Time'
+    # We iterate through all columns and skip 'Time' specifically
+    signal_cols = [c for c in rawdata_df.columns if c != 'Time(s)']
+    for col in signal_cols:
+        # decimate applies an anti-aliasing low-pass filter before downsampling
+        # we use zero-phase to avoid phase distortion
+        downsampled_data[col] = signal.decimate(rawdata_df[col].values, 
+                                               downsampling_factor, 
+                                               ftype='fir',
+                                               zero_phase=True)
+
+    # 4. Reconstruct DataFrame
+    downsampled_df = pd.DataFrame(downsampled_data)
+
+    # 5. Re-create the Time column
+    downsampled_df['Time(s)'] = rawdata_df['Time(s)'].values[::downsampling_factor][:len(downsampled_df)]
+
+    # Reorder columns to put 'Time' first (standard for Doric/Fiber data)
+    cols = ['Time(s)'] + [c for c in downsampled_df.columns if c != 'Time(s)']
+    return downsampled_df[cols]

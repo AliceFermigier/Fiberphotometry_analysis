@@ -6,6 +6,8 @@ from scipy.ndimage import gaussian_filter
 from scipy.signal import savgol_filter
 import importlib
 
+import modules.common.preprocess as pp
+importlib.reload(pp)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
 
@@ -14,7 +16,7 @@ def get_dlc_data(data_path, threshold=0.99, interpolate=True):
     Gets DLC data and filters it based on likelihood (default = 0.99)
     Creates new filtered csv with 
     '''
-    dlc_df = pd.read_csv(data_path, header=[1])
+    dlc_df = pd.read_csv(data_path, header=[1], low_memory=False)
     coords_array=[]
     for bodypart in dlc_df.columns.tolist()[1::3]:
         x_filtered = []
@@ -50,7 +52,7 @@ def load_video_frame(video_path):
     else:
         raise FileNotFoundError("Video frame could not be read.")   
     
-def compute_speed(coordinates_df, dist_scale=0.1322, frame_rate=19, bodypart='back'):
+def compute_speed(coordinates_df, frame_rate, dist_scale=0.1322, bodypart='center'):
     '''
     dist_scale in cm/px
     frame_rate in fps
@@ -59,12 +61,11 @@ def compute_speed(coordinates_df, dist_scale=0.1322, frame_rate=19, bodypart='ba
     dy = np.diff(coordinates_df[f'{bodypart}_y'])
     distance = dist_scale * np.sqrt(dx**2 + dy**2)
     speed = distance * frame_rate
-    speed = cs.hampel_filter(speed, window_size=15) # remove big artifacts
+    speed, _ = cs.hampel_filter(speed, window_size=15) # remove big artifacts
     speed = savgol_filter(speed, 5, 2)  # smoothing
 
-    speed_df = pd.Series({
-        'Speed': speed
-    })
+    speed = np.concatenate([[0], speed])  # pad first frame with 0
+    speed_df = pd.DataFrame({'Speed': speed}, index=coordinates_df.index)
 
     return speed_df
  

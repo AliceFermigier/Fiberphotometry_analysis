@@ -262,3 +262,87 @@ def compute_and_plot_heatmap(df, mouse, batch, ports_json, arena_json,
 
     plt.show()
 
+def extract_behav_summary(behav_df, mouse, batch, group,
+                           fps,
+                           behav_cols=[],
+                           speed_col='Speed',
+                           immobility_threshold=0.1):
+    """
+    Extract a summary of behavioral metrics from a behav_df into a flat dict,
+    suitable for building a cross-animal Excel summary.
+
+    The function is experiment-agnostic: any binary columns can be passed via 
+    behav_cols, that get time + percentage columns; Locomotion metrics are always computed.
+
+    Parameters
+    ----------
+    behav_df : pd.DataFrame
+        Output of analyze_mouse_position(), one row per frame.
+    mouse : str
+        Mouse identifier.
+    batch : str
+        Batch identifier.
+    group : str
+        Experimental group.
+    fps : float
+        Video frame rate (frames per second). Used to convert frames → seconds.
+    scale : float
+        Scale in cm per pixel. Used for distance computation.
+    behav_cols : list of str, optional
+        Binary columns — time + percentage columns are
+        generated. E.g. ['Closed arm', 'Open arm', 'Center'].
+    speed_col : str
+        Column name for instantaneous speed (cm/s).
+    immobility_threshold : float
+        Speed (cm/s) below which the animal is considered immobile.
+
+    Returns
+    -------
+    record : dict
+        Flat dictionary with all summary metrics for one animal.
+    """
+    record = {
+        'Mouse' : mouse,
+        'Batch' : batch,
+        'Group' : group,
+    }
+
+    # ── Session duration ──────────────────────────────────────────────────────
+    n_frames      = len(behav_df)
+    total_time_s  = n_frames / fps
+    record['Total time (s)'] = round(total_time_s, 2)
+
+    # ── Zone times + percentages ──────────────────────────────────────────────
+    for col in behav_cols:
+        if col not in behav_df.columns:
+            print(f"  Warning: zone column '{col}' not found, filling with NaN.")
+            record[f'{col} time (s)']  = float('nan')
+            record[f'{col} (%)']       = float('nan')
+            continue
+        frames_in_behav         = behav_df[col].sum()
+        time_in_behav            = frames_in_behav  / fps
+        pct                     = (frames_in_behav  / n_frames) * 100
+        record[f'{col} time (s)'] = round(time_in_behav, 2)
+        record[f'{col} (%)']      = round(pct, 2)
+
+    # ── Locomotion metrics ────────────────────────────────────────────────────
+    if speed_col in behav_df.columns:
+        speed = behav_df[speed_col].values
+
+        # Immobility: frames below threshold → seconds
+        immobile_frames          = (speed < immobility_threshold).sum()
+        record['Immobility (s)'] = round(immobile_frames / fps, 2)
+
+        # Total distance: sum of per-frame displacement (speed / fps * scale)
+        # Speed is already in cm/s, so distance per frame = speed / fps
+        total_distance           = (speed / fps).sum()
+        record['Total distance (cm)'] = round(total_distance, 2)
+
+        record['Mean speed (cm/s)'] = round(float(speed.mean()), 3)
+    else:
+        print(f"  Warning: speed column '{speed_col}' not found.")
+        record['Immobility (s)']      = float('nan')
+        record['Total distance (cm)'] = float('nan')
+        record['Mean speed (cm/s)']   = float('nan')
+
+    return record

@@ -175,8 +175,8 @@ def remove_high_artifacts(rawdata_df):
     data_465 = rawdata_df['465 Deinterleaved'].copy()
 
     # --- Hampel Filter ---
-    hampel_405, artifacts_405 = hampel_filter(data_405, window_size=5, n_sigmas=5)
-    hampel_465, artifacts_465 = hampel_filter(data_465, window_size=5, n_sigmas=5)
+    hampel_405, artifacts_405 = hampel_filter(data_405, window_size=10, n_sigmas=6)
+    hampel_465, artifacts_465 = hampel_filter(data_465, window_size=10, n_sigmas=6)
 
     print(f"405 artifacts removed: {len(artifacts_405)}")
     print(f"465 artifacts removed: {len(artifacts_465)}")
@@ -205,9 +205,9 @@ def remove_high_artifacts_dualcolor(rawdata_df):
     data_560 = rawdata_df['560 Deinterleaved'].copy()
 
     # --- Hampel Filter ---
-    hampel_405, artifacts_405 = hampel_filter(data_405, window_size=5, n_sigmas=5)
-    hampel_465, artifacts_465 = hampel_filter(data_465, window_size=5, n_sigmas=5)
-    hampel_560, artifacts_560 = hampel_filter(data_560, window_size=5, n_sigmas=5)
+    hampel_405, artifacts_405 = hampel_filter(data_405, window_size=10, n_sigmas=6)
+    hampel_465, artifacts_465 = hampel_filter(data_465, window_size=10, n_sigmas=6)
+    hampel_560, artifacts_560 = hampel_filter(data_560, window_size=10, n_sigmas=6)
 
     print(f"405 artifacts removed: {len(artifacts_405)}")
     print(f"465 artifacts removed: {len(artifacts_465)}")
@@ -329,15 +329,33 @@ def exponential_detrend(dff_df, dualcolor = False):
 
     return dff_df
 
-def lowpass_dFF(dff, order = 2, cut_freq = 10):
+def lowpass_dFF(dff, dual_color = False, order = 2, cut_freq = 10):
 
     sampling_rate = pp.samplerate(dff)
-    time = dff['Time(s)']
     raw_dff = dff['dFF']
 
     # Lowpass filter - zero phase filtering (with filtfilt) is used to avoid distorting the signal.
     b,a = butter(order, cut_freq, btype='low', fs=sampling_rate)
     dFF_lowpass = filtfilt(b,a, raw_dff)
 
-    dff['Denoised dFF'] = dFF_lowpass
+    dff['dFF'] = dFF_lowpass
+
+    if dual_color:
+        raw_dff = dff['560 dFF']
+        
+        b,a = butter(order, cut_freq, btype='low', fs=sampling_rate)
+        dFF_lowpass_560 = filtfilt(b,a, raw_dff)
+        dff['560 dFF'] = dFF_lowpass_560
+
     return dff
+
+def smoothing_moving_average(signal: np.ndarray, window_samples: int) -> np.ndarray:
+    """
+    Simple symmetric moving-average smoothing.
+    Mirrors MATLAB's smooth(x, window) default behaviour.
+    Edge values are computed with a progressively smaller window
+    (same as np.convolve mode='same').
+    """
+    if window_samples < 1:
+        return signal.copy()
+    return np.convolve(signal, np.ones(window_samples) / window_samples, mode="same")

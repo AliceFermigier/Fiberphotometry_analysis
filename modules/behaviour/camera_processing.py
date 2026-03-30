@@ -17,6 +17,7 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 import warnings
+import scipy
 
 import modules.common.genplot as gp
 
@@ -27,6 +28,23 @@ import modules.common.genplot as gp
 
 ## For BONSAI setup
 
+def extract_sync_channel(raw_path, sync_channel = "DIO04"):
+    '''
+    Extracts the onset times of TTLs (0→1 transitions) of fiber/miniscope sync to Bonsai.
+    '''
+    with h5py.File(raw_path, 'r') as f:
+        base = "DataAcquisition/FPConsole/Signals/Series0001/"
+
+        time_sync = f[base + "DigitalIO/Time"][:]
+        ttl_sync = f[base + f"DigitalIO/{sync_channel}"][:]
+
+    # Find rising edges
+    rising_edges = np.where(np.diff(ttl_sync) == 1)[0] + 1
+
+    ttl_sync_df = pd.DataFrame({'Time(s)': time_sync[rising_edges]})
+
+    return ttl_sync_df
+
 def get_timestamps_from_bonsai_csv(file_path):
     df = pd.read_csv(file_path)
     # Ensure correct column names
@@ -35,15 +53,69 @@ def get_timestamps_from_bonsai_csv(file_path):
     output_df = df[df['Event'] == True][['Time(s)']].reset_index(drop=True)
     return output_df
 
+def get_start_stop_timestamps_from_bonsai_csv(file_path):
+    df = pd.read_csv(file_path)
+    # Ensure correct column names
+    df.columns = ['Time(s)', 'Event']
+    # Filter rows where Event == True
+    start_df = df[df['Event'] == True][['Time(s)']].reset_index(drop=True)
+    stop_df = df[df['Event'] == False][['Time(s)']].reset_index(drop=True)
+    start_time = start_df.values[0][0]
+    stop_time = stop_df.values[0][0]
+    output_df = pd.DataFrame({'Time(s)':[start_time,stop_time]})
+    return output_df
+
 def time_gap(deinterleaved_df, led_df):
     time_led = led_df['Time(s)']
     time_fiber = deinterleaved_df['Time(s)']
 
-    time_gap = time_led[0]-time_fiber[0]
-    return time_gap
+    print(f"Bonsai : {time_led.iloc[0]}-{time_led.iloc[-1]}s ; Start Doric : {time_fiber.iloc[0]}-{time_fiber.iloc[-1]}s")
 
-def correct_behav_timestamps(behaviour_timestamps_df, time_gap):
-    behaviour_timestamps_df["Time(s)"] = (behaviour_timestamps_df["Time(s)"] - time_gap)
+    time_gap = time_led[0]-time_fiber[0]
+    slope = 1.0 #sets slope to 1 by default
+    return slope, time_gap
+
+def time_mapping(ttl_sync_df, led_df):
+    ttl_times_doric  = ttl_sync_df['Time(s)'].values
+    ttl_times_bonsai = led_df['Time(s)'].values
+
+    # Trim to the same number of pulses in case of mismatches
+    n = min(len(ttl_times_doric), len(ttl_times_bonsai))
+    ttl_times_doric  = ttl_times_doric[:n]
+    ttl_times_bonsai = ttl_times_bonsai[:n]
+
+    # Work in relative time to avoid large offset absorbing the slope
+    t0_doric  = ttl_times_doric[0]
+    t0_bonsai = ttl_times_bonsai[0]
+    doric_rel  = ttl_times_doric  - t0_doric
+    bonsai_rel = ttl_times_bonsai - t0_bonsai
+
+    # Linear regression on relative times: drift only
+    slope, intercept_rel, r_value, _, _ = scipy.stats.linregress(doric_rel, bonsai_rel)
+
+    # Reproject intercept back to absolute Bonsai time
+    # bonsai = slope * (doric - t0_doric) + t0_bonsai + intercept_rel
+    #        = slope * doric + (t0_bonsai - slope * t0_doric + intercept_rel)
+    intercept = t0_bonsai - slope * t0_doric + intercept_rel
+
+    session_duration = ttl_times_doric[-1] - ttl_times_doric[0]
+    drift_ms = (slope - 1.0) * session_duration * 1000
+
+    print(f"Pulses used       : {n}")
+    print(f"R²                : {r_value**2:.8f}")
+    print(f"Slope             : {slope:.6f}")
+    print(f"Intercept         : {intercept:.4f} s")
+    print(f"Accumulated drift : {drift_ms:.1f} ms")
+    if abs(drift_ms) > 50:
+        print(f"Large drift detected (>50ms).")
+
+    return slope, intercept
+
+def correct_behav_timestamps(behaviour_timestamps_df, slope, intercept, time_col='Time(s)'):
+    behaviour_timestamps_df = behaviour_timestamps_df.copy()
+    behaviour_timestamps_df[time_col] = (behaviour_timestamps_df[time_col] - intercept) / slope
+    time = behaviour_timestamps_df[time_col].values
+    print(f'Behavioural timestamps between {time[0]} and {time[-1]}')
     return behaviour_timestamps_df
 
 def align_behav_timestamps(fiberpho_df, behaviour_timestamps_df, behavior_col, time_col='Time(s)'):    

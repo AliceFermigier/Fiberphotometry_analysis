@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import json
 import os
+from pathlib import Path
 
 def get_click_coordinates(image, n_points=2, title='Click to select points'):
     plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
@@ -27,8 +28,10 @@ def define_epm_boundaries(video_path):
     plt.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     plt.title("Is the EPM orientation correct? (Open up/down, closed right/left) (Y=Yes, N=No)")
     plt.axis("off")
-    plt.show()
+    plt.show(block=True)
+    plt.pause(0.5)
     answer = input("Is the EPM in the correct orientation? (Open up/down, closed right/left) (Y/N): ").strip().upper()
+    plt.close('all')
 
     # Select open_arms (bottom-left and top-right corners)
     open_arms = get_click_coordinates(frame, 2, "Click open arms bottom-left, then top-right")
@@ -46,19 +49,16 @@ def define_epm_boundaries(video_path):
 
     # Center coordinates
     if answer == 'N': #closed arm top/down
-        
         center_xL = closed_xL
         center_xR = closed_xR
         center_yBot = open_yBot
         center_yTop = open_yTop
     
     else:
-
         center_xL = open_xL
         center_xR = open_xR
         center_yBot = closed_yBot
         center_yTop = closed_yTop
-
 
     # Show confirmation
     fig, ax = plt.subplots()
@@ -106,7 +106,7 @@ def define_epm_boundaries(video_path):
     ax.legend()
     plt.title("EPM Boundary Confirmation")
     plt.axis("off")
-    plt.show()
+    plt.show(block=True)
 
     epm_coordinates = {
         'open_xL': open_xL, 'open_xR': open_xR,
@@ -125,6 +125,7 @@ def save_boundaries_to_json(boundaries, output_path):
         json.dump(boundaries, f, indent=4)
     print(f"Boundaries saved to {output_path}")
 
+"""
 if __name__ == "__main__":
     video_folder = r'E:\FiberPhotometry\202404_DualColourGRABAChxFlexGECO\Data\20240410_EPM\Videos'
     video_name = '466'
@@ -137,3 +138,4 @@ if __name__ == "__main__":
         print(f"{key}: {value:.2f}")
     
     save_boundaries_to_json(boundaries, output_json)
+"""

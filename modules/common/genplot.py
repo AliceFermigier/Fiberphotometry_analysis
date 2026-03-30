@@ -162,6 +162,8 @@ def plot_fiberpho(fiber_df, exp, mouse, method):
     """
     Plots isosbestic and Ca dependent deltaF/F (dFF) and separate dFF plot
     """
+
+    fiber_df = fiber_df.iloc[20:-20]  # skip first and last 20 points
     fig = plt.figure(figsize=(20, 10))  # increased height for two plots
     
     # First subplot: GCaMP and ISOS
@@ -190,6 +192,7 @@ def plot_fiberpho_dualcolor(fiber_df, exp, mouse, method):
     """
     Plots isosbestic and Ca dependent deltaF/F (dFF) and separate dFF plot
     """
+    fiber_df = fiber_df.iloc[20:-20]  # skip first and last 20 points
     if len(fiber_df.columns) == 5:
         fig = plt.figure(figsize=(20, 15))
         

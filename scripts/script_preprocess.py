@@ -38,6 +38,8 @@ import modules.common.nomenclature as nom
 importlib.reload(nom)
 import modules.common.clean_signal as cs
 importlib.reload(cs)
+import modules.common.median_filtering as mf
+importlib.reload(mf)
 
 from scripts.loader import experiment_path, analysis_path, data_path, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
 
@@ -87,7 +89,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         if dual_color:
             # Load deinterleaved raw data and clean data.
             deinterleaved_df = pp.load_lockin_dualcolor_doric(raw_data_path)
-            cleaned_df = cs.remove_high_artifacts_dualcolor(deinterleaved_path)
+            downsampled_df = pp.downsample(deinterleaved_df, target_frequency=40)
+            cleaned_df = cs.remove_high_artifacts_dualcolor(downsampled_df)
 
             # Save to CSV
             deinterleaved_df.to_csv(deinterleaved_path, index=False)
@@ -122,8 +125,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = '904'
-batch = 1
+mouse = '1001'
+batch = 4
 filecode = f'{exp}_{mouse}'
 #------------------#
 
@@ -244,9 +247,11 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         
         # calculate dFF with artifacts removal, then interpolate missing data
         if dual_color:
-            dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=True)
+            dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=False)
         else:
-            dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method)
+            dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method,apply_median_filter=True)
+            _, _, median_fig = mf.iterative_median_filter(cleaned_df, '465 Deinterleaved')
+            median_fig.savefig(pp_path/f'{mouse}_median_filtering.png')
 
         # interpolate missing data
         interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
@@ -255,22 +260,28 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
         if correct_photobleach_method == 'highpass':
             #high-pass filter to remove slow oscillations
-            filtered_dFFdata = cs.highpass_filter_dff(interpdFFdata_df, dual_color, cutoff_freq = 0.006)
-            filtered_dFFdata.to_csv(pp_path/f'{mouse}_dFF_corrected.csv')
+            filtered_dFFdata_df = cs.highpass_filter_dff(interpdFFdata_df, dual_color, cutoff_freq = 0.006)
 
         elif correct_photobleach_method == 'exponential':
             #exponential detrend to remove slow oscillations
-            filtered_dFFdata = cs.exponential_detrend(interpdFFdata_df, dual_color)
-            filtered_dFFdata.to_csv(pp_path/f'{mouse}_dFF_corrected.csv')
-
-        #plotted GCaMP and isosbestic curves after dFF and photobleanch correction
+            filtered_dFFdata_df = cs.exponential_detrend(interpdFFdata_df, dual_color)
+            
+        # Z-score filtered dFF for specific use (z-scored data is stored in a specific 'Z-scored dFF' column)
+        filtered_dFFdata_df = pp.zscore_dFF(filtered_dFFdata_df)
         if dual_color:
-            fig_dFF = gp.plot_fiberpho_dualcolor(filtered_dFFdata,exp,mouse,method)
+            filtered_dFFdata_df = pp.zscore_dFF(filtered_dFFdata_df, column_name='560 dFF')
+
+        # Save output to csv
+        filtered_dFFdata_df.to_csv(pp_path/f'{mouse}_dFF_corrected.csv')
+
+        #plotted GCaMP and isosbestic curves after dFF and photobleach correction
+        if dual_color:
+            fig_dFF = gp.plot_fiberpho_dualcolor(filtered_dFFdata_df,exp,mouse,method)
             fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF_corrected.png')
             plt.close(fig_dFF) 
 
         else:
-            fig_dFF = gp.plot_fiberpho(filtered_dFFdata,exp,mouse,method)
+            fig_dFF = gp.plot_fiberpho(filtered_dFFdata_df,exp,mouse,method)
             fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF_corrected.png')
             plt.close(fig_dFF) 
 

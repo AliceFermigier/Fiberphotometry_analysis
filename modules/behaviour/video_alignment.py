@@ -62,7 +62,7 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     # Setup figure
     n_behavior = len(behavior_cols)
     has_speed = 'Speed' in fiberbehav_df.columns
-    has_560 = 'Denoised 560 dFF' in fiberbehav_df.columns
+    has_560 = '560 dFF' in fiberbehav_df.columns
     height_ratios = [8]
     if has_560:
         height_ratios += [8]
@@ -92,17 +92,17 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     t = window_df['Time(s)']
 
     # Plot fiber signal
-    axs[0].plot(t, window_df['Denoised dFF'], color='black')
+    axs[0].plot(t, window_df['dFF'], color='darkgreen')
     axs[0].set_ylabel('465 dFF')
-    axs[0].set_ylim(max(-0.3, fiberbehav_df['Denoised dFF'].min()), min(1.5, fiberbehav_df['Denoised dFF'].max()))
-    axs[0].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
+    axs[0].set_ylim(max(-0.3, fiberbehav_df['dFF'].min()), min(1.5, fiberbehav_df['dFF'].max()))
+    axs[0].axvspan(center_time, end_time, color='white', zorder=10)
 
     # Optional: plot 560nm dFF
     if has_560:
-        axs[1].plot(t, window_df['Denoised 560 dFF'], color='darkorange')
+        axs[1].plot(t, window_df['560 dFF'], color='darkorange')
         axs[1].set_ylabel('560 dFF')
-        axs[1].set_ylim(max(-0.5, fiberbehav_df['Denoised dFF'].min()), min(1.5, fiberbehav_df['Denoised dFF'].max()))
-        axs[1].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
+        axs[1].set_ylim(max(-0.5, fiberbehav_df['560 dFF'].min()), min(1.5, fiberbehav_df['560 dFF'].max()))
+        axs[1].axvspan(center_time, end_time, color='white', zorder=10)
     
     # Plot behaviors
     behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
@@ -129,7 +129,7 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
         axs[i + pad].set_ylabel(behavior, rotation=0, labelpad=10, va='center', ha='right')
         axs[i + pad].spines['left'].set_visible(False)
         axs[i + pad].set_ylim(0.1, 1.1)
-        axs[i + pad].axvspan(center_time, end_time, color='white', alpha=0.95, linewidth=3, zorder=10)
+        axs[i + pad].axvspan(center_time, end_time, color='white', linewidth=3, zorder=10)
 
     # Optional: plot speed
     if has_speed:
@@ -138,7 +138,7 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
         axs[-1].set_ylim(global_min, global_max)
         axs[-1].plot(t, window_df['Speed'], color='black')
         axs[-1].set_ylabel('Speed')
-        axs[-1].axvspan(center_time, end_time, color='white', alpha=0.95, zorder=10)
+        axs[-1].axvspan(center_time, end_time, color='white', zorder=10)
         
     # Hide x-axis labels and bottom spines for all but the last axis
     for ax in axs:
@@ -537,21 +537,19 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 #%%
 
 if __name__ == "__main__":
-    batch = 3
-    #'822','844','827','828','829','821'
-    for mouse in ['822','844','827','829']:
+    batch = 2
+    for mouse in ['1009']:
         print(f"{mouse}")
         exp='Reward_Airpuffs'
         behavior = "Airpuffs"
-        data_path_exp='20251030_FiberMEC_RewardAirpuff'
+        exp_path='F:\202602_FiberMEC-GRABACh-FlexRGECO\Data\20260220_RewardAirpuff'
         video_name = f'{mouse}.avi'
 
-        exp_path = Path(r'F:\202510_FiberMEC\Data') / f'{data_path_exp}'
         pp_path = exp_path / 'Preprocessing'
-        analysis_path = Path(r'F:\202510_FiberMEC\Analysis') / f'{exp}' / 'length0_interbout0_o4fNone'
-        video_path = exp_path / f'{video_name}'
+        analysis_path = Path(r'F:\202510_FiberMEC\Analysis') / f'{exp}' / 'length0_interbout1_o4fNone'
+        video_path = exp_path / 'Behaviour' / f'{video_name}'
         raw_file_path = exp_path / f'{mouse}_0000.doric'
-        deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
+        deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved_cleaned.csv'
         fiberbehav_df = pd.read_csv(analysis_path / f'{batch}_{mouse}_fiberbehavnotderived.csv')
         output_path = analysis_path / f'Videos_{behavior}/{batch}_{mouse}' / f'{video_name[:-4]}_combined'
         camera_csv_path = exp_path / f'camera_flashes_{mouse}.csv'

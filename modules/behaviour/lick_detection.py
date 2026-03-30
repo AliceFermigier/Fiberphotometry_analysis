@@ -73,21 +73,56 @@ def plot_licks_and_threshold(licks_df, threshold):
 
     plt.show()
 
-def compute_distance(df, port, nose_x='nose_x', nose_y='nose_y'):
+def compute_distance(df, port, scale, nose_x='nose_x', nose_y='nose_y'):
+    """
+    Compute distance from nose to port in centimeters.
+    
+    Parameters:
+    -----------
+    df : DataFrame
+        Contains nose position columns (in pixels)
+    port : dict
+        Port coordinates with 'x' and 'y' keys (in pixels)
+    scale : float
+        Scale factor from scale_and_coords["Scale_cm_per_px"]
+    nose_x, nose_y : str
+        Column names for nose coordinates (in pixels)
+    
+    Returns:
+    --------
+    Distance in centimeters
+    """
     px = port["x"]
     py = port["y"]
-    return np.sqrt((df[nose_x] - px)**2 + (df[nose_y] - py)**2)
+    pixel_dist = np.sqrt((df[nose_x] - px)**2 + (df[nose_y] - py)**2)
+    return pixel_dist * scale  # Convert pixels to cm
 
-def filter_licking(df, ports, lick_col='Licks', lick_radius=20):
-    dist = compute_distance(df, ports["lick_port"])
-    true_lick = (df[lick_col] == 1) & (dist < lick_radius)
+def filter_licking(df, ports, scale_and_coords, lick_col='Licks', lick_radius_cm=0.5):
+    """
+    Filter licks based on distance from lick port.
+    
+    Parameters:
+    -----------
+    lick_radius_cm : float
+        Radius in centimeters within which a lick is valid 
+    """
+    video_scale = scale_and_coords["Scale_cm_per_px"]
+    dist = compute_distance(df, ports["lick_port"], video_scale)
+    true_lick = (df[lick_col] == 1) & (dist < lick_radius_cm)
     df["Licks_filtered"] = true_lick.astype(int)
     return df
 
-def detect_airpuff_entry(df, ports, radius=30):
-    distL = compute_distance(df, ports["airpuff_left"])
-    distR = compute_distance(df, ports["airpuff_right"])
-
-    df["Nose_in_any_airport"]   = ((distL < radius) | (distR < radius)).astype(int)
-
+def detect_airpuff_entry(df, ports, scale_and_coords, radius_cm=3.0):
+    """
+    Detect when nose enters airpuff ports.
+    
+    Parameters:
+    -----------
+    radius_cm : float
+        Radius in centimeters defining port entry zone
+    """
+    video_scale = scale_and_coords["Scale_cm_per_px"]
+    distL = compute_distance(df, ports["airpuff_left"], video_scale)
+    distR = compute_distance(df, ports["airpuff_right"], video_scale)
+    df["Nose_in_any_airport"] = ((distL < radius_cm) | (distR < radius_cm)).astype(int)
     return df
