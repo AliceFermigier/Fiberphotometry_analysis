@@ -18,6 +18,7 @@ from scipy.signal import butter, filtfilt
 from scipy.optimize import curve_fit
 import plotly.express as px
 
+import modules.common.median_filtering as mf
 import modules.common.preprocess as pp
 
 #%%
@@ -156,17 +157,26 @@ def plot_hampel_results_dualcolor(time, raw_405, raw_465, raw_560,
     fig.show()
 
 def highpass_filter_with_padding(signal, sr, cutoff=0.01, order=3, pad_seconds=50):
-    pad_len = int(sr * pad_seconds)
-    pre_pad = signal[:pad_len][::-1] if pad_len < len(signal) else signal[::-1]
-    post_pad = signal[-pad_len:][::-1] if pad_len < len(signal) else signal[::-1]
-    padded = np.concatenate([pre_pad, signal, post_pad])
+    pad_n   = int(pad_seconds * sr)
+    padded  = np.pad(signal, pad_n, mode='reflect')
 
-    nyq = 0.5 * sr
+    nyq = sr / 2
     norm_cutoff = cutoff / nyq
     b, a = butter(order, norm_cutoff, btype='high', analog=False)
     filtered = filtfilt(b, a, padded)
 
-    return filtered[pad_len:-pad_len]
+    return filtered[pad_n:-pad_n]
+
+def lowpass_filter_with_padding(signal, sr, cutoff=0.01, order=1, pad_seconds=50):
+    pad_n   = int(pad_seconds * sr)
+    padded  = np.pad(signal, pad_n, mode='reflect')
+
+    nyq     = sr / 2
+    norm_cutoff = cutoff / nyq
+    b, a = butter(order, norm_cutoff, btype='low', analog=False)
+    filtered = filtfilt(b, a, padded)
+
+    return filtered[pad_n:-pad_n]
 
 def remove_high_artifacts(rawdata_df):
 
@@ -272,25 +282,37 @@ def plot_exponential_fit_results(time, dff, filtered_dff, title = 'dF/F'):
     plt.tight_layout()
     plt.show()
 
-def highpass_filter_dff(dff_df, dualcolor = False, cutoff_freq = 0.001):
-    sr = pp.samplerate(dff_df)
-    dff_465 = dff_df['dFF'].copy()
+def highpass_filter_dff(dff_df, dualcolor=False, cutoff_freq=0.001,
+                         use_smooth_baseline=True):
+    sr   = pp.samplerate(dff_df)
     time = dff_df['Time(s)']
 
-    filtered_dff = highpass_filter_with_padding(
-        dff_465, sr, cutoff=cutoff_freq, order=1, pad_seconds=50)
-    dff_df['dFF'] = filtered_dff
-    plot_highpass_filter_results(time, dff_465, filtered_dff, cutoff_freq)
+    def _transient_safe_highpass(df, column_name):
+        raw_signal = df[column_name].values
+        if use_smooth_baseline:
+            # iterative_median_filter returns (result_df, best_win_s, fig)
+            result_df, _, _ = mf.iterative_median_filter(df, column_name, step_size=1.0)
+            smooth_signal   = result_df[column_name].values         
+            baseline        = lowpass_filter_with_padding(
+                smooth_signal, sr, cutoff=cutoff_freq, order=1, pad_seconds=50)
+            return raw_signal - baseline
+        else:
+            return highpass_filter_with_padding(
+                raw_signal, sr, cutoff=cutoff_freq, order=1, pad_seconds=50)
 
-    if dualcolor == True:
-        dff_560 = dff_df['560 dFF'].copy()
+    # ── 465 dFF ───────────────────────────────────────────────────────────────
+    raw_dff_values   = dff_df['dFF'].copy().values                   
+    filtered_dff     = _transient_safe_highpass(dff_df.copy(), 'dFF')
+    dff_df['dFF']    = filtered_dff
+    plot_highpass_filter_results(time, raw_dff_values, filtered_dff, cutoff_freq)
 
-        filtered_560_dff = highpass_filter_with_padding(
-            dff_560, sr, cutoff=cutoff_freq, order=1, pad_seconds=50)
-        
-        dff_df['560 dFF'] = filtered_560_dff
-        plot_highpass_filter_results(time, dff_560, filtered_560_dff, cutoff_freq, title='560 dF/F')
-            
+    # ── 560 dFF (optional) ────────────────────────────────────────────────────
+    if dualcolor:
+        raw_560_values    = dff_df['560 dFF'].copy().values         
+        filtered_560      = _transient_safe_highpass(dff_df.copy(), '560 dFF')
+        dff_df['560 dFF'] = filtered_560
+        plot_highpass_filter_results(time, raw_560_values, filtered_560, cutoff_freq, title='560 dF/F')
+
     return dff_df
 
 def exp_func(t, A, tau, C):

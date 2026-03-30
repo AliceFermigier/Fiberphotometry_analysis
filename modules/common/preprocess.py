@@ -310,7 +310,7 @@ def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = Tru
         if apply_median_filter == True:
 
             # find best window from 465 nm and filter
-            result_df, best_win_s, _ = mf.iterative_median_filter(data_df, '465 Deinterleaved')
+            result_df, best_win_s, _ = mf.iterative_median_filter(data_df, '465 Deinterleaved',verbose=True)
             filtered_465 = result_df['465 Deinterleaved']
             # filter 405 nm with the same window
             filtered_405 = mf.median_filter_dff(data_df, '405 Deinterleaved', best_win_s)['405 Deinterleaved']
