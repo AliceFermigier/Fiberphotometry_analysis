@@ -384,81 +384,130 @@ def interpolate_dFFdata(data_df, method='linear'):
         
     return data_df
 
-def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False):
+def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False, apply_median_filter=True):
+    """
+    Calculates dFF for dual-color fiber photometry (465nm + 560nm).
 
+    Parameters
+    ----------
+    data_df : pd.DataFrame
+        Must contain 'Time(s)', '405 Deinterleaved', '465 Deinterleaved', '560 Deinterleaved'.
+    artifacts_df : pd.DataFrame
+        Artifact information.
+    filecode : str
+        Unique file identifier.
+    fitted560 : bool
+        If True, fit 560nm against 405nm isosbestic.
+        If False, normalize 560nm on its own mean.
+    apply_median_filter : bool
+        If True, apply iterative hybrid median filter before fitting to suppress
+        transient contamination of the isosbestic fit.
+    """
+
+    # ── Optional median filtering ─────────────────────────────────────────────
+    if apply_median_filter:
+        # Find best window from 465nm
+        result_df, best_win_s, _ = mf.iterative_median_filter(
+            data_df, '465 Deinterleaved', verbose=True)
+        filtered_465 = result_df['465 Deinterleaved']
+
+        # Filter 405nm with the same window
+        filtered_405 = mf.median_filter_dff(
+            data_df, '405 Deinterleaved', best_win_s)['405 Deinterleaved']
+
+        filtered_data_df = pd.DataFrame({
+            'Time(s)'           : data_df['Time(s)'].values,
+            '405 Deinterleaved' : filtered_405.values,
+            '465 Deinterleaved' : filtered_465.values,
+        })
+
+        if fitted560:
+            # Filter 560nm with the same window
+            filtered_560 = mf.median_filter_dff(
+                data_df, '560 Deinterleaved', best_win_s)['560 Deinterleaved']
+            filtered_data_df['560 Deinterleaved'] = filtered_560.values
+    else:
+        filtered_data_df = data_df.copy()
+
+    # ── fitted560 branch ──────────────────────────────────────────────────────
     if fitted560:
         dFFdata = np.full([6, len(data_df)], np.nan)
+
         if filecode in artifacts_df['Filecode'].values:
-            artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
+            artifact_intervals = artifacts_df.loc[
+                artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '465 Deinterleaved')
+            dFFdata[0] = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
+                                          '465 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            dFFdata[2] = remove_artifacts(data_df, artifact_intervals, '560 Deinterleaved')
+            dFFdata[2] = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
+                                          '560 Deinterleaved', method='fit')
             dFFdata[3] = data_df['560 Deinterleaved'].to_numpy()
         else:
-            dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
+            dFFdata[0] = linearfit_sklearn(
+                data_df['405 Deinterleaved'],      data_df['465 Deinterleaved'],
+                filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'])
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            dFFdata[2] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['560 Deinterleaved'])
+            dFFdata[2] = linearfit_sklearn(
+                data_df['405 Deinterleaved'],      data_df['560 Deinterleaved'],
+                filtered_data_df['405 Deinterleaved'], filtered_data_df['560 Deinterleaved'])
             dFFdata[3] = data_df['560 Deinterleaved'].to_numpy()
 
-        # Calculate Denoised dFF
         dFFdata[4] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
         dFFdata[5] = ((dFFdata[3] - dFFdata[2]) / dFFdata[2]) * 100
 
-        # Replace first and last 10 frames with 1st quartile 
-        # to remove high artifacts at the very beginning and end of recording
-        q1_465 = np.nanpercentile(dFFdata[4], 25)
-        dFFdata[4][:10]  = q1_465
-        dFFdata[4][-10:] = q1_465
-
-        q1_560 = np.nanpercentile(dFFdata[5], 25)
-        dFFdata[5][:10]  = q1_560
-        dFFdata[5][-10:] = q1_560
+        for row, label in [(4, '465'), (5, '560')]:
+            q1 = np.nanpercentile(dFFdata[row], 25)
+            dFFdata[row][:10]  = q1
+            dFFdata[row][-10:] = q1
 
         dFFdata_df = pd.DataFrame({
-            'Time(s)': data_df['Time(s)'],
-            '405 Fitted': dFFdata[0],
-            '465 Fitted': dFFdata[1],
-            'dFF': dFFdata[4],
+            'Time(s)'      : data_df['Time(s)'],
+            '405 Fitted'   : dFFdata[0],
+            '465 Fitted'   : dFFdata[1],
+            'dFF'          : dFFdata[4],
             '405 Fitted 560': dFFdata[2],
-            '560 Fitted' : dFFdata[3],
-            '560 dFF': dFFdata[5]
+            '560 Fitted'   : dFFdata[3],
+            '560 dFF'      : dFFdata[5],
         })
-    
+
+    # ── unfitted560 branch ────────────────────────────────────────────────────
     else:
         dFFdata = np.full([4, len(data_df)], np.nan)
+
         if filecode in artifacts_df['Filecode'].values:
-            artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
+            artifact_intervals = artifacts_df.loc[
+                artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts(data_df, artifact_intervals, '405 Deinterleaved', method='fit')
+            dFFdata[0] = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
+                                          '465 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            dFFdata[2] = remove_artifacts(data_df, artifact_intervals, '560 Deinterleaved', method='mean')
+            dFFdata[2] = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
+                                          '560 Deinterleaved', method='mean')
         else:
-            dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'])
+            # 465: fit isosbestic (median-filtered if requested)
+            dFFdata[0] = linearfit_sklearn(
+                data_df['405 Deinterleaved'],          data_df['465 Deinterleaved'],
+                filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'])
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            # normalize 560dFF on its own mean
+            # 560: normalize on its own mean (no fitting, median filter not applied)
             mean_fluorescence_560 = np.nanmean(data_df['560 Deinterleaved'][10:-10])
-            dFFdata[2] = ((data_df['560 Deinterleaved'] - mean_fluorescence_560) / mean_fluorescence_560) * 100
+            dFFdata[2] = ((data_df['560 Deinterleaved'] - mean_fluorescence_560)
+                          / mean_fluorescence_560) * 100
 
-        # Calculate Denoised dFF
         dFFdata[3] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
-        
-        # Replace first and last 10 frames with 1st quartile
-        # to remove high artifacts at the very beginning and end of recording
-        q1_465 = np.nanpercentile(dFFdata[3], 25)
-        dFFdata[3][:10]  = q1_465
-        dFFdata[3][-10:] = q1_465
 
-        q1_560 = np.nanpercentile(dFFdata[2], 25)
-        dFFdata[2][:10]  = q1_560
-        dFFdata[2][-10:] = q1_560
+        for row in [3, 2]:
+            q1 = np.nanpercentile(dFFdata[row], 25)
+            dFFdata[row][:10]  = q1
+            dFFdata[row][-10:] = q1
 
         dFFdata_df = pd.DataFrame({
-            'Time(s)': data_df['Time(s)'],
-            '405 Fitted': dFFdata[0],
-            '465 Fitted': dFFdata[1],
-            '560 dFF': dFFdata[2],
-            'dFF': dFFdata[3]
+            'Time(s)'    : data_df['Time(s)'],
+            '405 Fitted' : dFFdata[0],
+            '465 Fitted' : dFFdata[1],
+            '560 dFF'    : dFFdata[2],
+            'dFF'        : dFFdata[3],
         })
 
     return dFFdata_df
