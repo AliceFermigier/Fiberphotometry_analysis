@@ -182,7 +182,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     if dlc_data:
         try:
             print('Get DLC data')
-            coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.85)
+            coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.6)
             coordinates_df = cp.align_camera_flashes(coordinates_df, frame_times_df)
         except Exception as e:
             print(f'[!] DLC file error for {mouse}: {e}')
@@ -196,7 +196,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         print('Cleaning licking data')
         ports = json.load(open(output_json, "r"))
         scale_and_coords = json.load(open(arena_json, "r"))
-        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, scale_and_coords, lick_col="Licks", lick_radius_cm=0.8)
+        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, scale_and_coords, lick_col="Licks", lick_radius_cm=1.0)
 
         # Scoring nose-in-airport time. Radius in cm.
         fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, scale_and_coords, radius_cm=3.0)
