@@ -111,11 +111,12 @@ def time_mapping(ttl_sync_df, led_df):
 
     return slope, intercept
 
-def correct_behav_timestamps(behaviour_timestamps_df, slope, intercept, time_col='Time(s)'):
+def correct_behav_timestamps(behaviour_timestamps_df, slope, intercept, time_col='Time(s)', verbose=False):
     behaviour_timestamps_df = behaviour_timestamps_df.copy()
     behaviour_timestamps_df[time_col] = (behaviour_timestamps_df[time_col] - intercept) / slope
     time = behaviour_timestamps_df[time_col].values
-    print(f'Behavioural timestamps between {time[0]} and {time[-1]}')
+    if verbose==True and len(time)>=1:
+        print(f'Behavioural timestamps between {time[0]} and {time[-1]}')
     return behaviour_timestamps_df
 
 def align_behav_timestamps(fiberpho_df, behaviour_timestamps_df, behavior_col, time_col='Time(s)'):    

@@ -165,43 +165,40 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     gc.collect()
     return img, size
 
-def get_video_time(video_path, file_path, csv_path = None, automated_alignment=False, bonsai_setup=True, time_gap=None):
-    '''
-    Get timestamps of video frames, in seconds
-    '''
+def get_video_time(video_path, file_path, csv_path=None, automated_alignment=False, 
+                   bonsai_setup=True, slope=1.0, intercept=0.0):
     print("🔍 Checking video path:", video_path)
     if not os.path.exists(video_path):
         print(f"❌ Video path does not exist: {video_path}")
-        return None, None
-    
+        return None
+
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         print(f"❌ Failed to open video: {video_path}")
-        return None, None
-    
+        return None
+
     n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     print(f'{n_frames} frames to process')
     cap.release()
 
-    if bonsai_setup :
+    if bonsai_setup:
         camera_df = cp.get_timestamps_from_bonsai_csv(csv_path)
-        camera_df = cp.correct_behav_timestamps(camera_df, time_gap)
         camera_times = camera_df['Time(s)'].values
-
     elif automated_alignment:
         camera_df = cp.get_camera_flashes_from_csv(csv_path)
         camera_times = camera_df['Time(s)'].values
-
-    else :
+    else:
         camera_df = cp.get_camera_flashes(file_path)
         camera_times = camera_df['Time(s)'].values
 
-    # camera_times is expected to be a list or array of camera flash timestamps (length == n_frames)
-    # If not the same length, interpolate linearly
-    if len(camera_times) != n_frames:
-        video_time = np.linspace(camera_times[0], camera_times[-1], n_frames)
+    # Convert Bonsai timestamps → Doric time using inverse linear mapping
+    camera_times_doric = (camera_times - intercept) / slope
+
+    # If length mismatch, interpolate
+    if len(camera_times_doric) != n_frames:
+        video_time = np.linspace(camera_times_doric[0], camera_times_doric[-1], n_frames)
     else:
-        video_time = np.array(camera_times)
+        video_time = camera_times_doric
 
     return video_time
 
@@ -537,34 +534,40 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 #%%
 
 if __name__ == "__main__":
-    batch = 2
-    for mouse in ['1009']:
-        print(f"{mouse}")
-        exp='Reward_Airpuffs'
-        behavior = "Airpuffs"
-        exp_path='F:\202602_FiberMEC-GRABACh-FlexRGECO\Data\20260220_RewardAirpuff'
-        video_name = f'{mouse}.avi'
+        ##### TO BE CHANGED #####
+    batch = 1
+    for mouse in ['895','898','921','925','927']:    
+        exp='Reward_Hab1'
+        behavior = "Licks_filtered"
+        data_path = Path(r'F:\202601_FiberGCaMP\Data\20260121_RewardHab')
+        analysis_path = Path(r'F:\202601_FiberGCaMP\Analysis\Reward_Hab1\length0_interbout2_o4fNone')
+        #########################
 
-        pp_path = exp_path / 'Preprocessing'
-        analysis_path = Path(r'F:\202510_FiberMEC\Analysis') / f'{exp}' / 'length0_interbout1_o4fNone'
-        video_path = exp_path / 'Behaviour' / f'{video_name}'
-        raw_file_path = exp_path / f'{mouse}_0000.doric'
-        deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved_cleaned.csv'
+        video_name = f'{mouse}.avi'
+        pp_path = data_path / 'Preprocessing'
+        video_path = data_path / 'Behaviour' / f'{video_name}'
+        raw_doric_path = data_path / f'{mouse}_0000.doric'
         fiberbehav_df = pd.read_csv(analysis_path / f'{batch}_{mouse}_fiberbehavnotderived.csv')
         output_path = analysis_path / f'Videos_{behavior}/{batch}_{mouse}' / f'{video_name[:-4]}_combined'
-        camera_csv_path = exp_path / f'camera_flashes_{mouse}.csv'
-        led_flashes_path = exp_path / f'miniscope_sync_{mouse}.csv'
+        camera_csv_path = data_path / f'camera_flashes_{mouse}.csv'
+        led_flashes_path = data_path / f'miniscope_sync_{mouse}.csv'
 
-        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
-        deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-        time_gap = cp.time_gap(deinterleaved_df, led_df)
+
+        print(f"{mouse}")
+        # Extract sync channel from Doric raw data and Bonsai corresponding sync data
+        ttl_sync_df = cp.extract_sync_channel(raw_doric_path, sync_channel = "DIO04")
+        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) 
+        # Compute linear regression to correct for differences between clocks
+        print(f"Syncing Doric and Bonsai clocks")
+        slope, intercept = cp.time_mapping(ttl_sync_df, led_df)
 
         video_time = get_video_time(video_path,
-                                    raw_file_path,
+                                    raw_doric_path,
                                     csv_path=camera_csv_path,
                                     automated_alignment=False, 
                                     bonsai_setup=True,
-                                    time_gap=time_gap)
+                                    slope=slope,
+                                    intercept=intercept)
         
         # Drop frames with no corresponding fiber signal
         fiber_start_time = fiberbehav_df['Time(s)'].iloc[0]

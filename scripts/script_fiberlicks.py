@@ -55,15 +55,15 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = 5 #in Hz
+CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 5
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'RewardAirpuff2'
-list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport', 'Airpuffs']
+exp = 'Reward_Hab1'
+list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
@@ -121,7 +121,7 @@ print(f'EXPERIMENT : {exp}')
 print('###################')
 
 dlc_data = True
-dual_color = True
+dual_color = False
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
@@ -182,7 +182,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     if dlc_data:
         try:
             print('Get DLC data')
-            coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.85)
+            coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.6)
             coordinates_df = cp.align_camera_flashes(coordinates_df, frame_times_df)
         except Exception as e:
             print(f'[!] DLC file error for {mouse}: {e}')
@@ -196,7 +196,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         print('Cleaning licking data')
         ports = json.load(open(output_json, "r"))
         scale_and_coords = json.load(open(arena_json, "r"))
-        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, scale_and_coords, lick_col="Licks", lick_radius_cm=0.5)
+        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, scale_and_coords, lick_col="Licks", lick_radius_cm=1.0)
 
         # Scoring nose-in-airport time. Radius in cm.
         fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, scale_and_coords, radius_cm=3.0)

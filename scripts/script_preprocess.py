@@ -47,7 +47,7 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'EPM'
+exp = 'Reward_Hab1'
 dual_color = False
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
@@ -125,8 +125,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = '1001'
-batch = 4
+mouse = '913'
+batch = 1
 filecode = f'{exp}_{mouse}'
 #------------------#
 
@@ -265,11 +265,6 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         elif correct_photobleach_method == 'exponential':
             #exponential detrend to remove slow oscillations
             filtered_dFFdata_df = cs.exponential_detrend(interpdFFdata_df, dual_color)
-            
-        # Z-score filtered dFF for specific use (z-scored data is stored in a specific 'Z-scored dFF' column)
-        filtered_dFFdata_df = pp.zscore_dFF(filtered_dFFdata_df)
-        if dual_color:
-            filtered_dFFdata_df = pp.zscore_dFF(filtered_dFFdata_df, column_name='560 dFF')
 
         # Save output to csv
         filtered_dFFdata_df.to_csv(pp_path/f'{mouse}_dFF_corrected.csv')
