@@ -62,7 +62,7 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -274,7 +274,7 @@ y_list       = []
 dFF_list     = []
 
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
-    print(f"--- {mouse} {batch} {group}---")
+    print(f"--- {mouse} {batch} {group} ---")
     dfiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
     if not dfiberbehav_file.exists():
         print(f"  File not found, skipping.")
@@ -287,9 +287,13 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     y_list.append(dfiberbehav_df[f'{bodypart}_y'].values)
     dFF_list.append(dfiberbehav_df['dFF'].values)
 
+print('Colllected data:')
+print(f'Subjects:{subject_list}')
+print(f'Groups:{group_list}')
 
 # ── Grouped heatmap plotting ──────────────────────────────────────────────────
 for group in included_groups:
+    print(f'Group:{group}')
     group_indices = [i for i, g in enumerate(group_list) if g == group]
     if not group_indices:
         print(f"No subjects found for group: {group}")

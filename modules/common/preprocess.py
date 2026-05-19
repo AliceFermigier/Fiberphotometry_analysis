@@ -532,6 +532,7 @@ def downsample(rawdata_df, target_frequency=20):
     # We use median diff to be robust against occasional dropped frames
     dt = np.median(np.diff(rawdata_df['Time(s)'].values))
     current_fs = 1.0 / dt
+    print('Downsampling data')
     print(f'Current frequency : {current_fs}Hz. Target frequency : {target_frequency}Hz')
 
     # 2. Calculate integer downsampling factor (q)

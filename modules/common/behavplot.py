@@ -151,116 +151,109 @@ def derive(fiberbehav_df, list_BOI):
     Calculate the derivative of behaviors of interest and store in the same DataFrame.
     The result will show 1 when behavior starts and -1 when it stops.
     """
+    derived_df = fiberbehav_df.copy()  
     for col in list_BOI:
         # Ensure values are only 0 or 1
-        fiberbehav_df[col] = fiberbehav_df[col].apply(lambda x: 1 if x == 1 else 0)
+        derived_df[col] = derived_df[col].apply(lambda x: 1 if x == 1 else 0)
         
         # Compute difference to detect transitions
-        fiberbehav_df[col] = fiberbehav_df[col].diff().fillna(0)
+        derived_df[col] = derived_df[col].diff().fillna(0)
 
-    return fiberbehav_df
+    return derived_df
 
 def highlight_behavior_areas(ax, df, behavior_name, facecolor='grey', alpha=0.3, label_prefix=''):
-    """
-    Highlights areas on a plot corresponding to specific behavioral periods.
-    
-    Parameters:
-    - ax: The matplotlib axis where the highlight will be drawn.
-    - df: The DataFrame containing the behavior columns and time.
-    - behavior_name: The name of the behavior column in the DataFrame.
-    - facecolor: The color to use for the highlight.
-    - alpha: The transparency level for the highlight.
-    - label_prefix: A string prefix to make labels unique (to avoid duplicate legend entries).
-    """
     i = 0
-    x_start = 0
-    for (x, y) in zip(df['Time(s)'].tolist(), df[behavior_name].tolist()):
+    x_start = None
+    ones  = (df[behavior_name] == 1).sum()
+    minus = (df[behavior_name] == -1).sum()
+    print(f"  highlight_behavior_areas: {behavior_name} → {ones} starts, {minus} ends")  # ← debug
+    for x, y in zip(df['Time(s)'].tolist(), df[behavior_name].tolist()):
         if y == 1:
             x_start = x
-        if y == -1 and x_start != 0:
-            ax.axvspan(x_start, x, facecolor=facecolor, alpha=alpha, label='_' * i + label_prefix + behavior_name)
-            x_start = 0
+        if y == -1 and x_start is not None:
+            ax.axvspan(x_start, x, facecolor=facecolor, alpha=alpha,
+                       label='_' * i + label_prefix + behavior_name)
+            x_start = None
             i += 1
+    print(f"  → {i} spans drawn") 
 
 def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_TIME_THRESHOLD, batch, scaled=True):
-    """
-    Plots denoised deltaF/F aligned with behaviour (includes baseline). Adds Speed subplot only if present.
-    """
     behavprocesssnip_df = behavprocess_df.dropna()
     has_speed = 'Speed' in behavprocesssnip_df.columns
-    has_560 = '560 dFF' in behavprocesssnip_df.columns
+    has_560   = '560 dFF' in behavprocesssnip_df.columns
 
+    # ── 1. Create ALL axes upfront ───────────────────────────────────────────
     if has_speed and has_560:
         print('Plotting 465 dFF, 560 dFF and speed')
-        fig = plt.figure(figsize=(20, 15))
-        ax1 = fig.add_subplot(311)
-    
-    elif has_560:
-        print('Plotting 465 dFF and 560 dFF')
-        fig = plt.figure(figsize=(20, 10))
-        ax1 = fig.add_subplot(211)
-    
-    elif has_speed:
-        print('Plotting 465 dFF and speed')
-        fig = plt.figure(figsize=(20, 10))
-        ax1 = fig.add_subplot(211)
-
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 15))
+    elif has_560 or has_speed:
+        nrows = 2
+        label = '465 dFF and ' + ('560 dFF' if has_560 else 'speed')
+        print(f'Plotting {label}')
+        fig, (ax1, ax2) = plt.subplots(nrows, 1, figsize=(20, 10))
+        ax3 = None
     else:
         print('Plotting 465 dFF')
-        fig = plt.figure(figsize=(20, 5))
-        ax1 = fig.add_subplot(111)       
+        fig, ax1 = plt.subplots(1, 1, figsize=(20, 5))
+        ax2 = ax3 = None
 
-    # Plot dFF trace
-    ax1.plot('Time(s)', 'dFF', linewidth=1, color='black', label='465 dFF', data=behavprocesssnip_df)
-    
+    # ── 2. Plot traces ───────────────────────────────────────────────────────
+    ax1.plot('Time(s)', 'dFF', linewidth=1, color='black', label='465 dFF',
+             data=behavprocesssnip_df)
+
+    if has_560:
+        ax2.plot('Time(s)', '560 dFF', linewidth=1, color='black', label='560 dFF',
+                 data=behavprocesssnip_df)
+
+    speed_ax = None
     if has_speed and has_560:
-        ax2 = fig.add_subplot(312)
-        ax2.plot('Time(s)', '560 dFF', linewidth=1, color='black', label='560 dFF', data=behavprocesssnip_df)
-    
-    elif has_560:
-        ax2 = fig.add_subplot(212)
-        ax2.plot('Time(s)', '560 dFF', linewidth=1, color='black', label='560 dFF', data=behavprocesssnip_df)
+        speed_ax = ax3
+    elif has_speed:
+        speed_ax = ax2
+    if speed_ax is not None:
+        speed_ax.plot('Time(s)', 'Speed', linewidth=1, color='black', label='Speed',
+                      data=behavprocesssnip_df)
 
-    # Highlight behaviors
+    # ── 3. Highlight behaviors on ALL axes ───────────────────────────────────
     behavior_colors_path = Path(project_root) / "modules/behaviour/behaviour_colors.json"
     with open(behavior_colors_path, "r") as f:
         behaviors_to_plot = json.load(f)
-    
+
+    all_axes = [ax for ax in [ax1, ax2, ax3] if ax is not None]
+
     for behavior in list_BOI:
         if behavior in behavprocesssnip_df.columns:
-            color, alpha = behaviors_to_plot.get(behavior, ('grey',0.05))
-            highlight_behavior_areas(ax1, behavprocesssnip_df, behavior, color, alpha)
+            color, alpha = behaviors_to_plot.get(behavior, ('grey', 0.05))
+            for ax in all_axes:
+                highlight_behavior_areas(ax, behavprocesssnip_df, behavior, color, alpha)
         else:
             print(f'{behavior} not found in data')
-            if (has_speed and has_560) or has_560:
-                highlight_behavior_areas(ax2, behavprocesssnip_df, behavior, color, alpha)
 
-    # Add event lines
-    for event, color, label in [('Gate opens', 'lightsteelblue', 'Gate opens'),
-                                ('Entry in arena', 'slategrey', 'Entry in arena'),
-                                ('Airpuffs', 'lime', 'Airpuffs')]:
+    # ── 4. Event lines on ax1 ────────────────────────────────────────────────
+    for event, color, label in [('Gate opens',     'lightsteelblue', 'Gate opens'),
+                                 ('Entry in arena', 'slategrey',      'Entry in arena'),
+                                 ('Airpuffs',       'lime',           'Airpuffs')]:
         if event in list_BOI and event in behavprocesssnip_df.columns:
             event_indices = np.where(behavprocess_df[event] == 1)[0]
-            if len(event_indices) > 0:
-                for i, event_index in enumerate(event_indices):
-                    x = behavprocess_df.at[event_index, 'Time(s)']
-                    ax1.axvline(x, color=color, ls='--', label='_'*i + label)
+            for i, idx in enumerate(event_indices):
+                x = behavprocess_df.at[idx, 'Time(s)']
+                ax1.axvline(x, color=color, ls='--', label='_' * i + label)
 
-    # Labels and formatting
+    # ── 5. Formatting ────────────────────────────────────────────────────────
     fs_mult = 4
     ax1.set_ylabel(r'$\Delta$F/F', fontsize=5 * fs_mult)
     ax1.set_xlabel('Time(s)', fontsize=5 * fs_mult)
-    ax1.set_title(f'dFF with Behavioural Scoring - {exp} {mouse} {batch} - interbout {THRESH_S} - cut {EVENT_TIME_THRESHOLD}',
-                  fontsize=5 * fs_mult)
+    ax1.set_title(
+        f'dFF with Behavioural Scoring - {exp} {mouse} {batch}'
+        f' - interbout {THRESH_S} - cut {EVENT_TIME_THRESHOLD}',
+        fontsize=5 * fs_mult)
     ax1.tick_params(axis='both', labelsize=4 * fs_mult)
     ax1.legend(loc='upper right', fontsize=4 * fs_mult)
     ax1.margins(0, 0.2)
     if scaled:
         ax1.set_ylim([-0.27, 0.75])
-    
-    if (has_speed and has_560) or has_560:
-    # Labels and formatting
-        fs_mult = 4
+
+    if has_560 and ax2 is not None:
         ax2.set_ylabel(r'$\Delta$F/F', fontsize=5 * fs_mult)
         ax2.set_xlabel('Time(s)', fontsize=5 * fs_mult)
         ax2.tick_params(axis='both', labelsize=4 * fs_mult)
@@ -269,25 +262,14 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         if scaled:
             ax2.set_ylim([-0.27, 0.75])
 
-    # Plot speed if available
-    if has_speed and has_560:
-        ax3 = fig.add_subplot(313)
-        ax3.plot('Time(s)', 'Speed', linewidth=1, color='black', label='Speed', data=behavprocesssnip_df)
-        ax3.set_ylabel('Speed (cm/s)', fontsize=5 * fs_mult)
-        ax3.set_xlabel('Time(s)', fontsize=5 * fs_mult)
-        ax3.tick_params(axis='both', labelsize=4 * fs_mult)
-        ax3.margins(0, 0.2)
+    if speed_ax is not None:
+        speed_ax.set_ylabel('Speed (cm/s)', fontsize=5 * fs_mult)
+        speed_ax.set_xlabel('Time(s)', fontsize=5 * fs_mult)
+        speed_ax.tick_params(axis='both', labelsize=4 * fs_mult)
+        speed_ax.legend(loc='upper right', fontsize=4 * fs_mult)
+        speed_ax.margins(0, 0.2)
         if scaled:
-            ax3.set_ylim([-1, 50])
-    elif has_speed:
-        ax2 = fig.add_subplot(212)
-        ax2.plot('Time(s)', 'Speed', linewidth=1, color='black', label='Speed', data=behavprocesssnip_df)
-        ax2.set_ylabel('Speed (cm/s)', fontsize=5 * fs_mult)
-        ax2.set_xlabel('Time(s)', fontsize=5 * fs_mult)
-        ax2.tick_params(axis='both', labelsize=4 * fs_mult)
-        ax2.margins(0, 0.2)
-        if scaled:
-            ax2.set_ylim([-1, 50])
+            speed_ax.set_ylim([-1, 50])
 
     plt.tight_layout()
     return fig
