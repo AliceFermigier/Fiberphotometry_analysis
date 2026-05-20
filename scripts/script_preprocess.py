@@ -45,7 +45,7 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'EPM'
+exp = 'RewardHab'
 dual_color = True
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
@@ -123,20 +123,21 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = '992'
+mouse = '994'
 batch = 1
 filecode = f'{exp}_{mouse}'
-#------------------#
+#------------------# 
 
 # in excel 'Filecode', put '{exp}_{mouse}'
 pp_path = datapath_exp_dict[batch] / 'Preprocessing'
 deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_deinterleaved.csv')
+downsampled_df = pp.downsample(deinterleaved_df, target_frequency=40)
 
 # Create the Dash app
 app = Dash(__name__)
 
 # Create the figure
-fig = px.line(deinterleaved_df[TIME_BEGIN:], x='Time(s)', y='405 Deinterleaved')
+fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='405 Deinterleaved')
 
 # App layout
 app.layout = html.Div([
@@ -245,7 +246,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         
         # calculate dFF with artifacts removal, then interpolate missing data
         if dual_color:
-            dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=False, apply_median_filter=True)
+            dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=True, apply_median_filter=True)
         else:
             dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method,apply_median_filter=True)
             _, _, median_fig = mf.iterative_median_filter(cleaned_df, '465 Deinterleaved')

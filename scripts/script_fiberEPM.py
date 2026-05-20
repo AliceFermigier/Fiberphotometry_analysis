@@ -262,7 +262,7 @@ print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 
 ###### TO SET ######
 bodypart = 'center'
-use_zscore = True
+use_zscore = False
 
 # ── Data collection ───────────────────────────────────────────────────────────
 subjects_df['Group'] = subjects_df['Group'].fillna('')
@@ -272,6 +272,7 @@ group_list   = []
 x_list       = []
 y_list       = []
 dFF_list     = []
+dFF_560_list = []
 
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
     print(f"--- {mouse} {batch} {group} ---")
@@ -286,6 +287,10 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     x_list.append(dfiberbehav_df[f'{bodypart}_x'].values)
     y_list.append(dfiberbehav_df[f'{bodypart}_y'].values)
     dFF_list.append(dfiberbehav_df['dFF'].values)
+    dFF_560_list.append(                                           
+        dfiberbehav_df['560 dFF'].values
+        if '560 dFF' in dfiberbehav_df.columns else None)    
+    has_dual = any(d is not None for d in dFF_560_list)
 
 print('Colllected data:')
 print(f'Subjects:{subject_list}')
@@ -293,26 +298,45 @@ print(f'Groups:{group_list}')
 
 # ── Grouped heatmap plotting ──────────────────────────────────────────────────
 for group in included_groups:
-    print(f'Group:{group}')
     group_indices = [i for i, g in enumerate(group_list) if g == group]
     if not group_indices:
-        print(f"No subjects found for group: {group}")
         continue
 
-    fig = epm.plot_epm_dff_heatmap_grouped(
-        x_list         = [x_list[i]   for i in group_indices],
-        y_list         = [y_list[i]   for i in group_indices],
-        dFF_list       = [dFF_list[i] for i in group_indices],
-        subject_list   = [subject_list[i] for i in group_indices],
+    shared_kwargs = dict(
         epm_coordinates = arena_coordinates,
-        group          = group,
-        bodypart       = bodypart,
-        bins           = (50, 50),
-        show_individual= False,   # set False for group average only
-        use_zscore = use_zscore,
-        save_dir       = repo_path / 'dFF_heatmaps_grouped',
+        group           = group,
+        bodypart        = bodypart,
+        bins            = (50, 50),
+        show_individual = False,
+        use_zscore      = use_zscore,
+        save_dir        = repo_path / 'dFF_heatmaps_grouped',
+    )
+
+    # 465 nm — always
+    fig_465 = epm.plot_epm_dff_heatmap_grouped(
+        x_list       = [x_list[i]   for i in group_indices],
+        y_list       = [y_list[i]   for i in group_indices],
+        dFF_list     = [dFF_list[i] for i in group_indices],
+        subject_list = [subject_list[i] for i in group_indices],
+        signal_name  = '465nm',
+        **shared_kwargs,
     )
     plt.show()
+
+    # 560 nm — only for subjects that have it
+    if has_dual:
+        valid = [(i, dFF_560_list[i]) for i in group_indices if dFF_560_list[i] is not None]
+        if valid:
+            idx_560, dffs_560 = zip(*valid)
+            fig_560 = epm.plot_epm_dff_heatmap_grouped(
+                x_list       = [x_list[i]   for i in idx_560],
+                y_list       = [y_list[i]   for i in idx_560],
+                dFF_list     = list(dffs_560),
+                subject_list = [subject_list[i] for i in idx_560],
+                signal_name  = '560nm',
+                **shared_kwargs,
+            )
+            plt.show()
 
 # %% 2.4 - Quantify dFF in open arm, closed arm and center. Plotting ang getting behavioural data.
 
@@ -368,7 +392,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             group         = group,
             zone_cols     = ['Closed arm', 'Open arm', 'Center'],
             behav_cols    = ['Head dipping'],
-            # Head dipping also counts toward Open arm
+            # Head dipping also counts as Open arm
             merge_into    = {'Head dipping': 'Open arm'},
             dff_col       = 'dFF',
             fps           = arena_scale['Video_fps'],

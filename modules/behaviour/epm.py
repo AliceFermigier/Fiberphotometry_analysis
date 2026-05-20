@@ -535,7 +535,8 @@ def plot_epm_dff_heatmap_grouped(x_list, y_list, dFF_list, subject_list,
                                   epm_coordinates, group, bodypart='nose',
                                   bins=(50, 50), show_individual=False,
                                   cmap='RdBu_r', vmin=None, vmax=None,
-                                  use_zscore=False,  
+                                  use_zscore=False,
+                                  signal_name='465nm',     
                                   save_dir=None, figsize=None):
     """
     Plot a group-averaged dFF spatial heatmap over EPM zones, with optional
@@ -568,6 +569,10 @@ def plot_epm_dff_heatmap_grouped(x_list, y_list, dFF_list, subject_list,
         Colormap (diverging recommended, e.g. 'RdBu_r').
     vmin, vmax : float, optional
         Shared color scale. If None, symmetric limits are derived from the data.
+    use_zscore : bool, optional
+        Says if data is zcored or not before plotting
+    signal_name : str, optional
+        Wavelength of led. Will appear in the plot title  
     save_dir : str or Path, optional
         Save directory for PNG / PDF output.
     figsize : tuple, optional
@@ -590,7 +595,7 @@ def plot_epm_dff_heatmap_grouped(x_list, y_list, dFF_list, subject_list,
             for dff in dFF_list
         ]
 
-    signal_label = 'Mean z-scored dFF' if use_zscore else 'Mean dFF'
+    signal_label = f'Mean {"z-scored " if use_zscore else ""}dFF ({signal_name})'
 
     # ── Arena limits ──────────────────────────────────────────────────────────
     c = epm_coordinates
@@ -673,7 +678,7 @@ def plot_epm_dff_heatmap_grouped(x_list, y_list, dFF_list, subject_list,
         fig.colorbar(im, ax=axes[:-1], fraction=0.02, pad=0.02, label=signal_label)
 
     plt.suptitle(
-        f'dFF Heatmap — {group} | {bodypart}',
+        f'dFF Heatmap — {group} | {bodypart} | {signal_name}',
         fontsize=13, fontweight='bold'
     )
     plt.tight_layout(rect=[0, 0, 1, 0.93])
@@ -687,7 +692,7 @@ def plot_epm_dff_heatmap_grouped(x_list, y_list, dFF_list, subject_list,
             tag = f'zscored_{tag}'
         if show_individual:
             tag = f'indiv_{tag}'
-        stem = f'{tag}_{bodypart}_dFF_heatmap'
+        stem = f'{tag}_{bodypart}_{signal_name}_dFF_heatmap' 
         fig.savefig(save_dir / f'{stem}.png', dpi=300, bbox_inches='tight')
         fig.savefig(save_dir / f'{stem}.pdf', bbox_inches='tight')
 
