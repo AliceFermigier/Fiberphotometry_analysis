@@ -18,7 +18,7 @@ from scipy import signal
 import warnings
 from ast import literal_eval
 import h5py
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, HuberRegressor
 
 import modules.common.nomenclature as nom
 import modules.common.median_filtering as mf
@@ -192,8 +192,55 @@ def update_artifacts_file(file_path, filecode, artifacts):
     df.to_excel(file_path, index=False)
     print(f"Updated Excel file at: {file_path}")
 
-def linearfit_sklearn(sig_405, sig_465, filt_405, filt_465, trim=[10, -10]):
-    model = LinearRegression()
+def linearfit_sklearn(sig_405, sig_465, filt_405, filt_465, trim=[10, -10], filtered_405=False, model_name = 'linear'):
+    '''
+    Fit the 405nm isosbestic signal to a target channel (465nm or 560nm) using
+    linear regression, and return the fitted baseline for dFF computation.
+
+    The model is always trained on trimmed, median-filtered signals to avoid
+    contamination from edge artifacts and transient events. Prediction can be
+    made on either the raw or the filtered 405nm signal (see `filtered_405`).
+    Prediction on filtered signal was added 
+
+    Parameters
+    ----------
+    sig_405 : array-like
+        Raw 405nm isosbestic signal.
+    sig_465 : array-like
+        Raw target signal (465nm or 560nm).
+    filt_405 : array-like
+        Median-filtered 405nm signal, used for model training.
+    filt_465 : array-like
+        Median-filtered target signal, used for model training.
+    trim : list of int, optional
+        [start, stop] indices used to trim both filtered signals before fitting,
+        removing edge artifacts. Default is [10, -10].
+    filtered_405 : bool, optional
+        If True, predict on filt_405 (smooth fitted baseline — recommended for
+        weak signals such as 560nm, where 405nm noise would otherwise dominate).
+        If False, predict on sig_405 (fitted baseline retains raw 405nm
+        noise — acceptable for 465nm where signal amplitude is large).
+        Default is False.
+    model_name : str, optional
+        Regression model to use:
+        - 'linear' : ordinary least-squares (sklearn LinearRegression).
+        - 'huber'  : robust Huber regression (sklearn HuberRegressor,
+                     epsilon=1.35), which down-weights large residuals and is
+                     less sensitive to remaining transients in the fitting window.
+        Default is 'linear'.
+
+    Returns
+    -------
+    fitted_405 : np.ndarray
+        Fitted baseline at the scale of the target signal, same length as
+        sig_405. Subtract from the raw target signal to isolate dFF:
+        dFF = (target - fitted_405) / fitted_405 * 100.
+    '''
+
+    if model_name == 'linear':
+        model = LinearRegression()
+    elif model_name == 'huber':
+        model = HuberRegressor(epsilon=1.35, max_iter=300)
 
     # Convert all inputs to numpy
     if not isinstance(sig_405,  np.ndarray): sig_405  = sig_405.to_numpy()
@@ -204,11 +251,15 @@ def linearfit_sklearn(sig_405, sig_465, filt_405, filt_465, trim=[10, -10]):
     # Fit on trimmed filtered signals, predict on full raw signal
     model.fit(filt_405[trim[0]:trim[1]].reshape(-1, 1),
               filt_465[trim[0]:trim[1]])
-    fitted_405 = model.predict(sig_405.reshape(-1, 1))
+    
+    if filtered_405:
+        fitted_405 = model.predict(filt_405.reshape(-1, 1))
+    else:
+        fitted_405 = model.predict(sig_405.reshape(-1, 1))
 
     return fitted_405
 
-def remove_artifacts(data_df, filtered_data_df, artifact_intervals, col, method='fit'):
+def remove_artifacts(data_df, filtered_data_df, artifact_intervals, col, method='fit', filtered_405=False):
     """
     Helper function to remove artifacts from a specific column of the data.
     
@@ -265,7 +316,8 @@ def remove_artifacts(data_df, filtered_data_df, artifact_intervals, col, method=
                                             data_df.iloc[begin+1:end][col].values,
                                             filtered_data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
                                             filtered_data_df.iloc[begin+1:end][col].values,
-                                            trim=trim)
+                                            trim=trim,
+                                            filtered_405=filtered_405)
                 if len(dFF_values) == len(dFF_segment[begin+1:end]):
                     dFF_segment[begin+1:end] = dFF_values
                 else:
@@ -441,7 +493,7 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False, apply_median
                                           '465 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
             dFFdata[2] = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
-                                          '560 Deinterleaved', method='fit')
+                                          '560 Deinterleaved', method='fit', filtered_405=True)
             dFFdata[3] = data_df['560 Deinterleaved'].to_numpy()
         else:
             dFFdata[0] = linearfit_sklearn(
@@ -450,7 +502,8 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False, apply_median
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
             dFFdata[2] = linearfit_sklearn(
                 data_df['405 Deinterleaved'],      data_df['560 Deinterleaved'],
-                filtered_data_df['405 Deinterleaved'], filtered_data_df['560 Deinterleaved'])
+                filtered_data_df['405 Deinterleaved'], filtered_data_df['560 Deinterleaved'],
+                filtered_405=True)
             dFFdata[3] = data_df['560 Deinterleaved'].to_numpy()
 
         dFFdata[4] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
