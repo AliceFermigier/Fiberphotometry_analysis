@@ -126,8 +126,8 @@ def plot_behavior_metrics(metrics_df, mouse, batch, bin_size, save_dir=None):
 
     # ---- Save ----
     if save_dir is not None:
-        png_path = save_dir / f"{batch}_{mouse}_behavior_metrics.png"
-        pdf_path = save_dir / f"{batch}_{mouse}_behavior_metrics.pdf"
+        png_path = save_dir / f"{batch}_{mouse}_behavior_metrics_binsize{bin_size}s.png"
+        pdf_path = save_dir / f"{batch}_{mouse}_behavior_metrics_binsize{bin_size}s.pdf"
         plt.savefig(png_path, dpi=300)
         plt.savefig(pdf_path)
         print(f"Saved behavioral metrics plot for {mouse} to:\n  {png_path}\n  {pdf_path}")

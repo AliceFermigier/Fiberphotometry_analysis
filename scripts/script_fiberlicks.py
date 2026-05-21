@@ -58,11 +58,11 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Reward_Hab1'
+exp = 'RewardHab'
 list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
@@ -196,7 +196,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         print('Cleaning licking data')
         ports = json.load(open(output_json, "r"))
         scale_and_coords = json.load(open(arena_json, "r"))
-        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, scale_and_coords, lick_col="Licks", lick_radius_cm=1.0)
+        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, scale_and_coords, lick_col="Licks", lick_radius_cm=2.0)
 
         # Scoring nose-in-airport time. Radius in cm.
         fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, scale_and_coords, radius_cm=3.0)
@@ -231,7 +231,7 @@ print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 
 #%% 2.3 - Plot behavioural metrics
 
-exp = 'RewardAirpuff2'
+exp = 'RewardHab'
 
 print('###################')
 print(f'EXPERIMENT : {exp}')
@@ -243,8 +243,7 @@ HEATMAP_BINS = (50, 50)  # x, y bins
 
 behaviors_to_plot = [
     "Licks_filtered",
-    "Nose_in_any_airport",
-    "Airpuffs"
+    "Nose_in_any_airport" 
 ]
 
 # Create repository path where data will be stored
@@ -257,7 +256,7 @@ behav_path_exp = data_path_exp / 'Behaviour'
 
 all_metrics = {}
 
-# Loop through each mouse in the subject DataFrame
+# Loop through each mouse in the subject DataFrame 
 for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print("-----------------------------") 
     print(f'BATCH : {batch}, MOUSE : {mouse}')
@@ -308,7 +307,7 @@ try:
     all_metrics_df = pd.concat(metrics_list, ignore_index=True)
 
     # Define output path
-    excel_path = behavioural_analysis_path / "behavioral_metrics.xlsx"
+    excel_path = behavioural_analysis_path / f"behavioral_metrics_binsize{BIN_SIZE}s.xlsx"
 
     # Export to Excel
     all_metrics_df.to_excel(excel_path, index=False)

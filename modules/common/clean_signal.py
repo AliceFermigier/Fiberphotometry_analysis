@@ -217,7 +217,7 @@ def remove_high_artifacts_dualcolor(rawdata_df):
     # --- Hampel Filter ---
     hampel_405, artifacts_405 = hampel_filter(data_405, window_size=10, n_sigmas=6)
     hampel_465, artifacts_465 = hampel_filter(data_465, window_size=10, n_sigmas=6)
-    hampel_560, artifacts_560 = hampel_filter(data_560, window_size=10, n_sigmas=6)
+    hampel_560, artifacts_560 = hampel_filter(data_560, window_size=10, n_sigmas=5)
 
     print(f"405 artifacts removed: {len(artifacts_405)}")
     print(f"465 artifacts removed: {len(artifacts_465)}")
