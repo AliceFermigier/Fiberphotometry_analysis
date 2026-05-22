@@ -325,10 +325,10 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     ports_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
     all_ports_px[mouse] = bm.load_ports_px(ports_json)
 
-ref_ports = bm.compute_reference_ports(all_ports_px)
+ref_ports = bm.compute_reference_ports(all_ports_px) 
 
 # ── Pass 2: transform coordinates, per-mouse plots, collect group data ────────
-all_metrics        = {}
+all_metrics        = {} 
 all_aligned_pos    = []
 all_dfs_group      = []
 all_arena_bounds   = []
@@ -351,7 +351,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     x_aligned, y_aligned = bm.apply_transform(
         fiberbehav_notderived_df['center_x'].values,
         fiberbehav_notderived_df['center_y'].values, M)
-
+ 
     all_aligned_pos.append((x_aligned, y_aligned))
     all_arena_bounds.append(bm.get_aligned_arena_bounds(arena_json, M))
     all_dfs_group.append(fiberbehav_notderived_df)
