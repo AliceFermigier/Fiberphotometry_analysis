@@ -237,7 +237,7 @@ print('###################')
 print(f'EXPERIMENT : {exp}')
 print('###################')
 
-BIN_SIZE = 1   # seconds
+BIN_SIZE = 60   # seconds
 N_TIME_BINS_HEATMAP = 3
 HEATMAP_BINS = (50, 50)  # x, y bins
 
@@ -317,4 +317,57 @@ try:
 except Exception as e:
     print(f"[!] Error while exporting behavioral metrics: {e}")
 
+#%% Plot grouped heatmap
+
+# ── Pass 1: collect port positions and compute shared reference ───────────────
+all_ports_px = {}
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    ports_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
+    all_ports_px[mouse] = bm.load_ports_px(ports_json)
+
+ref_ports = bm.compute_reference_ports(all_ports_px)
+
+# ── Pass 2: transform coordinates, per-mouse plots, collect group data ────────
+all_metrics        = {}
+all_aligned_pos    = []
+all_dfs_group      = []
+all_arena_bounds   = []
+
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    print("-----------------------------") 
+    print(f'BATCH : {batch}, MOUSE : {mouse}')
+    print("-----------------------------")
+
+    fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+    fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+    fiberbehav_notderived_df = pd.read_csv(fiberbehav_notderived_path)
+    fiberbehav_df = pd.read_csv(fiberbehav_path)
+    arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
+    ports_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
+
+    # Per-mouse affine transform anchored to port landmarks
+    M = bm.estimate_port_transform(all_ports_px[mouse], ref_ports)
+
+    x_aligned, y_aligned = bm.apply_transform(
+        fiberbehav_notderived_df['center_x'].values,
+        fiberbehav_notderived_df['center_y'].values, M)
+
+    all_aligned_pos.append((x_aligned, y_aligned))
+    all_arena_bounds.append(bm.get_aligned_arena_bounds(arena_json, M))
+    all_dfs_group.append(fiberbehav_notderived_df)
+
+# Mean arena bounds across all mice → shared boundary for group plot
+shared_bounds = tuple(np.mean(all_arena_bounds, axis=0))
+
+group_fig_dir = behavioural_analysis_path / 'Figures' / 'Group'
+
+bm.plot_group_heatmap(
+    all_aligned_pos,
+    list(all_metrics.keys()),
+    ref_ports    = ref_ports,
+    arena_bounds = shared_bounds,
+    bins         = HEATMAP_BINS,
+    n_bins       = N_TIME_BINS_HEATMAP,
+    save_dir     = group_fig_dir,
+)
 # %%

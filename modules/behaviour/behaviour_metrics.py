@@ -32,6 +32,10 @@ def compute_behavior_metrics(df, bin_size):
                               lambda x: x.sum() * df["Time(s)"].diff().median())
     ).reset_index()
 
+    metrics["airpuffs_count_cumulative"]      = metrics["airpuffs_count"].cumsum()
+    metrics["licking_time_cumulative"]        = metrics["licking_time"].cumsum()
+    metrics["nose_in_airport_time_cumulative"]= metrics["nose_in_airport_time"].cumsum()
+
     return metrics
 
 def plot_behavior_raster(df, mouse, batch, behaviors, save_dir=None):
@@ -346,3 +350,159 @@ def extract_behav_summary(behav_df, mouse, batch, group,
         record['Mean speed (cm/s)']   = float('nan')
 
     return record
+
+def _arena_bounds(arena_json):
+    with open(arena_json) as f:
+        r = json.load(f)["Arena_rectangle_px"]
+    return r["x1"], r["y1"], r["x2"], r["y2"]
+
+def load_ports_px(ports_json):
+    """Load port positions as {name: np.array([x, y])}."""
+    with open(ports_json) as f:
+        ports = json.load(f)
+    return {name: np.array([pt["x"], pt["y"]]) for name, pt in ports.items()}
+
+def compute_reference_ports(all_ports_dict):
+    """
+    Compute reference port positions as the mean across all mice.
+    No single mouse is privileged; total distortion is minimised.
+
+    Parameters
+    ----------
+    all_ports_dict : dict {mouse: {port_name: np.array([x, y])}}
+    """
+    port_names = list(next(iter(all_ports_dict.values())).keys())
+    return {
+        name: np.mean(
+            [ports[name] for ports in all_ports_dict.values() if name in ports],
+            axis=0
+        )
+        for name in port_names
+    }
+
+def estimate_port_transform(src_ports, ref_ports):
+    """
+    Estimate the affine transform that maps src port positions to ref port positions.
+    With 3 ports the system is exactly determined; with more it is solved via least squares.
+
+    Parameters
+    ----------
+    src_ports, ref_ports : dict {name: np.array([x, y])}
+
+    Returns
+    -------
+    M : np.ndarray, shape (2, 3)
+        Affine matrix such that [x', y'] = M @ [x, y, 1].
+    """
+    common = [n for n in src_ports if n in ref_ports]
+    if len(common) < 2:
+        raise ValueError(f"Need ≥ 2 common ports, found {len(common)}: {common}")
+
+    src_pts = np.array([src_ports[n] for n in common])
+    ref_pts = np.array([ref_ports[n] for n in common])
+
+    N = len(src_pts)
+    A = np.zeros((2 * N, 6))
+    b = np.zeros(2 * N)
+    for i, ((x, y), (xr, yr)) in enumerate(zip(src_pts, ref_pts)):
+        A[2*i]   = [x, y, 1, 0, 0, 0]
+        A[2*i+1] = [0, 0, 0, x, y, 1]
+        b[2*i],  b[2*i+1] = xr, yr
+
+    params = np.linalg.lstsq(A, b, rcond=None)[0]
+    return params.reshape(2, 3)
+
+
+def apply_transform(x, y, M):
+    """Apply a 2×3 affine matrix to coordinate arrays x, y."""
+    pts = np.stack([np.asarray(x, float),
+                    np.asarray(y, float),
+                    np.ones(len(x))])
+    result = M @ pts
+    return result[0], result[1]
+
+
+def get_aligned_arena_bounds(arena_json, M, pad=100):
+    """
+    Apply affine transform to the arena rectangle corners and return
+    (x_min, y_min, x_max, y_max) of the transformed arena with padding.
+    """
+    x1, y1, x2, y2 = _arena_bounds(arena_json)
+    cx = np.array([x1 - pad, x2 + pad, x2 + pad, x1 - pad])
+    cy = np.array([y1 - pad, y1 - pad, y2 + pad, y2 + pad])
+    tx, ty = apply_transform(cx, cy, M)
+    return tx.min(), ty.min(), tx.max(), ty.max()
+
+def plot_group_heatmap(aligned_positions_list, mouse_list,
+                       ref_ports=None, arena_bounds=None,
+                       bins=(50, 50), n_bins=1,
+                       cmap="jet", vmax=None, label='Group', save_dir=None):
+    n_mice = len(aligned_positions_list)
+
+    if arena_bounds is not None:
+        x_min, y_min, x_max, y_max = arena_bounds
+    else:
+        all_x = np.concatenate([x for x, y in aligned_positions_list])
+        all_y = np.concatenate([y for x, y in aligned_positions_list])
+        x_min, x_max = all_x.min() - 50, all_x.max() + 50
+        y_min, y_max = all_y.min() - 50, all_y.max() + 50
+
+    hist_range = [[x_min, x_max], [y_min, y_max]]
+    extent     = [x_min, x_max, y_min, y_max]
+    outline_x  = [x_min, x_max, x_max, x_min, x_min]
+    outline_y  = [y_min, y_min, y_max, y_max, y_min]
+
+    fig, axes = plt.subplots(2, n_bins, figsize=(4 * n_bins, 8),
+                              gridspec_kw={"height_ratios": [1, 4]})
+    if n_bins == 1:
+        axes = axes[:, np.newaxis]
+
+    def _draw_ports(ax):
+        if ref_ports is None:
+            return
+        for pname, pos in ref_ports.items():
+            c = "lime" if "lick" in pname.lower() else "red"
+            ax.scatter(pos[0], pos[1], c=c, s=40, zorder=5)
+
+    for bin_idx in range(n_bins):
+        heatmaps, traj_xs, traj_ys = [], [], []
+
+        for x, y in aligned_positions_list:
+            n = len(x)
+            start = int(bin_idx * n / n_bins)
+            stop  = n if bin_idx == n_bins - 1 else int((bin_idx + 1) * n / n_bins)
+            xb, yb = x[start:stop], y[start:stop]
+            traj_xs.append(xb); traj_ys.append(yb)
+            hm, _, _ = np.histogram2d(xb, yb, bins=bins, range=hist_range)
+            hm = hm / hm.sum() if hm.sum() > 0 else hm
+            heatmaps.append(hm)
+
+        group_map = np.mean(heatmaps, axis=0)
+
+        ax_t = axes[0, bin_idx]
+        for xb, yb in zip(traj_xs, traj_ys):
+            ax_t.plot(xb, yb, color="black", linewidth=0.4, alpha=0.3)
+        ax_t.plot(outline_x, outline_y, color="grey", linewidth=1) 
+        _draw_ports(ax_t)
+        ax_t.set(xlim=(x_min, x_max), ylim=(y_min, y_max),
+                 xticks=[], yticks=[], aspect="equal", title=f"Bin {bin_idx + 1}")
+
+        ax_h = axes[1, bin_idx]
+        nonzero = group_map[group_map > 0]
+        _vmax = vmax or (float(np.nanpercentile(nonzero, 99)) if nonzero.size else 1)
+        ax_h.imshow(group_map.T, origin="lower", cmap=cmap,
+                    vmin=0, vmax=_vmax, extent=extent,
+                    interpolation="bilinear", aspect="equal")
+        ax_h.plot(outline_x, outline_y, color="black", linewidth=1)
+        _draw_ports(ax_h)
+        ax_h.set(xlim=(x_min, x_max), ylim=(y_min, y_max), xticks=[], yticks=[])
+
+    plt.suptitle(f"Group Occupancy Heatmap — {label} (n={n_mice})", fontsize=14)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+
+    if save_dir is not None:
+        save_dir.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_dir / f"group_heatmap_{n_bins}bins.png", dpi=300)
+        fig.savefig(save_dir / f"group_heatmap_{n_bins}bins.pdf")
+    plt.show()
+    return fig
