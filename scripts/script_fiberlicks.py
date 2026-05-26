@@ -58,7 +58,7 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -121,7 +121,7 @@ print(f'EXPERIMENT : {exp}')
 print('###################')
 
 dlc_data = True
-dual_color = False
+dual_color = True
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
@@ -196,7 +196,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         print('Cleaning licking data')
         ports = json.load(open(output_json, "r"))
         scale_and_coords = json.load(open(arena_json, "r"))
-        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, scale_and_coords, lick_col="Licks", lick_radius_cm=2.0)
+        fiberbehav_df = ld.filter_licking(fiberbehav_df, ports, scale_and_coords, lick_col="Licks", lick_radius_cm=1.0)
 
         # Scoring nose-in-airport time. Radius in cm.
         fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, scale_and_coords, radius_cm=3.0)

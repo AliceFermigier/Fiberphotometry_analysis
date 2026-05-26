@@ -36,13 +36,13 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 
 #%%
 
-dual_color = False
+dual_color = True
 
 #filter characteristics
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -57,11 +57,17 @@ else:
     tag = "wholetrace"
 
 # Plot parameters
-EVENT_LIST = ['onset']
-TIME_WINDOWS = [[3, 8]]  # Time window for PETH calculation (pre, post), for each event
-Y_LIM = [-2,8]
+EVENT_LIST = ['onset','withdrawal']
+TIME_WINDOWS = [[3, 8],[3, 8]]  # Time window for PETH calculation (pre, post), for each event
+Y_LIM = [-2,10]
+Y_LIM_DUAL = [-2,5]
+behaviors_of_interest = ['Licks_filtered']
 
-for exp in ['EPM']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
+#['Licks_filtered','Airpuffs']
+#['Licks_filtered']
+#['Open arm','Closed arm','Head dipping','Center']
+
+for exp in ['RewardHab']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -90,9 +96,6 @@ for exp in ['EPM']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
             except Exception as e:
                 warnings.warn(f"Failed to read file {fiberbehav_path}: {e}")
                 continue
-
-            # List all behaviors of interest (BOI) by excluding specific behaviors
-            behaviors_of_interest = ['Open arm','Closed arm','Head dipping','Center']
             
             for behavior in behaviors_of_interest:
 
@@ -103,6 +106,7 @@ for exp in ['EPM']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
 
                 for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
                     # Generate the PETH data for the current behavior, event, and time window
+                    print(f"Getting PETH data for {behavior} {event} 465nm")
                     peth_data = bp.PETH(dfiberbehav_clean, behavior, event, time_window, 
                                         EVENT_TIME_THRESHOLD, baselinewindow = baseline, 
                                         maxboutsnumber=MAXBOUTSNUMBER)
@@ -116,6 +120,7 @@ for exp in ['EPM']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
                     peth_df = pd.DataFrame(np.transpose(peth_data), index=time_index)
                     
                     # Plot the PETH and save the figure 
+                    print(f"Plotting PETH 465nm")
                     peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, exp, batch, mouse, group, ylim=Y_LIM)
                     peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_465_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
                     peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_465_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
@@ -123,6 +128,7 @@ for exp in ['EPM']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
             
                     if dual_color:
                         # Generate the PETH data for the current behavior, event, and time window
+                        print(f"Getting PETH data for {behavior} {event} 560nm")
                         peth_data = bp.PETH(dfiberbehav_clean, behavior, event, time_window, 
                                             EVENT_TIME_THRESHOLD, baselinewindow = baseline, 
                                             maxboutsnumber=MAXBOUTSNUMBER, dFF_column = '560 dFF')
@@ -135,29 +141,31 @@ for exp in ['EPM']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
 
                         peth_df = pd.DataFrame(np.transpose(peth_data), index=time_index)
                         
-                        # Plot the PETH and save the figure 
+                        # Plot the PETH and save the figure
+                        print(f"Plotting PETH 560nm")
                         peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, 
-                                                 exp, batch, mouse, group, ylim=Y_LIM,
+                                                 exp, batch, mouse, group, ylim=Y_LIM_DUAL,
                                                  dff_column = '560')
                         peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_560_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
                         peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_560_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
                         plt.close(peth_plot)
-                
-                    
-                        
+
+print(f"All plots saved to {peth_path}")
+        
 #%% Plot PETH for each group and extract mean and max Z-scored data
 
 # ----------------------------- #
 # PETH parameters
-exp = 'EPM'
-BOI = 'Center'
+exp = 'RewardHab'
+BOI = 'Licks_filtered'
 baseline = False
 MAXBOUTSNUMBER = None
 event = 'onset'
 
 # Plot parameters
 TIME_WINDOW = [3, 8]
-Y_LIM = [-1, 3]
+Y_LIM = [-2,10]
+Y_LIM_DUAL = [-2,5]
 
 if baseline:
     tag = "windowedbaseline"
@@ -239,10 +247,6 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             else:
                 PETH_array_560 = np.concatenate((PETH_array_560, PETH_mouse_mean_560))
 
-        if len(PETH_mouse) <= TIME_WINDOW[0]:
-            print(f"Skipping {mouse}: PETH length {len(PETH_mouse)} too short for TIME_WINDOW={TIME_WINDOW}")
-            continue
-
         # --- 465 channel: mean and max dFF before and after the event ---
         mean_before = np.mean(PETH_mouse[:TIME_WINDOW[0]])
         mean_after  = np.mean(PETH_mouse[TIME_WINDOW[0]:])
@@ -302,7 +306,7 @@ for group in included_groups:
         print(f"Group {group} 560 PETH data size: {PETH_array_group_560.shape}")
 
         fig_PETHpooled_560 = bp.plot_PETH_pooled(PETH_array_group_560, BOI, event, TIME_WINDOW, exp, group,
-                                                  ylim=Y_LIM, dff_column='560')
+                                                  ylim=Y_LIM_DUAL, dff_column='560')
         fig_PETHpooled_560.savefig(peth_path / f'{group}_{BOI}_{TIME_WINDOW[1]}_560_PETH.pdf')
         fig_PETHpooled_560.savefig(peth_path / f'{group}_{BOI}_{TIME_WINDOW[1]}_560_PETH.png')
         plt.close(fig_PETHpooled_560)
