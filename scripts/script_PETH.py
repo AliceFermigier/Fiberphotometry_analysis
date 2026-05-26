@@ -44,17 +44,17 @@ CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 0
+EVENT_TIME_THRESHOLD = 1
 
 #%% Plot PETH for each mouse
 
 # PETH parameters 
 baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = None
+MAXBOUTSNUMBER = 3
 if baseline:
-    tag = "windowedbaseline"
+    tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
 else:
-    tag = "wholetrace"
+    tag = f"wholetrace_maxbouts{MAXBOUTSNUMBER}"
 
 # Plot parameters
 EVENT_LIST = ['onset','withdrawal']
@@ -164,13 +164,13 @@ event = 'onset'
 
 # Plot parameters
 TIME_WINDOW = [3, 8]
-Y_LIM = [-2,10]
-Y_LIM_DUAL = [-2,5]
+Y_LIM = [-2,4]
+Y_LIM_DUAL = [-2,4]
 
 if baseline:
-    tag = "windowedbaseline"
+    tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
 else:
-    tag = "wholetrace"
+    tag = f"wholetrace_maxbouts{MAXBOUTSNUMBER}"
 
 # Set groups
 subjects_df['Group'] = subjects_df['Group'].fillna('')
@@ -225,6 +225,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
             baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER
         )
+        print(f"PETH shape : {PETH_mouse.shape}")
         PETH_mouse_mean = np.mean(PETH_mouse, axis=0, keepdims=True)
 
         if PETH_array is None:
@@ -248,20 +249,26 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
                 PETH_array_560 = np.concatenate((PETH_array_560, PETH_mouse_mean_560))
 
         # --- 465 channel: mean and max dFF before and after the event ---
-        mean_before = np.mean(PETH_mouse[:TIME_WINDOW[0]])
-        mean_after  = np.mean(PETH_mouse[TIME_WINDOW[0]:])
-        max_before  = np.max(PETH_mouse[:TIME_WINDOW[0]])
-        max_after   = np.max(PETH_mouse[TIME_WINDOW[0]:])
+        event_idx_0 = int(TIME_WINDOW[0] * sr)
+        event_idx_1 = int(TIME_WINDOW[1] * sr)
+
+        mean_before = np.mean(PETH_mouse[:, :event_idx_0])
+        mean_after  = np.mean(PETH_mouse[:, event_idx_1:])
+
+        max_before  = np.max(PETH_mouse[:, :event_idx_0])
+        max_after   = np.max(PETH_mouse[:, event_idx_1:])
 
         PETH_mean_list.append((mean_before, mean_after))
         PETH_max_list.append((max_before, max_after))
 
         # --- 560 channel: mean and max dFF before and after the event ---
         if dual_color:
-            mean_before_560 = np.mean(PETH_mouse_560[:TIME_WINDOW[0]])
-            mean_after_560  = np.mean(PETH_mouse_560[TIME_WINDOW[0]:])
-            max_before_560  = np.max(PETH_mouse_560[:TIME_WINDOW[0]])
-            max_after_560   = np.max(PETH_mouse_560[TIME_WINDOW[0]:])
+
+            mean_before_560 = np.mean(PETH_mouse_560[:, :event_idx_0])
+            mean_after_560  = np.mean(PETH_mouse_560[:, event_idx_1:])
+
+            max_before_560  = np.max(PETH_mouse_560[:, :event_idx_0])
+            max_after_560   = np.max(PETH_mouse_560[:, event_idx_1:])
 
             PETH_mean_list_560.append((mean_before_560, mean_after_560))
             PETH_max_list_560.append((max_before_560, max_after_560))

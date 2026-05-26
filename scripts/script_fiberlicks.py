@@ -60,7 +60,7 @@ CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 5
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 0
+EVENT_TIME_THRESHOLD = 1
 
 exp = 'RewardHab'
 list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport']
