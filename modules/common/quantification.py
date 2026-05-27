@@ -165,3 +165,69 @@ def variance_transients(fiberbehav_df, list_BOI, mouse, group, exp, batch, thres
             results_df[f'{behavior} Transients Amplitude'] = amp
     
     return results_df, transients_fig
+
+def compute_PETH_bybout_metrics(PETH_list, subject_list, group_list,
+                                 timewindow, BOI, step=1, max_bouts=None,
+                                 dff_column='465'):
+    """
+    Compute mean and max dFF before and after the event for each bout group,
+    per mouse. Returns a long-format DataFrame (one row per mouse × bout group).
+
+    Parameters
+    ----------
+    PETH_list    : list of np.ndarray, each shape (n_bouts_i, timepoints)
+    subject_list : list of str
+    group_list   : list of str
+    timewindow   : [PRE_TIME, POST_TIME]
+    BOI          : str
+    step         : int  — bouts per group (must match the value used in PETH_by_bout)
+    max_bouts    : int, optional
+    dff_column   : str  — channel label used in column names ('465' or '560')
+    """
+    PRE_TIME, POST_TIME = float(timewindow[0]), float(timewindow[1])
+
+    if max_bouts is None:
+        max_bouts = max(len(p) for p in PETH_list)
+
+    n_positions = max_bouts // step
+    timepoints  = PETH_list[0].shape[1]
+
+    # Index of time-0 in the linspace(-PRE_TIME, POST_TIME, timepoints) vector
+    pre_idx = round(PRE_TIME * (timepoints - 1) / (PRE_TIME + POST_TIME))
+
+    records = []
+
+    for mouse, group, peth in zip(subject_list, group_list, PETH_list):
+        for pos_idx in range(n_positions):
+            bout_indices = range(pos_idx * step, (pos_idx + 1) * step)
+
+            # Collect bouts this mouse actually has within this group
+            traces = [peth[b] for b in bout_indices if len(peth) > b]
+            if not traces:
+                continue
+
+            # Average across bouts in the group for this mouse → (timepoints,)
+            mouse_trace = np.mean(traces, axis=0)
+
+            pre  = mouse_trace[:pre_idx]
+            post = mouse_trace[pre_idx:]
+
+            if step == 1:
+                bout_label = f'Bout #{pos_idx + 1}'
+            else:
+                start = pos_idx * step + 1
+                end   = (pos_idx + 1) * step
+                bout_label = f'Bouts {start}–{end}'
+
+            records.append({
+                'Subject'   : mouse,
+                'Group'     : group,
+                'Bout_group': bout_label,
+                'Bout_group_idx': pos_idx + 1,
+                f'{dff_column} Mean dFF before {BOI}': float(np.mean(pre)),
+                f'{dff_column} Mean dFF after {BOI}' : float(np.mean(post)),
+                f'{dff_column} Max dFF before {BOI}' : float(np.max(pre)),
+                f'{dff_column} Max dFF after {BOI}'  : float(np.max(post)),
+            })
+
+    return pd.DataFrame(records)

@@ -358,7 +358,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD,
     return PETH_array
 
 def plot_PETH(PETH_data, BOI, event, timewindow, exp, batch, mouse, group, ylim = None,
-              trace_color='black', fill_alpha=0.2, trace_linewidth=2, heatmap_cmap='magma',
+              trace_color='black', fill_alpha=0.2, trace_linewidth=2, heatmap_cmap='RdBu_r',
               dff_column = '465'):
     
     # Unpack time window
@@ -566,3 +566,157 @@ def remove_first_bout(dfiberbehav_df, behavior):
 
     dfiberbehav_df.loc[first_onset:first_offset, behavior] = 0
     return dfiberbehav_df
+
+def PETH_by_bout(PETH_list, max_bouts=None, min_mice=1, step=1):
+    """
+    Reorganise per-mouse PETH arrays by bout number and compute
+    group mean ± SEM for each bout position across mice.
+
+    Parameters
+    ----------
+    PETH_list : list of np.ndarray, each shape (n_bouts_i, timepoints)
+    max_bouts : int, optional
+    min_mice  : int
+        Minimum number of mice required for a position to be kept.
+    step : int
+        Number of consecutive bouts to group together.
+        step=1 keeps individual bouts (default behaviour).
+        If max_bouts is not a multiple of step, trailing bouts are
+        dropped and a warning is raised.
+
+    Returns
+    -------
+    bout_means : np.ndarray, shape (n_positions, timepoints)
+    bout_sems  : np.ndarray, shape (n_positions, timepoints)
+    bout_n     : np.ndarray, shape (n_positions,)
+    """
+    import warnings
+
+    if max_bouts is None:
+        max_bouts = max(len(p) for p in PETH_list)
+
+    timepoints = PETH_list[0].shape[1]
+
+    # ── Handle step truncation ────────────────────────────────────────────────
+    remainder = max_bouts % step
+    if remainder != 0:
+        print(
+            f"max_bouts={max_bouts} is not a multiple of step={step}. "
+            f"The last {remainder} bout(s) will be ignored "
+            f"({max_bouts // step} groups of {step} instead of {max_bouts})."
+        )
+    n_positions = max_bouts // step
+
+    bout_means = np.full((n_positions, timepoints), np.nan)
+    bout_sems  = np.full((n_positions, timepoints), np.nan)
+    bout_n     = np.zeros(n_positions, dtype=int)
+
+    for pos_idx in range(n_positions):
+        bout_indices = range(pos_idx * step, (pos_idx + 1) * step)
+
+        # Per-mouse: average across the bouts in this group that the mouse has
+        mouse_means = []
+        for peth in PETH_list:
+            traces = [peth[b] for b in bout_indices if len(peth) > b]
+            if traces:
+                mouse_means.append(np.mean(traces, axis=0))
+
+        n = len(mouse_means)
+        bout_n[pos_idx] = n
+        if n >= min_mice:
+            arr = np.array(mouse_means)          # (n_mice, timepoints)
+            bout_means[pos_idx] = arr.mean(axis=0)
+            bout_sems[pos_idx]  = arr.std(axis=0) / np.sqrt(n)
+
+    return bout_means, bout_sems, bout_n
+
+
+def plot_PETH_by_bout(bout_means, bout_sems, bout_n,
+                      BOI, event, timewindow, exp, group,
+                      max_bouts_to_show=None, min_mice=1, step=1,
+                      cmap_name='plasma', ylim=None, fill_alpha=0.15,
+                      dff_column='465'):
+
+    PRE_TIME, POST_TIME = float(timewindow[0]), float(timewindow[1])
+    peri_time = np.linspace(-PRE_TIME, POST_TIME, bout_means.shape[1])
+
+    valid = np.where(bout_n >= min_mice)[0]
+    if max_bouts_to_show is not None:
+        valid = valid[:max_bouts_to_show]
+    if len(valid) == 0:
+        raise ValueError(f"No bout positions have >= {min_mice} mice.")
+
+    n_valid = len(valid)
+    cmap    = plt.cm.get_cmap(cmap_name, n_valid)
+    colors  = [cmap(i) for i in range(n_valid)]
+
+    def _label(rank):
+        i = valid[rank]
+        n = bout_n[i]
+        if step == 1:
+            return f'Bout #{i + 1}  (n={n})'
+        else:
+            return f'Bouts {i*step + 1}–{(i+1)*step}  (n={n})'
+
+    # ── Layout: 2 rows × 2 cols; col 1 is narrow colorbar slot ──────────────
+    fig = plt.figure(figsize=(13, 8))
+    gs  = fig.add_gridspec(
+        2, 2,
+        width_ratios  = [20, 1],
+        height_ratios = [1,  2],
+        hspace = 0.05,          # tight vertical gap → x-axes visually touch
+        wspace = 0.05,
+    )
+    ax_hm   = fig.add_subplot(gs[0, 0])
+    ax_cbar = fig.add_subplot(gs[0, 1])
+    ax_tr   = fig.add_subplot(gs[1, 0], sharex=ax_hm)   # ← shared x-axis
+    fig.add_subplot(gs[1, 1]).set_visible(False)         # empty corner
+
+    # ── Heatmap ───────────────────────────────────────────────────────────────
+    heatmap_data = bout_means[valid]
+    abs_max = np.nanmax(np.abs(heatmap_data))
+
+    im = ax_hm.imshow(
+        heatmap_data,
+        cmap='RdBu_r', aspect='auto', interpolation='none',
+        extent=[-PRE_TIME, POST_TIME, n_valid + 0.5, 0.5],
+        vmin=-abs_max, vmax=abs_max
+    )
+    ax_hm.axvline(x=0, linewidth=1.5, color='black', linestyle='--')
+    ax_hm.set_ylabel('Bout group' if step > 1 else 'Bout #', fontsize=14)
+    ax_hm.set_yticks(np.arange(1, n_valid + 1))
+    ax_hm.set_yticklabels([_label(r) for r in range(n_valid)], fontsize=9)
+    ax_hm.set_title(
+        f'{BOI} {event.capitalize()} by bout — {exp}, {group}'
+        + (f'  [step={step}]' if step > 1 else ''),
+        fontsize=14
+    )
+    plt.setp(ax_hm.get_xticklabels(), visible=False)    # hidden: shared with ax_tr
+
+    cbar = fig.colorbar(im, cax=ax_cbar)                # colorbar in its own column
+    cbar.set_label(f'Z-scored {dff_column} ΔF/F', fontsize=11)
+    cbar.ax.tick_params(labelsize=9)
+
+    # ── Traces ────────────────────────────────────────────────────────────────
+    for rank, bout_idx in enumerate(valid):
+        mean  = bout_means[bout_idx]
+        sem   = bout_sems[bout_idx]
+        color = colors[rank]
+
+        ax_tr.plot(peri_time, mean, color=color, linewidth=1.5,
+                   label=_label(rank))
+        ax_tr.fill_between(peri_time, mean - sem, mean + sem,
+                           color=color, alpha=fill_alpha)
+
+    ax_tr.axvline(x=0, linewidth=1.5, color='slategray', linestyle='--',
+                  label=f'{event.capitalize()} {BOI}')
+    ax_tr.axhline(y=0, linewidth=0.8, color='black', linestyle=':')
+    ax_tr.set_xlabel('Time (s)', fontsize=14)
+    ax_tr.set_ylabel(f'Z-scored {dff_column} ΔF/F', fontsize=14)
+    ax_tr.tick_params(labelsize=11)
+    ax_tr.legend(loc='upper right', fontsize=9, ncol=2)
+    ax_tr.margins(0, 0.05)
+    if ylim is not None:
+        ax_tr.set_ylim(ylim)
+
+    return fig

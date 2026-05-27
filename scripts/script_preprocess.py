@@ -123,7 +123,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = '994'
+mouse = '991'
 batch = 1
 filecode = f'{exp}_{mouse}'
 #------------------# 
@@ -137,7 +137,7 @@ downsampled_df = pp.downsample(deinterleaved_df, target_frequency=40)
 app = Dash(__name__)
 
 # Create the figure
-fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='405 Deinterleaved')
+fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='560 Deinterleaved')
 
 # App layout
 app.layout = html.Div([
