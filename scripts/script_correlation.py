@@ -36,7 +36,7 @@ importlib.reload(quantif)
 import modules.common.correlation as corr
 importlib.reload(corr)
 
-from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batches, exp_path
+from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batches
 
 #%%
 dual_color = True
@@ -56,7 +56,7 @@ EVENT_TIME_THRESHOLD = 0.5
 exp = 'RewardHab'
 BOI = 'Licks_filtered'
 baseline = False
-MAXBOUTSNUMBER = 20
+MAXBOUTSNUMBER = 30
 event = 'onset'
 
 # Plot parameters
@@ -64,10 +64,13 @@ TIME_WINDOW = [5, 5]
 Y_LIM = [-2,2.5]
 Y_LIM_DUAL = [-2,2.5]
 
-# ── PETH by bout number
-MIN_MICE_PER_BOUT = 3    # hide bout positions covered by fewer mice
+# PETH by bout number
+MIN_MICE_PER_BOUT = 3
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
 STEP = 5
+
+# Granger causality max lag
+MAX_LAG_S = 0.5
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
@@ -83,6 +86,7 @@ print('##########################################')
 print(f'EXPERIMENT: {exp}')
 print('##########################################')
 
+exp_path = analysis_path / exp
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
 corr_path = repo_path / f'PETH_correlation_{tag}'
 corr_path.mkdir(parents=True, exist_ok=True)
@@ -134,27 +138,62 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         )
         PETH_list_560.append(PETH_mouse_560)
 
-        ## Plot joint PETHs
+## Compute correlation metrics per group
+for group in included_groups:
+    group_indices = [i for i, g in enumerate(group_list) if g == group]
+    PETH_list_group   = [PETH_list[i] for i in group_indices]
+    PETH_list_560_group = [PETH_list_560[i] for i in group_indices]
 
-        ## Compute cross-correlation
-        lags_s, mean_xcorr, sem_xcorr, peak_lag_s, _ = corr.compute_peth_crosscorr(
-            PETH_list, PETH_list_560, sr
+    ## Plot joint PETHs
+    # Stack all bouts from all mice in this group
+    peth_465_all = np.concatenate(PETH_list_group, axis=0)
+    peth_560_all = np.concatenate(PETH_list_560_group, axis=0)
+
+    _, _, jpsth_corr, coincidence = corr.compute_joint_psth(peth_465_all, peth_560_all)
+
+    fig_jpsth = corr.plot_joint_psth(
+        jpsth_corr, coincidence,
+        TIME_WINDOW, BOI, event, exp, group,
+        n_bouts=len(peth_465_all)
+    )
+    fig_jpsth.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.pdf')
+    fig_jpsth.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.png')
+    plt.close(fig_jpsth)
+
+    ## Compute cross-correlation
+    lags_s, mean_xcorr, sem_xcorr, peak_lag_s, _ = corr.compute_peth_crosscorr(
+            PETH_list_group, PETH_list_560_group, sr
         )
 
-        fig_corr = corr.plot_peth_crosscorr(lags_s, mean_xcorr, sem_xcorr, peak_lag_s,
-                         BOI, exp, group, MAXBOUTSNUMBER,
-                         color='cornflowerblue', fill_alpha=0.25)
+    fig_corr = corr.plot_peth_crosscorr(lags_s, mean_xcorr, sem_xcorr, peak_lag_s,
+                    BOI, exp, group, MAXBOUTSNUMBER,
+                    color='cornflowerblue', fill_alpha=0.25)
+    
+    fig_corr.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_crosscorrelation.pdf')
+    fig_corr.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_crosscorrelation.png')
+    plt.close(fig_corr)
 
-        ## Compute deconvolved correlation (matches R-GECO signal to GRAB-ACh dynamics)
-        peth_560_deconv_list = [
-            np.array([corr.deconvolve_rgeco(row, sr) for row in peth])
-            for peth in PETH_list_560
-        ]
-        lags_s, mean_xcorr, sem_xcorr, peak_lag_s, _ = corr.compute_peth_crosscorr(
-            PETH_list, peth_560_deconv_list, sr
-        )
+    ## Compute deconvolved correlation (matches R-GECO signal to GRAB-ACh dynamics)
+    peth_560_deconv_list = [
+        np.array([corr.deconvolve_rgeco(row, sr) for row in peth])
+        for peth in PETH_list_560_group
+    ]
+    lags_s_deconvolved, mean_xcorr_deconvolved, sem_xcorr_deconvolved, peak_lag_s_deconvolved, _ = corr.compute_peth_crosscorr(
+        PETH_list_group, peth_560_deconv_list, sr
+    )
 
-        ## Compute Granger causality
-        granger_df = corr.test_granger_causality(dfiberbehav_clean, BOI, max_lag_s=3,
-                            sr=None, alpha=0.05)
-        granger_df.to_excel(corr_path / f'{BOI}_granger.xlsx')
+    fig_corr_deconvolved = corr.plot_peth_crosscorr(lags_s_deconvolved, mean_xcorr_deconvolved, sem_xcorr_deconvolved, peak_lag_s_deconvolved,
+                    BOI, exp, group, MAXBOUTSNUMBER,
+                    color='cornflowerblue', fill_alpha=0.25)
+    
+    fig_corr_deconvolved.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_crosscorrelation_deconvolved.pdf')
+    fig_corr_deconvolved.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_crosscorrelation_deconvolved.png')
+    plt.close(fig_corr_deconvolved)
+
+    ## Compute Granger causality
+    granger_df = corr.test_granger_causality(dfiberbehav_clean, BOI, max_lag_s=MAX_LAG_S,
+                        sr=None, alpha=0.05)
+    granger_df.to_excel(corr_path / f'{BOI}_maxlag{MAX_LAG_S}s_granger.xlsx')
+    print(f"✔ Correlation and causality results and plots exported to:{corr_path}")
+
+# %%
