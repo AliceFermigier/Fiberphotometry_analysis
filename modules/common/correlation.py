@@ -1,9 +1,16 @@
-from scipy.signal import correlate, correlation_lags
+from scipy.signal import correlate, correlation_lags, fftconvolve
 import numpy as np
 import matplotlib.pyplot as plt
+from statsmodels.tsa.stattools import grangercausalitytests
+import pandas as pd
+import importlib
+
+#import functions
+import modules.common.preprocess as pp
+importlib.reload(pp)
 
 def compute_peth_crosscorr(peth_465_list, peth_560_list, sr,
-                            max_lag_s=5, min_bouts=1):
+                            max_lag_s=5, min_bouts =1):
     """
     Compute normalized cross-correlation between 465nm and 560nm PETH traces,
     pooled across bouts and mice.
@@ -66,7 +73,6 @@ def compute_peth_crosscorr(peth_465_list, peth_560_list, sr,
 
     return lags_s, mean_xcorr, sem_xcorr, peak_lag_s, xcorr_matrix
 
-
 def plot_peth_crosscorr(lags_s, mean_xcorr, sem_xcorr, peak_lag_s,
                          BOI, exp, group, n_bouts,
                          color='cornflowerblue', fill_alpha=0.25):
@@ -92,3 +98,68 @@ def plot_peth_crosscorr(lags_s, mean_xcorr, sem_xcorr, peak_lag_s,
     ax.margins(0, 0.05)
     plt.tight_layout()
     return fig
+
+def deconvolve_rgeco(signal, sr, tau_rise=0.5, tau_decay=2.0):
+    """
+    Remove R-GECO indicator kinetics from a 560nm dFF trace by
+    Wiener deconvolution with a double-exponential impulse response.
+
+    Parameters
+    ----------
+    signal    : np.ndarray  — raw 560nm dFF trace
+    sr        : float       — sampling rate (Hz)
+    tau_rise  : float       — R-GECO rise time constant (s), default 0.5
+    tau_decay : float       — R-GECO decay time constant (s), default 2.0
+
+    Returns
+    -------
+    deconv : np.ndarray  — deconvolved trace (same length)
+    """
+    from numpy.fft import fft, ifft
+
+    t = np.arange(len(signal)) / sr
+    # Double-exponential kernel
+    kernel = (np.exp(-t / tau_decay) - np.exp(-t / tau_rise))
+    kernel = np.where(kernel < 0, 0, kernel)
+    kernel /= kernel.sum()
+
+    # Wiener deconvolution (SNR regularisation avoids noise explosion)
+    SNR = 10.0
+    H   = fft(kernel, n=len(signal))
+    S   = fft(signal)
+    deconv = np.real(ifft(S * np.conj(H) / (np.abs(H)**2 + 1 / SNR)))
+    return deconv
+
+def test_granger_causality(fiberbehav_df, behavior_col, max_lag_s=3,
+                            sr=None, alpha=0.05):
+    """
+    Test whether 465nm Granger-causes 560nm within behavior bouts.
+
+    Returns a DataFrame with F-statistic and p-value for each lag tested,
+    averaged across bouts.
+    """
+    if sr is None:
+        sr = round(pp.samplerate(fiberbehav_df))
+    max_lag_samples = int(max_lag_s * sr)
+
+    onsets  = fiberbehav_df.index[fiberbehav_df[behavior_col] == 1].tolist()
+    offsets = fiberbehav_df.index[fiberbehav_df[behavior_col] == -1].tolist()
+
+    results = []
+    for onset, offset in zip(onsets, offsets):
+        seg = fiberbehav_df.loc[onset:offset, ['dFF', '560 dFF']].dropna()
+        if len(seg) < max_lag_samples * 3:
+            continue
+        try:
+            gc = grangercausalitytests(seg.values, maxlag=max_lag_samples,
+                                       verbose=False)
+            for lag, res in gc.items():
+                f_stat = res[0]['ssr_ftest'][0]
+                p_val  = res[0]['ssr_ftest'][1]
+                results.append({'lag_samples': lag,
+                                 'lag_s': lag / sr,
+                                 'F': f_stat, 'p': p_val})
+        except Exception:
+            continue
+
+    return pd.DataFrame(results).groupby('lag_s').mean().reset_index()

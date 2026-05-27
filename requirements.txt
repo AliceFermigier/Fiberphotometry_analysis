@@ -13,3 +13,4 @@ seaborn
 PyQt5
 nbformat
 warnings
+statsmodels
