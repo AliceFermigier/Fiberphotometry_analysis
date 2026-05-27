@@ -131,14 +131,6 @@ def deconvolve_rgeco(signal, sr, tau_rise=0.5, tau_decay=2.0):
     deconv = np.real(ifft(S * np.conj(H) / (np.abs(H)**2 + 1 / SNR)))
     return deconv
 
-def test_granger_causality(fiberbehav_df, behavior_col, max_lag_s=1,
-                            sr=None, alpha=0.05, exclude_corrupted=True):
-    """
-    Test whether 465nm Granger-causes 560nm within behavior bouts.
-
-    Returns a DataFrame with F-statistic and p-value for each lag tested,
-    averaged across bouts.
-    """
 def test_granger_causality(fiberbehav_df,behavior_col,max_lag_s=1,sr=None,
     alpha=0.05,exclude_corrupted=True,exclusion_col='Excluded_mask',exclusion_padding_s=2,
     min_bout_s=2,min_std=0.01):
@@ -268,8 +260,7 @@ def test_granger_causality(fiberbehav_df,behavior_col,max_lag_s=1,sr=None,
 
             'combined_p': combined_p,
             'significant': combined_p < alpha,
-
-            'n_bouts': len(F_vals),
+ 
 
             'accepted_bouts': accepted_bouts,
             'rejected_bouts': rejected_bouts
