@@ -34,6 +34,9 @@ proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
 #create artifacts file if not existent
 artifact_file = experiment_path / 'artifacts.xlsx' # File to store artifact timestamps
 nom.create_or_load_artifacts_file(artifact_file, option='create_only')
+#create exclusions file if not existent
+exclusion_file = experiment_path / 'exclusions.xlsx'
+nom.create_or_load_artifacts_file(exclusion_file, option='create_only')
 
 ############
 #PARAMETERS#

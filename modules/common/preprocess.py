@@ -19,6 +19,7 @@ import warnings
 from ast import literal_eval
 import h5py
 from sklearn.linear_model import LinearRegression, HuberRegressor
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 import modules.common.nomenclature as nom
 import modules.common.median_filtering as mf
@@ -221,6 +222,7 @@ def linearfit_sklearn(sig_405, sig_465, filt_405, filt_465, trim=[10, -10], filt
         If False, predict on sig_405 (fitted baseline retains raw 405nm
         noise — acceptable for 465nm where signal amplitude is large).
         Default is False.
+    smooth_405_sigma_s : smoothing option for 405nm signal
     model_name : str, optional
         Regression model to use:
         - 'linear' : ordinary least-squares (sklearn LinearRegression).
@@ -259,78 +261,129 @@ def linearfit_sklearn(sig_405, sig_465, filt_405, filt_465, trim=[10, -10], filt
 
     return fitted_405
 
-def remove_artifacts(data_df, filtered_data_df, artifact_intervals, col, method='fit', filtered_405=False):
+def remove_artifacts(data_df, filtered_data_df, artifact_intervals, col,
+                     method='fit', filtered_405=False,
+                     stitch_window=15, lowess_frac=0.1):
     """
-    Helper function to remove artifacts from a specific column of the data.
-    
-    Parameters:
-    - data_df (pd.DataFrame): Input data
-    - filtered_data_df (pd.DataFrame): median filtered data
-    - artifact_intervals (list of tuples): List of artifact intervals as [(start, stop), ...]
-    - col (str): Column to process ('405 Deinterleaved' or '470 Deinterleaved')
-    - begin (int): Starting index for the segment
-    - end (int): Ending index for the segment
-    - sr (int): Sampling rate
-    - method (str): 'mean' or 'fit' method to compute dFF
-    
-    Returns:
-    - Tuple: Updated dFF segment, updated 'begin' index, and 'end' index
+    Remove disconnection artifacts from a signal column, segment by segment.
+
+    Parameters
+    ----------
+    data_df : pd.DataFrame
+    filtered_data_df : pd.DataFrame
+        Median-filtered version of data_df (used only for method='fit').
+    artifact_intervals : list of [start, stop]
+    col : str
+        Column to process.
+    method : str
+        'fit'    – regress against 405nm isosbestic (existing behaviour).
+        'mean'   – normalise each segment by its own mean, then stitch.
+        'lowess' – fit a LOWESS baseline per segment, then stitch.
+    filtered_405 : bool
+        Passed through to linearfit_sklearn (method='fit' only).
+    stitch_window : int
+        Samples at each segment edge used for boundary-median stitching
+        (methods 'mean' and 'lowess').
+    lowess_frac : float
+        Fraction of data used for each local LOWESS fit (method='lowess').
+
+    Returns
+    -------
+    np.ndarray  dFF signal with NaN over artifact gaps.
     """
+    begin           = 0
+    dFF_out     = np.full(len(data_df), np.nan)
+    lowess_out  = np.full(len(data_df), np.nan)
+    prev_end_median = None                            
+    intervals       = artifact_intervals + [[len(data_df), 'End']]
 
-    begin = 0
-    dFF_segment = np.full(len(data_df), np.nan)
-    artifact_intervals = artifact_intervals + [[len(data_df), 'End']]
-
-    for x_start, x_stop in artifact_intervals:
+    for x_start, x_stop in intervals:
         try:
-            # Calculate 'end' as the first index where 'Time(s)' is greater than x_start, -1 to not overlap with artifact
-            end = data_df.index[data_df['Time(s)'] < x_start][-1]
-            
-            # Extract the segment of data for processing
-            segment = data_df.iloc[begin+1:end][col].values  # Use iloc for absolute indexing
-            
-            if method == 'mean':
-                if begin==0:
-                    trim=[10,-1]
-                elif x_stop=='End':
-                    trim=[0,-10]
-                else:
-                    trim=[0,-1]
-                mean_fluorescence = np.nanmean(segment[trim[0]:trim[1]])
-                dFF_values = ((segment - mean_fluorescence) / mean_fluorescence) * 100
-                # Check for length match before assignment
-                if len(dFF_values) == len(dFF_segment[begin+1:end]):
-                    dFF_segment[begin+1:end] = dFF_values
-                else:
-                    print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
-            
-            elif method == 'fit':
-                if begin==0:
-                    trim=[10,-1]
-                elif x_stop=='End':
-                    trim=[0,-10]
-                else:
-                    trim=[0,-1]
+            end     = data_df.index[data_df['Time(s)'] < x_start][-1]
+            segment = data_df.iloc[begin+1:end][col].values
 
-                dFF_values = linearfit_sklearn(data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
-                                            data_df.iloc[begin+1:end][col].values,
-                                            filtered_data_df.iloc[begin+1:end]['405 Deinterleaved'].values, 
-                                            filtered_data_df.iloc[begin+1:end][col].values,
-                                            trim=trim,
-                                            filtered_405=filtered_405)
-                if len(dFF_values) == len(dFF_segment[begin+1:end]):
-                    dFF_segment[begin+1:end] = dFF_values
+            if len(segment) == 0:
+                if x_stop != 'End':
+                    begin = data_df.index[data_df['Time(s)'] > x_stop][0]
+                continue
+
+            # ── Trim slice for baseline estimation ───────────────────────
+            if begin == 0:
+                trim = slice(10, None)
+            elif x_stop == 'End':
+                trim = slice(None, -10)
+            else:
+                trim = slice(None, None)
+
+            F0 = np.full(len(segment), np.nan)
+            # ── Compute dFF values for this segment ───────────────────────
+            if method == 'mean':
+                mean_f = np.nanmean(segment[trim])
+                if mean_f == 0:
+                    if x_stop != 'End':
+                        begin = data_df.index[data_df['Time(s)'] > x_stop][0]
+                    continue
+                dFF_values = (segment - mean_f) / mean_f * 100
+
+            elif method == 'lowess':
+                time_seg = data_df.iloc[begin+1:end]['Time(s)'].values
+                good     = ~np.isnan(segment)
+                if good.sum() < 10:
+                    if x_stop != 'End':
+                        begin = data_df.index[data_df['Time(s)'] > x_stop][0]
+                    continue
+                # Fit LOWESS on trimmed data to avoid edge contamination,
+                # then interpolate back to the full segment time axis
+                t_trim   = time_seg[trim][~np.isnan(segment[trim])]
+                f_trim   = segment[trim][~np.isnan(segment[trim])]
+                fitted   = lowess(f_trim, t_trim,
+                                  frac=lowess_frac, return_sorted=False)
+                F0       = np.interp(time_seg, t_trim, fitted)
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    dFF_values = np.where(F0 != 0,
+                                          (segment - F0) / F0 * 100,
+                                          np.nan)
+
+            elif method == 'fit':
+                # linearfit_sklearn expects a list trim, not a slice
+                if begin == 0:
+                    trim_list = [10, -1]
+                elif x_stop == 'End':
+                    trim_list = [0, -10]
                 else:
-                    print(f"Shape mismatch: dFF_values ({len(dFF_values)}) vs dFF_segment ({len(dFF_segment[begin+1:end])})")
-            
-            # Update 'begin' to the index just before the stop of the artifact
+                    trim_list = [0, -1]
+                dFF_values = linearfit_sklearn(
+                    data_df.iloc[begin+1:end]['405 Deinterleaved'].values,
+                    data_df.iloc[begin+1:end][col].values,
+                    filtered_data_df.iloc[begin+1:end]['405 Deinterleaved'].values,
+                    filtered_data_df.iloc[begin+1:end][col].values,
+                    trim=trim_list,
+                    filtered_405=filtered_405)
+
+            # ── Boundary stitching (mean and lowess only) ─────────────────
+            if method in ('mean', 'lowess'):
+                k = max(1, min(stitch_window, len(dFF_values) // 6))
+                if prev_end_median is not None:
+                    offset     = prev_end_median - np.nanmedian(dFF_values[:k])
+                    dFF_values = dFF_values + offset
+                prev_end_median = np.nanmedian(dFF_values[-k:])
+
+            # ── Write to output ───────────────────────────────────────────
+            target = dFF_out[begin+1:end]
+            if len(dFF_values) == len(target):
+                dFF_out[begin+1:end] = dFF_values
+                lowess_out[begin+1:end] = F0
+            else:
+                print(f"Shape mismatch at ({x_start}, {x_stop}): "
+                      f"{len(dFF_values)} vs {len(target)}")
+
             if x_stop != 'End':
                 begin = data_df.index[data_df['Time(s)'] > x_stop][0]
-                
+
         except Exception as e:
             print(f"Error processing artifact interval ({x_start}, {x_stop}): {e}")
-    
-    return dFF_segment
+
+    return dFF_out, lowess_out
 
 def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = True):
     """
@@ -353,14 +406,13 @@ def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = Tru
             if filecode in artifacts_df['Filecode'].values:
                 artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
                 artifact_intervals = literal_eval(artifact_intervals[0])
-                dFFdata[i] = remove_artifacts(data_df, data_df, artifact_intervals, col, method='mean')
+                dFFdata[i],_ = remove_artifacts(data_df, data_df, artifact_intervals, col, method='mean')
             else:
                 mean_fluorescence = np.nanmean(data_df[col])
                 dFFdata[i] = ((data_df[col] - mean_fluorescence) / mean_fluorescence) * 100
     
     elif method == 'fit':
         if apply_median_filter == True:
-
             # find best window from 465 nm and filter
             result_df, best_win_s, _ = mf.iterative_median_filter(data_df, '465 Deinterleaved',verbose=True)
             filtered_465 = result_df['465 Deinterleaved']
@@ -375,7 +427,7 @@ def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = Tru
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts(data_df, filtered_data_df, artifact_intervals, '465 Deinterleaved', method='fit')
+            dFFdata[0],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals, '465 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
         else:
             dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'],
@@ -436,7 +488,50 @@ def interpolate_dFFdata(data_df, method='linear'):
         
     return data_df
 
-def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False, apply_median_filter=True):
+def dff_lowess_560(data_df, col, lowess_frac=0.1):
+    """
+    Compute dF/F for 560nm using a global LOWESS baseline with
+    artifact masking.
+
+    Strategy
+    --------
+    1. Mask artifact intervals as NaN in the raw signal.
+    2. Fit LOWESS on the non-NaN points only → slow-varying F0.
+    3. Interpolate F0 linearly across the masked gaps.
+    4. dF/F = (F - F0) / F0 * 100 everywhere outside artifacts.
+
+    Because F0 is a single continuous curve fitted over the whole
+    recording, segment boundaries are naturally stitched — no DC
+    jump, no per-segment centering.
+
+    Parameters
+    ----------
+    lowess_frac : float
+        Fraction of data used for each local fit. Larger = smoother.
+        Start around 0.05–0.15 and tune visually.
+    stitch : bool
+        If True, also apply boundary-median offset correction as a
+        safety net (useful when frac is small and F0 wiggles near edges).
+    """
+    
+    time  = data_df['Time(s)'].values
+    raw   = data_df[col].values.copy().astype(float)
+
+    # ── 1. Mask artifacts (skipped entirely if list is empty) ────────
+    mask = np.ones(len(raw), dtype=bool)
+
+    # ── 2. LOWESS on non-NaN, non-artifact points ────────────────────
+    good    = mask & ~np.isnan(raw)
+    fitted  = lowess(raw[good], time[good], frac=lowess_frac, return_sorted=False)
+    F0_full = np.interp(time, time[good], fitted)
+
+    # ── 3. dF/F ──────────────────────────────────────────────────────
+    with np.errstate(invalid='ignore', divide='ignore'):
+        dFF = np.where(mask, (raw - F0_full) / F0_full * 100, np.nan)
+
+    return dFF, F0_full
+
+def dFF_dualcolor(data_df, artifacts_df, filecode, method_560='lowess', apply_median_filter=True):
     """
     Calculates dFF for dual-color fiber photometry (465nm + 560nm).
 
@@ -448,9 +543,9 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False, apply_median
         Artifact information.
     filecode : str
         Unique file identifier.
-    fitted560 : bool
-        If True, fit 560nm against 405nm isosbestic.
-        If False, normalize 560nm on its own mean.
+    method_560 : str
+
+        'lowess' : LOcally WEighted Scatterplot Smoothing
     apply_median_filter : bool
         If True, apply iterative hybrid median filter before fitting to suppress
         transient contamination of the isosbestic fit.
@@ -473,7 +568,7 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False, apply_median
             '465 Deinterleaved' : filtered_465.values,
         })
 
-        if fitted560:
+        if method_560 == 'fit':
             # Filter 560nm with the same window
             filtered_560 = mf.median_filter_dff(
                 data_df, '560 Deinterleaved', best_win_s)['560 Deinterleaved']
@@ -482,17 +577,17 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False, apply_median
         filtered_data_df = data_df.copy()
 
     # ── fitted560 branch ──────────────────────────────────────────────────────
-    if fitted560:
+    if method_560 == 'fit':
         dFFdata = np.full([6, len(data_df)], np.nan)
 
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[
                 artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
+            dFFdata[0],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
                                           '465 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            dFFdata[2] = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
+            dFFdata[2],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
                                           '560 Deinterleaved', method='fit', filtered_405=True)
             dFFdata[3] = data_df['560 Deinterleaved'].to_numpy()
         else:
@@ -524,18 +619,18 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False, apply_median
             '560 dFF'      : dFFdata[5],
         })
 
-    # ── unfitted560 branch ────────────────────────────────────────────────────
-    else:
+    # ── unfitted560 branch (mean) ────────────────────────────────────────────────────
+    elif method_560 == 'mean':
         dFFdata = np.full([4, len(data_df)], np.nan)
 
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[
                 artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0] = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
+            dFFdata[0],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
                                           '465 Deinterleaved', method='fit')
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
-            dFFdata[2] = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
+            dFFdata[2],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
                                           '560 Deinterleaved', method='mean')
         else:
             # 465: fit isosbestic (median-filtered if requested)
@@ -561,6 +656,45 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, fitted560=False, apply_median
             '465 Fitted' : dFFdata[1],
             '560 dFF'    : dFFdata[2],
             'dFF'        : dFFdata[3],
+        })
+
+    elif method_560 == 'lowess':
+        dFFdata = np.full([6, len(data_df)], np.nan)
+
+        if filecode in artifacts_df['Filecode'].values:
+            artifact_intervals = artifacts_df.loc[
+                artifacts_df['Filecode'] == filecode, 'Artifacts'].values
+            artifact_intervals = literal_eval(artifact_intervals[0])
+            dFFdata[0],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
+                                          '465 Deinterleaved', method='fit')
+            dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
+            dFFdata[2], dFFdata[3] = remove_artifacts(data_df, filtered_data_df, artifact_intervals, 
+                                                      '560 Deinterleaved', method='lowess', 
+                                                      stitch_window=15, lowess_frac=0.05)
+        else:
+            # 465: fit isosbestic (median-filtered if requested)
+            dFFdata[0] = linearfit_sklearn(
+                data_df['405 Deinterleaved'],          data_df['465 Deinterleaved'],
+                filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'])
+            dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
+            # 560: lowess normalization
+            dFFdata[2], dFFdata[3] = dff_lowess_560(data_df, '560 Deinterleaved', lowess_frac=0.05)
+
+        dFFdata[4] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
+
+        for row in [2, 4]:
+            q1 = np.nanpercentile(dFFdata[row], 25)
+            dFFdata[row][:10]  = q1
+            dFFdata[row][-10:] = q1
+
+        dFFdata_df = pd.DataFrame({
+            'Time(s)'      : data_df['Time(s)'],
+            '405 Fitted'   : dFFdata[0],
+            '465 Fitted'   : dFFdata[1],
+            'dFF'          : dFFdata[4],
+            '405 Fitted 560': dFFdata[3],
+            '560 Fitted'   : data_df['560 Deinterleaved'].to_numpy(),
+            '560 dFF'      : dFFdata[2],
         })
 
     return dFFdata_df
@@ -626,3 +760,64 @@ def downsample(rawdata_df, target_frequency=20):
     # Reorder columns to put 'Time' first (standard for Doric/Fiber data)
     cols = ['Time(s)'] + [c for c in downsampled_df.columns if c != 'Time(s)']
     return downsampled_df[cols]
+
+def apply_excluded_regions(df,signal_col,exclusion_df,filecode):
+    """
+    Replace manually excluded regions by NaNs.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    signal_col : str
+        Signal column to modify.
+
+    exclusion_df : pd.DataFrame
+        Must contain:
+            - Filecode
+            - Excluded
+
+    filecode : str
+
+    Returns
+    -------
+    df : pd.DataFrame
+        Modified dataframe with:
+            - signal replaced by NaNs
+            - exclusion mask column
+    """
+
+    signal = df[signal_col].to_numpy().copy()
+
+    exclusion_mask = np.zeros(len(signal), dtype=bool)
+
+    # NO EXCLUSIONS
+    if filecode not in exclusion_df['Filecode'].values:
+
+        df[f'{signal_col} ExclusionMask'] = exclusion_mask.astype(int)
+
+        return df
+
+    # LOAD INTERVALS
+    exclusion_intervals = exclusion_df.loc[
+        exclusion_df['Filecode'] == filecode,
+        'Artifacts'
+    ].values[0]
+
+    exclusion_intervals = literal_eval(exclusion_intervals)
+
+    # BUILD MASK
+    for start, stop in exclusion_intervals:
+        idx = (
+            (df['Time(s)'] >= start) &
+            (df['Time(s)'] <= stop)
+        )
+        exclusion_mask[idx] = True
+    # REPLACE WITH NaNs
+    signal[exclusion_mask] = np.nan
+
+    df[signal_col] = signal
+    df[f'{signal_col} ExclusionMask'] = (
+        exclusion_mask.astype(int)
+    )
+    return df

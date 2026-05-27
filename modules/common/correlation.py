@@ -2,6 +2,7 @@ from scipy.signal import correlate, correlation_lags, fftconvolve
 import numpy as np
 import matplotlib.pyplot as plt
 from statsmodels.tsa.stattools import grangercausalitytests
+from scipy.stats import combine_pvalues
 import pandas as pd
 import importlib
 
@@ -131,37 +132,150 @@ def deconvolve_rgeco(signal, sr, tau_rise=0.5, tau_decay=2.0):
     return deconv
 
 def test_granger_causality(fiberbehav_df, behavior_col, max_lag_s=1,
-                            sr=None, alpha=0.05):
+                            sr=None, alpha=0.05, exclude_corrupted=True):
     """
     Test whether 465nm Granger-causes 560nm within behavior bouts.
 
     Returns a DataFrame with F-statistic and p-value for each lag tested,
     averaged across bouts.
     """
+def test_granger_causality(fiberbehav_df,behavior_col,max_lag_s=1,sr=None,
+    alpha=0.05,exclude_corrupted=True,exclusion_col='Excluded_mask',exclusion_padding_s=2,
+    min_bout_s=2,min_std=0.01):
+    """
+    Test whether dFF Granger-causes 560 dFF within behavior bouts.
+    Robust version:
+    ----------------
+    - rejects bouts overlapping excluded regions
+    - rejects bouts too close to excluded regions
+    - rejects short bouts
+    - rejects low-variance bouts
+    - combines p-values using Fisher's method
+    Parameters
+    ----------
+    fiberbehav_df : pd.DataFrame
+    behavior_col : str
+        Behavioral column containing:
+            1  = onset
+           -1  = offset
+    max_lag_s : float
+        Maximum lag tested in seconds.
+    exclusion_padding_s : float
+        Reject bouts within ±padding seconds of excluded regions.
+    min_bout_s : float
+        Minimum bout duration required.
+    min_std : float
+        Minimum signal standard deviation required.
+    Returns
+    -------
+    pd.DataFrame
+        lag_s
+        mean_F
+        combined_p
+        significant
+        n_bouts
+    """
     if sr is None:
         sr = round(pp.samplerate(fiberbehav_df))
-    max_lag_samples = int(max_lag_s * sr)
 
-    onsets  = fiberbehav_df.index[fiberbehav_df[behavior_col] == 1].tolist()
+    max_lag_samples = int(max_lag_s * sr)
+    exclusion_padding = int(exclusion_padding_s * sr)
+    min_bout_samples = int(min_bout_s * sr)
+
+    # FIND BOUTS
+    onsets = fiberbehav_df.index[fiberbehav_df[behavior_col] == 1].tolist()
     offsets = fiberbehav_df.index[fiberbehav_df[behavior_col] == -1].tolist()
 
-    results = []
+    lag_results = {}
+    for lag in range(1, max_lag_samples + 1):
+        lag_results[lag] = {
+            'F': [],
+            'p': []
+        }
+    accepted_bouts = 0
+    rejected_bouts = 0
+
     for onset, offset in zip(onsets, offsets):
-        seg = fiberbehav_df.loc[onset:offset, ['dFF', '560 dFF']].dropna()
-        if len(seg) < max_lag_samples * 3:
-            continue
-        try:
-            gc = grangercausalitytests(seg.values, maxlag=max_lag_samples)
-            for lag, res in gc.items():
-                f_stat = res[0]['ssr_ftest'][0]
-                p_val  = res[0]['ssr_ftest'][1]
-                results.append({'lag_samples': lag,
-                                 'lag_s': lag / sr,
-                                 'F': f_stat, 'p': p_val})
-        except Exception:
+        bout_len = offset - onset
+
+        if bout_len < min_bout_samples:
+            rejected_bouts += 1
             continue
 
-    return pd.DataFrame(results).groupby('lag_s').mean().reset_index()
+        # EXCLUSION MASK CHECK
+        if exclude_corrupted and exclusion_col in fiberbehav_df.columns:
+            padded_start = max(0, onset - exclusion_padding)
+            padded_end = min(
+                len(fiberbehav_df) - 1,
+                offset + exclusion_padding)
+            exclusion_window = fiberbehav_df.loc[padded_start:padded_end,exclusion_col]
+            if exclusion_window.any():
+                rejected_bouts += 1
+                continue
+
+        # EXTRACT SEGMENT
+        seg = fiberbehav_df.loc[onset:offset,['dFF', '560 dFF']].dropna()
+
+        # enough data for Granger
+        if len(seg) < max_lag_samples * 3:
+            rejected_bouts += 1
+            continue
+
+        # LOW VARIANCE REJECTION
+        if seg['dFF'].std() < min_std:
+            rejected_bouts += 1
+            continue
+        if seg['560 dFF'].std() < min_std:
+            rejected_bouts += 1
+            continue
+
+        # GRANGER TEST
+        try:
+            gc = grangercausalitytests(
+                seg.values,
+                maxlag=max_lag_samples,
+                verbose=False)
+            for lag, res in gc.items():
+                f_stat = res[0]['ssr_ftest'][0]
+                p_val = res[0]['ssr_ftest'][1]
+
+                lag_results[lag]['F'].append(f_stat)
+                lag_results[lag]['p'].append(p_val)
+
+            accepted_bouts += 1
+        except Exception:
+            rejected_bouts += 1
+            continue
+
+    # COMBINE RESULTS
+    output = []
+    for lag in lag_results:
+        F_vals = lag_results[lag]['F']
+        p_vals = lag_results[lag]['p']
+
+        if len(F_vals) == 0:
+            continue
+        # Fisher method for p-values
+        combined_p = combine_pvalues(p_vals,method='fisher')[1]
+
+        output.append({
+
+            'lag_samples': lag,
+            'lag_s': lag / sr,
+
+            'mean_F': np.mean(F_vals),
+            'std_F': np.std(F_vals),
+
+            'combined_p': combined_p,
+            'significant': combined_p < alpha,
+
+            'n_bouts': len(F_vals),
+
+            'accepted_bouts': accepted_bouts,
+            'rejected_bouts': rejected_bouts
+        })
+
+    return pd.DataFrame(output)
 
 def compute_joint_psth(peth_465, peth_560):
     """

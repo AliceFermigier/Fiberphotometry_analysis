@@ -193,7 +193,7 @@ def plot_fiberpho_dualcolor(fiber_df, exp, mouse, method):
     Plots isosbestic and Ca dependent deltaF/F (dFF) and separate dFF plot
     """
     fiber_df = fiber_df.iloc[20:-20]  # skip first and last 20 points
-    if len(fiber_df.columns) == 5:
+    if '405 Fitted 560' not in fiber_df.columns:
         fig = plt.figure(figsize=(20, 15))
         
         # First subplot: GCaMP and ISOS
@@ -222,7 +222,7 @@ def plot_fiberpho_dualcolor(fiber_df, exp, mouse, method):
         ax2.legend(loc='upper right')
         ax2.margins(0, 0.2)
         
-    elif len(fiber_df.columns) == 7:
+    else:
         fig = plt.figure(figsize=(20, 20))
         
         # First subplot: GCaMP and ISOS

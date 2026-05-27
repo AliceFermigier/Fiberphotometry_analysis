@@ -142,7 +142,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     licks_path = data_path_exp / f'licks_{mouse}.csv'
     airpuff_path = data_path_exp / f'airpuffs_{mouse}.csv'
     deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
-    fiberpho_path = pp_path / f'{mouse}_dFF_corrected.csv'
+    fiberpho_path = pp_path / f'{mouse}_dFF_corrected_final.csv'
     dlc_path = behav_path_exp / f'{mouse}DLC_Resnet50_RewardAirpuff_20260217Feb17shuffle1_snapshot_100_filtered.csv'
     output_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
     arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"

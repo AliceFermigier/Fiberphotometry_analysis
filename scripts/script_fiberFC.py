@@ -130,7 +130,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     camera_flashes_path = data_path_exp / f'camera_flashes_{mouse}.csv'
     LED3_path = data_path_exp / f'LED3_{mouse}.csv'
     deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
-    fiberpho_path = pp_path / f'{mouse}_dFFfilt.csv'
+    fiberpho_path = pp_path / f'{mouse}_dFF_corrected_final.csv'
     dlc_path = behav_path_exp / f'{mouse}{dlc_suffix}.csv'
     arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
 

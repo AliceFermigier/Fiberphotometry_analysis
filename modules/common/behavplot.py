@@ -276,7 +276,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
 
 def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, 
          PRE_EVENT_TIME=0, maxboutsnumber=None, baselinewindow=False,
-         dFF_column = 'dFF'):
+         dFF_column = 'dFF', exclude_corrupted=True):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI.
     
@@ -308,6 +308,9 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD,
     # Ensure sampling rate is an integer
     sr = round(pp.samplerate(behavprocess_df))
 
+    # Remove events whose window overlaps excluded regions
+    clean_events = []
+
     # Identify onset and withdrawal indices for the behavior of interest (BOI)
     list_ind_event_o = np.where(behavprocess_df[BOI] == 1)[0].tolist()
     list_ind_event_w = np.where(behavprocess_df[BOI] == -1)[0].tolist()
@@ -328,8 +331,28 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD,
     # Check if the event happens too late in the dataframe to process
     list_ind_event = [idx for idx in list_ind_event if idx + POST_TIME * sr < len(behavprocess_df)]
 
+    # Check if the window does not overlap with a corrupted region stored in exclusions excel
+    for ind_event in list_ind_event:
+
+        if exclude_corrupted and 'Excluded_mask' in behavprocess_df.columns:
+            start_idx = int(ind_event - PRE_TIME * sr)
+            end_idx   = int(ind_event + POST_TIME * sr)
+
+            # skip incomplete windows
+            if start_idx < 0 or end_idx >= len(behavprocess_df):
+                continue
+
+            exclusion_window = behavprocess_df.loc[
+                start_idx:end_idx,
+                'Excluded_mask'
+            ]
+            if exclusion_window.any():
+                continue
+
+        clean_events.append(ind_event)
+
     # Preallocate the PETH array to store the z-scored traces
-    n_bouts = len(list_ind_event)
+    n_bouts = len(clean_events)
     n_timepoints = (POST_TIME + PRE_TIME) * sr + 1
     PETH_array = np.zeros((n_bouts, n_timepoints))
     
@@ -338,7 +361,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD,
     std0 = behavprocess_df[dFF_column].std()
 
     # Loop through each event and extract the fiberpho trace centered on the event
-    for i, ind_event in enumerate(list_ind_event):
+    for i, ind_event in enumerate(clean_events):
         try: 
             if baselinewindow:
                 # Calculate baseline mean (F0) and standard deviation (std0) for the time window before the event

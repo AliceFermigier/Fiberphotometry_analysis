@@ -39,13 +39,13 @@ importlib.reload(cs)
 import modules.common.median_filtering as mf
 importlib.reload(mf)
 
-from scripts.loader import experiment_path, analysis_path, data_path, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches
+from scripts.loader import experiment_path, analysis_path, data_path, proto_df, subjects_df, artifact_file, TIME_BEGIN, batches, exclusion_file
 
 #%% 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'RewardHab'
+exp = 'RewardAirpuffs'
 dual_color = True
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
@@ -123,7 +123,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = '991'
+mouse = '996'
 batch = 1
 filecode = f'{exp}_{mouse}'
 #------------------# 
@@ -137,7 +137,7 @@ downsampled_df = pp.downsample(deinterleaved_df, target_frequency=40)
 app = Dash(__name__)
 
 # Create the figure
-fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='560 Deinterleaved')
+fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='405 Deinterleaved')
 
 # App layout
 app.layout = html.Div([
@@ -246,7 +246,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         
         # calculate dFF with artifacts removal, then interpolate missing data
         if dual_color:
-            dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, fitted560=True, apply_median_filter=True)
+            dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, method_560='lowess', apply_median_filter=True)
         else:
             dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method,apply_median_filter=True)
             _, _, median_fig = mf.iterative_median_filter(cleaned_df, '465 Deinterleaved')
@@ -266,7 +266,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             filtered_dFFdata_df = cs.exponential_detrend(interpdFFdata_df, dual_color)
 
         # Save output to csv
-        filtered_dFFdata_df.to_csv(pp_path/f'{mouse}_dFF_corrected.csv')
+        filtered_dFFdata_df.to_csv(pp_path/f'{mouse}_dFF_corrected.csv', index=False)
 
         #plotted GCaMP and isosbestic curves after dFF and photobleach correction
         if dual_color:
@@ -277,6 +277,141 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         else:
             fig_dFF = gp.plot_fiberpho(filtered_dFFdata_df,exp,mouse,method)
             fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF_corrected.png')
+            plt.close(fig_dFF) 
+
+ # %%
+# 1.5 - Manually remove corrupted data if some are left
+
+#------------------#
+mouse = '996'
+batch = 1
+filecode = f'{exp}_{mouse}'
+#------------------# 
+
+# in excel 'Filecode', put '{exp}_{mouse}'
+pp_path = datapath_exp_dict[batch] / 'Preprocessing'
+filtered_dFFdata_df = pd.read_csv(pp_path/f'{mouse}_dFF_corrected.csv')
+downsampled_df = pp.downsample(filtered_dFFdata_df, target_frequency=40)
+
+# Create the Dash app
+app = Dash(__name__)
+
+# Create the figure
+fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='560 dFF')
+
+# App layout
+app.layout = html.Div([
+    html.H4(f'{exp} {mouse}'),
+    
+    dcc.Graph(
+        id='plot',
+        figure=fig,
+        config={'displayModeBar': True}  # Add buttons for zooming, panning, etc.
+    ),
+    
+    html.Div(id='artifact-message', style={'color': 'black', 'fontWeight': 'bold'}),
+    
+    html.Button("Save Excluded Regions", id="save-button", n_clicks=0),
+    
+    dcc.Store(id='artifact-storage', data=[]),  # Store artifact tuples (start, end)
+    dcc.Store(id='click-tracker', data=None)  # Keep track of first/second click
+])
+
+# Callback to handle user clicks and record artifact intervals
+@app.callback(
+    [Output('artifact-storage', 'data'),
+     Output('artifact-message', 'children'),
+     Output('click-tracker', 'data')],
+    Input('plot', 'clickData'),
+    [State('artifact-storage', 'data'),
+     State('click-tracker', 'data')]
+)
+def capture_exclusions(click_data, exclusion_intervals, click_state):
+    """
+    Handles clicks on the plot. 
+    On the first click, the start of the artifact is captured. 
+    On the second click, the end of the artifact is captured, and the interval is saved.
+    """
+    if click_data:
+        time_clicked = click_data['points'][0]['x']
+        
+        if click_state is None:  # First click (start of the artifact)
+            click_state = time_clicked
+            message = f'Excluded Region start marked at {time_clicked:.2f} seconds. Now click the end point.'
+            print(message)
+        else:  # Second click (end of the artifact)
+            start = min(click_state, time_clicked)
+            end = max(click_state, time_clicked)
+            exclusion_intervals.append((start, end))
+            message = f'Excluded Region interval ({start:.2f}s, {end:.2f}s) saved. Click to start a new interval.'
+            print(message)
+            click_state = None  # Reset click state for next pair of clicks
+
+    else:
+        message = 'Click on the graph to mark the start of an excluded region.'
+
+    return exclusion_intervals, message, click_state
+
+# Callback to save artifact intervals to an Excel file
+@app.callback(
+    Output('save-button', 'children'),
+    Input('save-button', 'n_clicks'),
+    State('artifact-storage', 'data')
+)
+def save_exclusions_to_excel(n_clicks, exclusion_intervals):
+    """
+    Saves the artifact intervals to an Excel file when the save button is pressed.
+    Each row in the Excel file contains the start and end times of each artifact.
+    """
+    if n_clicks > 0:
+        if len(exclusion_intervals) > 0:
+            print(f"\n--- Processing filecode: {filecode} ---")
+            print(f"Excluded Regions to store: {exclusion_intervals}")
+            pp.update_artifacts_file(exclusion_file, filecode, exclusion_intervals)
+            print(f"Saved {len(exclusion_intervals)} artifact intervals to {exclusion_file}")
+            return f'Saved {len(exclusion_intervals)} Excluded Regions'
+        else:
+            print("No excluded regions to save.")
+            return "No excluded regions to save"
+
+    return "Save Excluded Regions"
+
+# Run the server
+if __name__ == '__main__':
+    app.run(debug=False, use_reloader=False)
+
+ # %%
+# 1.6 - Replace corrupted data with Nan, then interpolate
+exclusion_df = pd.read_excel(experiment_path / 'exclusions.xlsx')
+
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    pp_path = datapath_exp_dict[batch] / 'Preprocessing'
+    if os.path.exists(pp_path/f'{mouse}_deinterleaved.csv'):
+        print("-----------------------------") 
+        print(f'BATCH : {batch}, MOUSE : {mouse}')
+        print("-----------------------------")
+        filecode = f'{exp}_{mouse}'
+        filtered_dFFdata_df = pd.read_csv(pp_path/f'{mouse}_dFF_corrected.csv')
+
+        final_dFF = filtered_dFFdata_df.copy()
+        final_dFF = pp.apply_excluded_regions(final_dFF,'dFF',exclusion_df,filecode)
+
+        if dual_color:
+            final_dFF = pp.apply_excluded_regions(final_dFF,'560 dFF',exclusion_df,filecode)
+
+        interpdFFdata_df = pp.interpolate_dFFdata(final_dFF, method='linear')
+
+        interpdFFdata_df.to_csv(pp_path/f'{mouse}_dFF_corrected_final.csv', index=False)
+
+        #plotted curves after corrupted zones removal
+        if dual_color:
+            fig_dFF = gp.plot_fiberpho_dualcolor(interpdFFdata_df,exp,mouse,method)
+            fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF_corrected_final.png')
+            plt.close(fig_dFF) 
+
+        else:
+            fig_dFF = gp.plot_fiberpho(interpdFFdata_df,exp,mouse,method)
+            fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF_corrected_final.png')
             plt.close(fig_dFF) 
 
 # %%

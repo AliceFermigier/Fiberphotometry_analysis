@@ -150,7 +150,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
     deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
     dlc_path = behav_path_exp / f'{mouse}DLC_Resnet50_EPM_quality50Feb10shuffle1_snapshot_110_filtered.csv'
-    fiberpho_path = pp_path / f'{mouse}_dFF_corrected.csv'
+    fiberpho_path = pp_path / f'{mouse}_dFF_corrected_final.csv'
     
     # Arena boundaries
     try:
