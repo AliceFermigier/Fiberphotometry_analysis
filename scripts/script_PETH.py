@@ -165,7 +165,7 @@ MAXBOUTSNUMBER = 20
 event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [3, 8]
+TIME_WINDOW = [5, 5]
 Y_LIM = [-2,2.5]
 Y_LIM_DUAL = [-2,2.5]
 
