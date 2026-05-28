@@ -173,18 +173,15 @@ def detect_freezing_rms(speeds, fps=20, window_sec=1.0, threshold=1.0):
 
     return freezing, combined_rms, rms_dict
 
-def detect_freezing(dlc_df, scale_file, fps=20, threshold=None):
+def detect_freezing(dlc_df, arena_scale, threshold=None):
     """
     df: DLC dataframe with coordinate columns.
     video_scale in px/cm
     """
 
-    # --- Load or calculate pixel-to-cm scaling ---
-    if os.path.exists(scale_file):
-        dist_scaling = json.load(open(scale_file))["Scale_cm_per_px"]
-    else:
-        print("❗dist.json not found. Scale set to 0.1 cm/px")
-        dist_scaling = 0.1
+    # Get scale and frame rate data from json file
+    dist_scaling = arena_scale["Scale_cm_per_px"]
+    fps = arena_scale['Video_fps']
 
     # --- Compute local speed for each body part ---
     s_nose = mp.compute_speed(dlc_df, dist_scale=dist_scaling, frame_rate=fps, bodypart='nose')
@@ -213,7 +210,7 @@ def detect_freezing(dlc_df, scale_file, fps=20, threshold=None):
     freeze_bouts = np.zeros_like(freeze)
 
     # Require >= 1 sec continuous freezing
-    samples_1s = fps
+    samples_1s = int(round(fps))
 
     for i in range(samples_1s, len(freeze) - 2 * samples_1s):
         if diff_f[i] == 1 and np.mean(diff_f[i+1:i+samples_1s]) == 0:

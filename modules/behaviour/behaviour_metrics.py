@@ -506,3 +506,211 @@ def plot_group_heatmap(aligned_positions_list, mouse_list,
         fig.savefig(save_dir / f"group_heatmap_{n_bins}bins.pdf")
     plt.show()
     return fig
+
+def _get_bouts(binary_col: pd.Series, time_col: pd.Series) -> list[dict]:
+    """
+    Detect contiguous runs of 1 in a binary column.
+ 
+    Returns
+    -------
+    list of dict with keys:
+        start_idx, end_idx   – positional indices in the original DataFrame
+        start_time, end_time – values from time_col
+        duration_s           – end_time - start_time
+    """
+    arr = binary_col.to_numpy()
+    t   = time_col.to_numpy()
+ 
+    bouts = []
+    in_bout = False
+    start = 0
+ 
+    for i, v in enumerate(arr):
+        if v == 1 and not in_bout:
+            in_bout = True
+            start   = i
+        elif v != 1 and in_bout:
+            in_bout = False
+            bouts.append(dict(start_idx=start, end_idx=i - 1,
+                               start_time=t[start], end_time=t[i - 1],
+                               duration_s=t[i - 1] - t[start]))
+    if in_bout:                           # bout that reaches the last sample
+        bouts.append(dict(start_idx=start, end_idx=len(arr) - 1,
+                           start_time=t[start], end_time=t[-1],
+                           duration_s=t[-1] - t[start]))
+    return bouts
+ 
+ 
+def _freezing_stats(freezing_col: pd.Series,
+                    time_col:     pd.Series,
+                    start_idx:    int,
+                    end_idx:      int) -> dict:
+    """
+    Compute freezing time (s) and percentage for a window [start_idx, end_idx].
+    Uses the actual per-sample time-step so uneven sampling is handled correctly.
+    """
+    seg_freeze = freezing_col.iloc[start_idx : end_idx + 1].to_numpy()
+    seg_time   = time_col.iloc[start_idx : end_idx + 1].to_numpy()
+ 
+    if len(seg_time) < 2:
+        return dict(freezing_time_s=0.0, freezing_pct=0.0)
+ 
+    # dt for each sample = half the gap to the previous + half the gap to the next
+    dt = np.diff(seg_time, prepend=seg_time[0], append=seg_time[-1])
+    dt = (dt[:-1] + dt[1:]) / 2          # central differences → same length as seg
+ 
+    freezing_time = float(np.sum(seg_freeze * dt))
+    total_time    = float(np.sum(dt))
+    freezing_pct  = 100.0 * freezing_time / total_time if total_time > 0 else 0.0
+ 
+    return dict(freezing_time_s=round(freezing_time, 4),
+                freezing_pct=round(freezing_pct, 2))
+ 
+ 
+def _pre_cs_window(start_idx: int, n_samples: int, time_col: pd.Series) -> tuple[int, int]:
+    """
+    Return (pre_start_idx, pre_end_idx) for a baseline window of *n_samples*
+    immediately before *start_idx*, clipped to the beginning of the recording.
+    """
+    pre_end   = start_idx - 1
+    pre_start = max(0, start_idx - n_samples)
+    return pre_start, pre_end
+ 
+ 
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase detection
+# ─────────────────────────────────────────────────────────────────────────────
+ 
+# Expected CS counts per phase  (cs_plus_count, cs_minus_count)
+_PHASE_PROFILES = {
+    "Habituation":   (4,  4),
+    "Conditioning":  (6,  6),
+    "Extinction":    (12, 4),
+}
+ 
+def _detect_phase(n_cs_plus: int, n_cs_minus: int) -> str:
+    """
+    Heuristic phase label based on the number of CS+ and CS- presentations.
+    Returns 'Unknown' if no profile matches.
+    """
+    for phase, (np_, nm_) in _PHASE_PROFILES.items():
+        if n_cs_plus == np_ and n_cs_minus == nm_:
+            return phase
+    return f"Unknown (CS+={n_cs_plus}, CS-={n_cs_minus})"
+ 
+ 
+# ─────────────────────────────────────────────────────────────────────────────
+# Main public function
+# ─────────────────────────────────────────────────────────────────────────────
+ 
+def compute_behavior_metrics_FC(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute per-CS-presentation behavioural metrics for a Fear Conditioning session.
+ 
+    Parameters
+    ----------
+    df : pd.DataFrame
+        fiberbehav_notderived_df with at minimum:
+        'Time(s)', 'CS+', 'CS-', 'Freezing'
+        Optional but used if present: 'Shock', 'Speed'
+ 
+    Returns
+    -------
+    pd.DataFrame
+        One row per CS presentation, sorted chronologically.
+        Columns
+        -------
+        Phase               – Habituation / Conditioning / Extinction / Unknown
+        CS_type             – 'CS+' or 'CS-'
+        CS_number           – 1-based index within CS type
+        Start_time_s        – onset of the CS
+        End_time_s          – offset of the CS
+        CS_duration_s       – CS duration
+        Freezing_time_s     – seconds spent freezing during CS
+        Freezing_pct        – % of CS spent freezing
+        PreCS_freezing_time_s  – freezing in the pre-CS baseline window
+        PreCS_freezing_pct     – % of baseline window spent freezing
+        PreCS_duration_s    – duration of the pre-CS baseline window actually used
+        n_shocks            – number of shock bouts during this CS  (0 if no Shock col)
+        Mean_speed          – mean speed during CS  (NaN if no Speed col)
+    """
+ 
+    required = {'Time(s)', 'CS+', 'CS-', 'Freezing'}
+    missing  = required - set(df.columns)
+    if missing:
+        raise ValueError(f"DataFrame is missing required columns: {missing}")
+ 
+    time     = df['Time(s)'].reset_index(drop=True)
+    freezing = df['Freezing'].reset_index(drop=True)
+    cs_plus  = df['CS+'].reset_index(drop=True)
+    cs_minus = df['CS-'].reset_index(drop=True)
+ 
+    has_shock = 'Shock' in df.columns
+    has_speed = 'Speed' in df.columns
+    if has_shock:
+        shock = df['Shock'].reset_index(drop=True)
+    if has_speed:
+        speed = df['Speed'].reset_index(drop=True)
+ 
+    # ── Detect CS bouts ──────────────────────────────────────────────────────
+    cs_plus_bouts  = _get_bouts(cs_plus,  time)
+    cs_minus_bouts = _get_bouts(cs_minus, time)
+ 
+    phase = _detect_phase(len(cs_plus_bouts), len(cs_minus_bouts))
+ 
+    rows = []
+ 
+    # ── Helper to build one row ───────────────────────────────────────────────
+    def _make_row(cs_type, cs_num, bout):
+        si, ei = bout['start_idx'], bout['end_idx']
+        n_cs_samples = ei - si + 1
+ 
+        # CS-period freezing
+        freeze_stats = _freezing_stats(freezing, time, si, ei)
+ 
+        # Pre-CS baseline (same number of samples as the CS)
+        pre_si, pre_ei = _pre_cs_window(si, n_cs_samples, time)
+        if pre_ei >= pre_si:
+            pre_stats = _freezing_stats(freezing, time, pre_si, pre_ei)
+            pre_dur   = float(time.iloc[pre_ei] - time.iloc[pre_si])
+        else:
+            pre_stats = dict(freezing_time_s=np.nan, freezing_pct=np.nan)
+            pre_dur   = 0.0
+ 
+        # Shocks
+        n_shocks = 0
+        if has_shock:
+            shock_bouts = _get_bouts(shock.iloc[si:ei + 1].reset_index(drop=True),
+                                     time.iloc[si:ei + 1].reset_index(drop=True))
+            n_shocks = len(shock_bouts)
+ 
+        # Speed
+        mean_speed = float(speed.iloc[si:ei + 1].mean()) if has_speed else np.nan
+ 
+        return {
+            'Phase':                   phase,
+            'CS_type':                 cs_type,
+            'CS_number':               cs_num,
+            'Start_time_s':            round(bout['start_time'], 4),
+            'End_time_s':              round(bout['end_time'],   4),
+            'CS_duration_s':           round(bout['duration_s'], 4),
+            'Freezing_time_s':         freeze_stats['freezing_time_s'],
+            'Freezing_pct':            freeze_stats['freezing_pct'],
+            'PreCS_freezing_time_s':   pre_stats['freezing_time_s'],
+            'PreCS_freezing_pct':      pre_stats['freezing_pct'],
+            'PreCS_duration_s':        round(pre_dur, 4),
+            'n_shocks':                n_shocks,
+            'Mean_speed':              round(mean_speed, 4) if not np.isnan(mean_speed) else np.nan,
+        }
+ 
+    for i, bout in enumerate(cs_plus_bouts):
+        rows.append(_make_row('CS+', i + 1, bout))
+ 
+    for i, bout in enumerate(cs_minus_bouts):
+        rows.append(_make_row('CS-', i + 1, bout))
+ 
+    metrics_df = (pd.DataFrame(rows)
+                    .sort_values('Start_time_s')
+                    .reset_index(drop=True))
+ 
+    return metrics_df

@@ -63,19 +63,19 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Fear_Conditioning'
+exp = 'FearConditioning'
 if 'Conditioning' in exp:
-    list_BOI = ['Shock','CS+','CS-']
-    dlc_suffix = 'DLC_resnet50_FearConditioning18shuffle1_100000'
+    list_BOI = ['Freezing','Shock','CS+','CS-']
+    dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_110_filtered'
     sheet = 'Conditioning'
 else:
     list_BOI = ['Freezing','CS+','CS-']
     if 'Habituation' in exp:
         sheet = 'Habituation'
-        dlc_suffix = 'DLC_resnet50_FearHab_FiberNov26shuffle1_100000'
+        dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_090_filtered'
     else:
         sheet = 'Retrieval'
-        dlc_suffix = 'DLC_resnet50_FearHab_FiberNov26shuffle1_100000_filtered'
+        dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_090_filtered'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -88,7 +88,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     
     data_path_exp = datapath_exp_dict[batch]
     behav_path_exp = data_path_exp / 'Behaviour'
-    video_path = data_path_exp / f"{mouse}.avi"
+    video_path = behav_path_exp / f"{mouse}.avi"
     arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
     real_world_distance_cm=30
 
@@ -108,7 +108,8 @@ print(f'EXPERIMENT : {exp}')
 print('###################')
 
 import matplotlib.pyplot as plt
-dlc_data = False
+dlc_data = True
+dual_color = True
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
@@ -125,6 +126,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     behav_path_exp = data_path_exp / 'Behaviour'
 
     # Define paths for raw, behavioral, and fiberphotometry data
+    raw_doric_path = data_path_exp / f'{mouse}_0000.doric'
     protocol_file = experiment_path / "fear_protocol.xlsx"
     led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
     camera_flashes_path = data_path_exp / f'camera_flashes_{mouse}.csv'
@@ -132,21 +134,29 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
     fiberpho_path = pp_path / f'{mouse}_dFF_corrected_final.csv'
     dlc_path = behav_path_exp / f'{mouse}{dlc_suffix}.csv'
-    arena_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
-
-    led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
-    deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-    time_gap = cp.time_gap(deinterleaved_df, led_df)
+    scale_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
 
     fiberpho_df = pd.read_csv(fiberpho_path)
+    if CUT_FREQ != None:
+        print(f"Filtering dFF data : order = {ORDER}; cutting frequency = {CUT_FREQ}")
+        fiberpho_df = cs.lowpass_dFF(fiberpho_df, dual_color, order = 2, cut_freq = 6)
 
     # Parse protocol
     print('Aligning Imetronic data')
     proto = fc.parse_protocol_sheet(protocol_file, sheet)
 
+    # Extract sync channel from Doric raw data and Bonsai corresponding sync data
+    ttl_sync_df = cp.extract_sync_channel(raw_doric_path, sync_channel = "DIO04")
+    led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
+    led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) 
+    deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
+    # Compute linear regression to correct for differences between clocks
+    print(f"Syncing Doric and Bonsai clocks")
+    slope, intercept = cp.time_mapping(ttl_sync_df, led_df)
+
     # Get absolute protocol start from bonsai
     protocol_start_df = cp.get_timestamps_from_bonsai_csv(LED3_path)
-    protocol_start_df = cp.correct_behav_timestamps(protocol_start_df, time_gap)
+    protocol_start_df = cp.correct_behav_timestamps(protocol_start_df, slope, intercept)
     protocol_start = protocol_start_df['Time(s)'].values[0]
 
     # Convert relative intervals to absolute Bonsai time
@@ -166,18 +176,27 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
     # DLC data
     frame_times_df = cp.get_timestamps_from_bonsai_csv(camera_flashes_path)
-    frame_times_df = cp.correct_behav_timestamps(frame_times_df, time_gap)
+    frame_times_df = cp.correct_behav_timestamps(frame_times_df, slope, intercept)
     coordinates_df = None
+
+    # Arena scale
+    try:
+        with open(scale_json, 'r') as f:
+            arena_scale = json.load(f)
+    except Exception as e:
+        print(f'[!] Scale file missing or invalid for {mouse}: {e}')
+        arena_scale = {}
+
     if dlc_data:
         try:
             print('Getting DLC data')
-            coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.95)
+            coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.6)
             coordinates_df = cp.align_camera_flashes(coordinates_df, frame_times_df)
         except Exception as e:
             print(f'[!] DLC file error for {mouse}: {e}')
         # Compute freezing bouts using DLC data
         print('Computing freezing bouts')
-        behav_df = fc.detect_freezing(coordinates_df, arena_json, fps=20, threshold=0.2)
+        behav_df = fc.detect_freezing(coordinates_df, arena_scale, threshold=0.5)
 
         # Align DLC and fiber data
         print('Aligning fiberphotometry and behaviour data')
@@ -210,8 +229,6 @@ print('###################')
 print(f'EXPERIMENT : {exp}')
 print('###################')
 
-BIN_SIZE = 1   # seconds
-
 behaviors_to_plot = list_BOI
 
 # Create repository path where data will be stored
@@ -219,6 +236,7 @@ exp_path = analysis_path / exp
 repo_path = exp_path / f'length0_interbout0_o{ORDER}f{CUT_FREQ}'
 behavioural_analysis_path = exp_path / 'Behavioural_analysis'
 behavioural_analysis_path.mkdir(exist_ok=True)
+fig_dir = behavioural_analysis_path / 'Figures'
 
 all_metrics = {}
 
@@ -228,17 +246,16 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print(f'BATCH : {batch}, MOUSE : {mouse}')
     print("-----------------------------")
 
-
     fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
-    fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
     fiberbehav_notderived_df = pd.read_csv(fiberbehav_notderived_path)
-    fiberbehav_df = pd.read_csv(fiberbehav_path)
-    mouse_fig_dir = behavioural_analysis_path / 'Figures' / f'batch {batch} mouse {mouse}'
+
+    metrics = bm.compute_behavior_metrics_FC(fiberbehav_notderived_df)
+    all_metrics[mouse] = metrics
 
     # Plot raster
     bm.plot_behavior_raster(fiberbehav_notderived_df, 
                             mouse, batch, behaviors=behaviors_to_plot, 
-                            save_dir=mouse_fig_dir)
+                            save_dir=fig_dir)
 
     print(f"\n=== Analysis complete for mouse {batch}_{mouse}. Plots stored in {behavioural_analysis_path}. ===")
 

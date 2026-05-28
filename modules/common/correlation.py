@@ -258,8 +258,8 @@ def deconvolve_rgeco(signal, sr, tau_rise=0.5, tau_decay=2.0):
     return deconv
 
 def test_granger_causality(fiberbehav_df,behavior_col,max_lag_s=1,sr=None,
-    alpha=0.05,exclude_corrupted=True,exclusion_col='dFF ExclusionMask',exclusion_padding_s=2,
-    min_bout_s=2,min_std=0.01):
+    alpha=0.05,exclude_corrupted=True,exclusion_col='dFF ExclusionMask',exclusion_padding_s=1,
+    min_bout_s=2,min_std=0.01,return_raw=False):
     """
     Test whether dFF Granger-causes 560 dFF within behavior bouts.
     Robust version:
@@ -314,7 +314,12 @@ def test_granger_causality(fiberbehav_df,behavior_col,max_lag_s=1,sr=None,
     rejected_bouts = 0
 
     for onset, offset in zip(onsets, offsets):
-        bout_len = offset - onset
+
+        window_pre_s = 2
+        window_post_s = 2
+        start_idx = max(0, onset - int(window_pre_s * sr))
+        end_idx   = min(len(fiberbehav_df) - 1,offset + int(window_post_s * sr))
+        bout_len = end_idx - start_idx
 
         if bout_len < min_bout_samples:
             rejected_bouts += 1
@@ -322,17 +327,15 @@ def test_granger_causality(fiberbehav_df,behavior_col,max_lag_s=1,sr=None,
 
         # EXCLUSION MASK CHECK
         if exclude_corrupted and exclusion_col in fiberbehav_df.columns:
-            padded_start = max(0, onset - exclusion_padding)
-            padded_end = min(
-                len(fiberbehav_df) - 1,
-                offset + exclusion_padding)
+            padded_start = max(0, start_idx - exclusion_padding)
+            padded_end = min(len(fiberbehav_df) - 1,end_idx + exclusion_padding)
             exclusion_window = fiberbehav_df.loc[padded_start:padded_end,exclusion_col]
             if exclusion_window.any():
                 rejected_bouts += 1
                 continue
 
         # EXTRACT SEGMENT
-        seg = fiberbehav_df.loc[onset:offset,['dFF', '560 dFF']].dropna()
+        seg = fiberbehav_df.loc[start_idx:end_idx,['dFF', '560 dFF']].dropna()
 
         # enough data for Granger
         if len(seg) < max_lag_samples * 3:
@@ -391,7 +394,9 @@ def test_granger_causality(fiberbehav_df,behavior_col,max_lag_s=1,sr=None,
             'accepted_bouts': accepted_bouts,
             'rejected_bouts': rejected_bouts
         })
-
+        
+    if return_raw:
+        return pd.DataFrame(output), lag_results, accepted_bouts, rejected_bouts
     return pd.DataFrame(output)
 
 def compute_joint_psth(peth_465, peth_560):
@@ -521,5 +526,73 @@ def plot_joint_psth(jpsth_corrected, coincidence, timewindow,
     ax_coinc.set_title('Coinc.', fontsize=10)
     plt.setp(ax_coinc.get_yticklabels(), visible=False)
 
+    plt.tight_layout()
+    return fig
+
+def plot_granger_results(gc_df, BOI, exp, group, alpha=0.05):
+    """
+    Two-panel publication figure for Granger causality results.
+
+    Top    : mean F-statistic ± std across bouts, with individual bout
+             F-values shown as a swarm to convey bout-to-bout variability.
+    Bottom : −log₁₀(combined p-value) with significance threshold line.
+    """
+    fig, (ax_f, ax_p) = plt.subplots(2, 1, figsize=(7, 6), sharex=True,
+                                       gridspec_kw={'hspace': 0.08})
+
+    lags    = gc_df['lag_s'].values
+    mean_f  = gc_df['mean_F'].values
+    std_f   = gc_df['std_F'].values
+    log_p   = -np.log10(gc_df['combined_p'].values)
+    sig     = gc_df['significant'].values
+    n_bouts = int(gc_df['accepted_bouts'].iloc[0])
+
+    # ── F-statistic panel ─────────────────────────────────────────────────────
+    ax_f.fill_between(lags, mean_f - std_f, mean_f + std_f,
+                      color='cornflowerblue', alpha=0.25)
+    ax_f.plot(lags, mean_f,
+              color='cornflowerblue', linewidth=2,
+              label=f'Mean ± SD  (n = {n_bouts} bouts)')
+    ax_f.axhline(y=1, color='grey', linewidth=0.8, linestyle=':',
+                 label='F = 1 (no effect)')
+
+    # Highlight significant lags on the trace
+    sig_f = np.where(sig, mean_f, np.nan)
+    ax_f.plot(lags, sig_f,
+              color='firebrick', linewidth=4,
+              solid_capstyle='round', alpha=0.75,
+              label=f'p < {alpha}  (Fisher)')
+
+    ax_f.set_ylabel('F-statistic', fontsize=12)
+    ax_f.legend(fontsize=9, loc='upper right')
+    ax_f.margins(0, 0.15)
+    plt.setp(ax_f.get_xticklabels(), visible=False)
+
+    # ── −log₁₀(p) panel ──────────────────────────────────────────────────────
+    ax_p.plot(lags, log_p,
+              color='slategrey', linewidth=2)
+    ax_p.fill_between(lags, 0, log_p,
+                      where=sig,
+                      color='firebrick', alpha=0.3)
+    ax_p.axhline(y=-np.log10(alpha),
+                 color='firebrick', linewidth=1.2, linestyle='--',
+                 label=f'p = {alpha}')
+
+    # Annotate the significant bar using the same trick as cross-correlation
+    ax_p.fill_between(lags, 0.95, 1.0,
+                      where=sig,
+                      transform=ax_p.get_xaxis_transform(),
+                      color='firebrick', alpha=0.85,
+                      linewidth=0, label=f'p < {alpha}')
+
+    ax_p.set_xlabel('Lag (s)', fontsize=12)
+    ax_p.set_ylabel(r'$-\log_{10}(p)$', fontsize=12)
+    ax_p.legend(fontsize=9, loc='upper right')
+    ax_p.margins(0, 0.15)
+
+    plt.suptitle(
+        f'Granger causality: 465 nm → 560 nm\n{BOI} — {exp}, {group}',
+        fontsize=12
+    )
     plt.tight_layout()
     return fig

@@ -58,9 +58,9 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 3
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 0.5
+EVENT_TIME_THRESHOLD = 0
 
 exp = 'RewardHab'
 list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport']
@@ -75,7 +75,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print(f'BATCH : {batch}, MOUSE : {mouse}')
     print("-----------------------------")
     
-    data_path_exp = datapath_exp_dict[batch]
+    data_path_exp = datapath_exp_dict[batch] 
     behav_path_exp = data_path_exp / 'Behaviour'
     video_path = behav_path_exp / f"{mouse}.avi"
     output_json = behav_path_exp / f"{mouse}_ports_coordinates.json"
@@ -229,21 +229,42 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
 print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 
+#%% 2.2.1 - Plot sample traces
+
+TIME_WINDOW = [8000, 13000]
+for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+    print("-----------------------------") 
+    print(f'BATCH : {batch}, MOUSE : {mouse}')
+    print("-----------------------------")
+    repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+    fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+    dfiberbehav_df = pd.read_csv(fiberbehav_path)
+
+    # Plotting sample traces
+    fig = bp.plot_fiberpho_behav(
+        dfiberbehav_df[TIME_WINDOW[0]:TIME_WINDOW[1]].reset_index(drop=True), list_BOI, exp, mouse,
+        THRESH_S, EVENT_TIME_THRESHOLD, batch,
+        scaled = False)
+    
+    fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav_{TIME_WINDOW[0]}-{TIME_WINDOW[1]}.pdf')
+    fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav_{TIME_WINDOW[0]}-{TIME_WINDOW[1]}.png')
+    plt.close(fig)
+
 #%% 2.3 - Plot behavioural metrics
 
-exp = 'RewardHab'
+exp = 'RewardAirpuffs'
 
 print('###################')
 print(f'EXPERIMENT : {exp}')
 print('###################')
 
-BIN_SIZE = 60   # seconds
-N_TIME_BINS_HEATMAP = 3
+BIN_SIZE = 300   # seconds
+N_TIME_BINS_HEATMAP = 2
 HEATMAP_BINS = (50, 50)  # x, y bins
 
 behaviors_to_plot = [
     "Licks_filtered",
-    "Nose_in_any_airport" 
+    'Airpuffs'
 ]
 
 # Create repository path where data will be stored
@@ -371,3 +392,4 @@ bm.plot_group_heatmap(
     save_dir     = group_fig_dir,
 )
 # %%
+ 

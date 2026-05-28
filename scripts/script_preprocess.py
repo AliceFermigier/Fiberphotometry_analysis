@@ -45,7 +45,7 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'RewardAirpuffs'
+exp = 'FearConditioning'
 dual_color = True
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
@@ -123,7 +123,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = '996'
+mouse = '992'
 batch = 1
 filecode = f'{exp}_{mouse}'
 #------------------# 
@@ -137,7 +137,7 @@ downsampled_df = pp.downsample(deinterleaved_df, target_frequency=40)
 app = Dash(__name__)
 
 # Create the figure
-fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='405 Deinterleaved')
+fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='560 Deinterleaved')
 
 # App layout
 app.layout = html.Div([
@@ -283,7 +283,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.5 - Manually remove corrupted data if some are left
 
 #------------------#
-mouse = '1014'
+mouse = '995'
 batch = 1
 filecode = f'{exp}_{mouse}'
 #------------------# 

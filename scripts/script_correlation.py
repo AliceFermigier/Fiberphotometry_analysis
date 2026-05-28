@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import warnings
 import importlib
 from scipy.ndimage import gaussian_filter1d
+from scipy.stats import combine_pvalues
 
 
 #import functions
@@ -36,7 +37,7 @@ importlib.reload(quantif)
 import modules.common.correlation as corr
 importlib.reload(corr)
 
-from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batches
+from scripts.loader import experiment_path, analysis_path, data_path, proto_df, subjects_df, batches
 
 #%%
 dual_color = True
@@ -47,30 +48,29 @@ CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 3
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 0.5
+EVENT_TIME_THRESHOLD = 0
 
 #%% Compute and plot cross-correlation 
 
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardHab'
+exp = 'RewardAirpuffs'
 BOI = 'Licks_filtered'
 baseline = False
-MAXBOUTSNUMBER = 10
+MAXBOUTSNUMBER = 30
 event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [5, 5]
+TIME_WINDOW = [2, 2]
 Y_LIM = [-2,2.5]
 Y_LIM_DUAL = [-2,2.5]
 
 # PETH by bout number
 MIN_MICE_PER_BOUT = 3
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
-STEP = 5
 
 # Granger causality max lag
-MAX_LAG_S = 0.5
+MAX_LAG_S = 0.15
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
@@ -86,6 +86,9 @@ print('##########################################')
 print(f'EXPERIMENT: {exp}')
 print('##########################################')
 
+excluded_subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', 
+                                     sheet_name=f'Excluded_{exp}')
+
 exp_path = analysis_path / exp
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
 corr_path = repo_path / f'PETH_correlation_{tag}'
@@ -96,6 +99,7 @@ subject_list = []
 group_list = []
 PETH_list     = []
 PETH_list_560 = []
+dfiberbehav_dict = {}
 
 # Loop over each subject (mouse)
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
@@ -108,6 +112,9 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     if not fiberbehav_file.exists():
         print(f"File not found: {fiberbehav_file}")
         continue
+    if int(mouse) in excluded_subjects_df['Subject'].values:
+        print(f"Mouse {mouse} excluded")
+        continue
 
     dfiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
     if BOI == 'Airpuffs':
@@ -116,6 +123,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         dfiberbehav_clean = dfiberbehav_df.reset_index(drop=True)
 
     sr = pp.samplerate(dfiberbehav_clean)
+    dfiberbehav_dict[mouse] = dfiberbehav_clean
 
     if BOI in dfiberbehav_df.columns[2:].tolist():
         subject_list.append(mouse)
@@ -177,8 +185,8 @@ for group in included_groups:
     lags_s_sig, mean_xcorr_sig, sem_xcorr_sig, peak_lag_s_sig, ci_low, ci_high, is_sig = corr.compute_crosscorr_significance(
         PETH_list_group, PETH_list_560_group, sr, max_lag_s=TIME_WINDOW[0], n_shuffles=1000, ci=95)
     
-    fig_corr_sig = corr.plot_crosscorr_with_significance(lags_s, mean_xcorr, sem_xcorr,
-                                      peak_lag_s, ci_low, ci_high, is_sig,
+    fig_corr_sig = corr.plot_crosscorr_with_significance(lags_s_sig, mean_xcorr_sig, sem_xcorr_sig,
+                                      peak_lag_s_sig, ci_low, ci_high, is_sig,
                                       BOI, exp, group, MAXBOUTSNUMBER,
                                       color='cornflowerblue',
                                       sig_style='overlay')
@@ -204,10 +212,65 @@ for group in included_groups:
     fig_corr_deconvolved.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_crosscorrelation_deconvolved.png')
     plt.close(fig_corr_deconvolved)
 
-    ## Compute Granger causality
-    granger_df = corr.test_granger_causality(dfiberbehav_clean, BOI, max_lag_s=MAX_LAG_S,
-                        sr=None, alpha=0.05)
-    granger_df.to_excel(corr_path / f'{BOI}_maxlag{MAX_LAG_S}s_granger.xlsx')
+    # ── Granger causality: pool across all mice in this group ─────────────────
+    all_lag_results  = {}   # lag → {'F': [...], 'p': [...]}
+    total_accepted   = 0
+    total_rejected   = 0
+
+    for i in group_indices:
+        mouse    = subject_list[i]
+        df_mouse = dfiberbehav_dict.get(mouse)
+        if df_mouse is None:
+            print(f"  [!] No dataframe found for {mouse}, skipping Granger.")
+            continue
+
+        _, raw, acc, rej = corr.test_granger_causality(
+            df_mouse, BOI,
+            max_lag_s          = MAX_LAG_S,
+            sr                 = None,
+            alpha              = 0.05,
+            return_raw         = True,
+        )
+        total_accepted += acc
+        total_rejected += rej
+
+        for lag, data in raw.items():
+            if lag not in all_lag_results:
+                all_lag_results[lag] = {'F': [], 'p': []}
+            all_lag_results[lag]['F'].extend(data['F'])
+            all_lag_results[lag]['p'].extend(data['p'])
+
+    # ── Combine across mice + bouts with Fisher's method ─────────────────────
+    sr_granger = round(pp.samplerate(next(iter(dfiberbehav_dict.values()))))
+    group_output = []
+
+    for lag in sorted(all_lag_results.keys()):
+        F_vals = all_lag_results[lag]['F']
+        p_vals = all_lag_results[lag]['p']
+        if not F_vals:
+            continue
+        combined_p = combine_pvalues(p_vals, method='fisher')[1]
+        group_output.append({
+            'lag_samples'    : lag,
+            'lag_s'          : lag / sr_granger,
+            'mean_F'         : np.mean(F_vals),
+            'std_F'          : np.std(F_vals),
+            'combined_p'     : combined_p,
+            'significant'    : combined_p < 0.05,
+            'n_bouts_total'  : len(F_vals),
+            'accepted_bouts' : total_accepted,
+            'rejected_bouts' : total_rejected,
+        })
+
+    granger_df = pd.DataFrame(group_output)
+
+    granger_df.to_excel(corr_path / f'{group}_{BOI}_maxlag{MAX_LAG_S}s_granger.xlsx',
+                        index=False)
+    fig_granger = corr.plot_granger_results(granger_df, BOI, exp, group, alpha=0.05)
+    fig_granger.savefig(corr_path / f'{group}_{BOI}_maxlag{MAX_LAG_S}s_granger.pdf')
+    fig_granger.savefig(corr_path / f'{group}_{BOI}_maxlag{MAX_LAG_S}s_granger.png')
+    plt.close(fig_granger)
+
     print(f"✔ Correlation and causality results and plots exported to:{corr_path}")
 
 # %%

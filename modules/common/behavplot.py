@@ -178,7 +178,7 @@ def highlight_behavior_areas(ax, df, behavior_name, facecolor='grey', alpha=0.3,
     print(f"  → {i} spans drawn") 
 
 def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_TIME_THRESHOLD, batch, scaled=True):
-    behavprocesssnip_df = behavprocess_df.dropna()
+    behavprocesssnip_df = behavprocess_df.fillna(0)
     has_speed = 'Speed' in behavprocesssnip_df.columns
     has_560   = '560 dFF' in behavprocesssnip_df.columns
 
@@ -360,18 +360,18 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD,
     else:
         valid_signal = behavprocess_df[dFF_column]
 
-    F0 = valid_signal.mean()
     std0 = valid_signal.std()
 
     # Loop through each event and extract the fiberpho trace centered on the event
     for i, ind_event in enumerate(clean_events):
         try: 
+            dFF_baseline = behavprocess_df.loc[ind_event - 1 * sr : ind_event - PRE_EVENT_TIME * sr, dFF_column]
             if baselinewindow:
-                # Calculate baseline mean (F0) and standard deviation (std0) for the time window before the event
-                dFF_baseline = behavprocess_df.loc[ind_event - 1 * sr : ind_event - PRE_EVENT_TIME * sr, dFF_column]
-                F0 = dFF_baseline.mean() 
+                # Calculate baseline standard deviation (std0) for the time window before the event
                 std0 = dFF_baseline.std()
 
+            # Calculate baseline mean for correct alignment
+            F0 = dFF_baseline.mean()
             # Extract the fiberpho trace for the time window around the event
             event_window = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event + POST_TIME * sr, dFF_column]
             

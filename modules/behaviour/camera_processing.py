@@ -168,9 +168,19 @@ def align_camera_flashes(coordinates_df, frame_times_df):
     frame_times = frame_times_df.values
     n_dlc = len(coordinates_df)
     n_cam = len(frame_times)
+    diff = n_cam-n_dlc
 
-    if n_dlc != n_cam:
-        print(f"[!] Truncating: DLC has {n_dlc}, camera flashes {n_cam}")
+    if diff>1:
+        diff_1=int(round(diff/2))
+        diff_2=diff-diff_1
+        print(f"[!] DLC has {n_dlc}, camera flashes {n_cam}")
+        print(f"[!] Camera flashes has {diff} extra values. Truncating extra frames, leading and ending.")
+        frame_times = frame_times[diff_1:n_cam-diff_2]
+        print(f"[!] Check QC:")
+        plot_camera_instantaneous_frequency(frame_times_df)
+
+    elif diff!=0:
+        print(f"[!] Truncating tail: DLC has {n_dlc}, camera flashes {n_cam}")
         min_len = min(n_dlc, n_cam)
         # truncate both so they match
         coordinates_df = coordinates_df.iloc[:min_len].copy()
@@ -278,3 +288,46 @@ def get_camera_flashes(file_path):
 
     return pd.DataFrame({'Time(s)': timestamps})
 
+def plot_camera_instantaneous_frequency(frame_times_df, expected_fps=20, figsize=(14, 4)):
+    """
+    Plots instantaneous frequency of camera TTL pulses.
+    Useful for diagnosing frame drop, gaps, or extra leading/trailing pulses.
+    """
+    flash_times = frame_times_df.values.flatten()
+    diffs = np.diff(flash_times)          # inter-frame intervals in seconds
+    inst_freq = 1.0 / diffs               # instantaneous frequency in Hz
+    midpoints = (flash_times[:-1] + flash_times[1:]) / 2  # time axis
+
+    fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=False)
+
+    # --- Full recording ---
+    axes[0].plot(midpoints, inst_freq, lw=0.5, color='steelblue')
+    axes[0].axhline(expected_fps, color='red', lw=1, linestyle='--', label=f'Expected {expected_fps} fps')
+    axes[0].set_ylabel('Frequency (Hz)')
+    axes[0].set_xlabel('Time (s)')
+    axes[0].set_title('Instantaneous camera frequency — full recording')
+    axes[0].legend()
+
+    # --- Zoom on edges (first and last 100 frames) ---
+    n_edge = 100
+    edge_times = np.concatenate([midpoints[:n_edge], midpoints[-n_edge:]])
+    edge_freq  = np.concatenate([inst_freq[:n_edge],  inst_freq[-n_edge:]])
+    colors     = ['steelblue'] * n_edge + ['darkorange'] * n_edge
+
+    axes[1].scatter(edge_times, edge_freq, c=colors, s=8, zorder=3)
+    axes[1].axhline(expected_fps, color='red', lw=1, linestyle='--', label=f'Expected {expected_fps} fps')
+    axes[1].set_ylabel('Frequency (Hz)')
+    axes[1].set_xlabel('Time (s)')
+    axes[1].set_title('Edges zoom — blue: first 100 frames | orange: last 100 frames')
+    axes[1].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+    # Summary stats
+    print(f"Total flashes   : {len(flash_times)}")
+    print(f"Mean IFI        : {diffs.mean()*1000:.2f} ms  ({1/diffs.mean():.2f} Hz)")
+    print(f"Std IFI         : {diffs.std()*1000:.2f} ms")
+    print(f"Max IFI         : {diffs.max()*1000:.2f} ms  ← potential gap")
+    print(f"Min IFI         : {diffs.min()*1000:.2f} ms  ← potential burst")
+    print(f"Frames > 2× IFI : {(diffs > 2*diffs.mean()).sum()}  ← dropped frames")
