@@ -100,6 +100,132 @@ def plot_peth_crosscorr(lags_s, mean_xcorr, sem_xcorr, peak_lag_s,
     plt.tight_layout()
     return fig
 
+def compute_crosscorr_significance(peth_465_list, peth_560_list, sr,
+                                    max_lag_s=5, n_shuffles=1000, ci=95):
+    """
+    Assess cross-correlation significance via trial-shuffle permutation test.
+
+    Null hypothesis: the co-modulation between 465nm and 560nm traces is no
+    stronger than expected from randomly paired (unpaired) bouts.
+
+    Parameters
+    ----------
+    peth_465_list, peth_560_list : list of np.ndarray (n_bouts, timepoints)
+    sr          : float   — sampling rate (Hz)
+    n_shuffles  : int     — number of permutations
+    ci          : float   — confidence interval width (%)
+
+    Returns
+    -------
+    lags_s      : np.ndarray
+    mean_xcorr  : np.ndarray   — real cross-correlation
+    sem_xcorr   : np.ndarray
+    peak_lag_s  : float
+    ci_low      : np.ndarray   — lower bound of shuffle null
+    ci_high     : np.ndarray   — upper bound of shuffle null
+    is_sig      : np.ndarray   — boolean mask, True where real > null CI
+    """
+    def _xcorr_matrix(traces_465, traces_560, n_tp):
+        xcorrs = []
+        for s1, s2 in zip(traces_465, traces_560):
+            s1 = s1 - s1.mean();  s2 = s2 - s2.mean()
+            norm = np.sqrt(np.dot(s1, s1) * np.dot(s2, s2))
+            if norm < 1e-10:
+                continue
+            xcorrs.append(correlate(s2, s1, mode='full') / norm)
+        return np.array(xcorrs) if xcorrs else None
+
+    # Flatten all bouts across mice
+    all_465 = np.concatenate(peth_465_list, axis=0)
+    all_560 = np.concatenate(peth_560_list, axis=0)
+    n_tp    = all_465.shape[1]
+
+    lags   = correlation_lags(n_tp, n_tp, mode='full')
+    lags_s = lags / sr
+    mask   = np.abs(lags_s) <= max_lag_s
+
+    # ── Real cross-correlation ────────────────────────────────────────────────
+    real_mat   = _xcorr_matrix(all_465, all_560, n_tp)
+    mean_xcorr = real_mat[:, mask].mean(axis=0)
+    sem_xcorr  = real_mat[:, mask].std(axis=0) / np.sqrt(len(real_mat))
+    peak_lag_s = float(lags_s[mask][np.argmax(mean_xcorr)])
+
+    # ── Shuffle null distribution ─────────────────────────────────────────────
+    shuffle_means = []
+    for _ in range(n_shuffles):
+        perm         = np.random.permutation(len(all_465))
+        shuf_mat     = _xcorr_matrix(all_465, all_560[perm], n_tp)
+        if shuf_mat is not None:
+            shuffle_means.append(shuf_mat[:, mask].mean(axis=0))
+
+    shuffle_arr = np.array(shuffle_means)          # (n_shuffles, n_lags)
+    alpha       = (100 - ci) / 2
+    ci_low      = np.percentile(shuffle_arr, alpha,       axis=0)
+    ci_high     = np.percentile(shuffle_arr, 100 - alpha, axis=0)
+    is_sig      = (mean_xcorr > ci_high) | (mean_xcorr < ci_low)
+
+    return lags_s[mask], mean_xcorr, sem_xcorr, peak_lag_s, ci_low, ci_high, is_sig
+
+def plot_crosscorr_with_significance(lags_s, mean_xcorr, sem_xcorr,
+                                      peak_lag_s, ci_low, ci_high, is_sig,
+                                      BOI, exp, group, n_bouts,
+                                      color='cornflowerblue',
+                                      sig_style='bar'):
+    """
+    Parameters
+    ----------
+    sig_style : str
+        'bar'     — thin coloured bar at the top of the axes where significant.
+        'overlay' — significant portion of the trace replotted thicker on top.
+    """
+    fig, ax = plt.subplots(figsize=(8, 4))
+
+    # Shuffle null envelope
+    ax.fill_between(lags_s, ci_low, ci_high,
+                    color='grey', alpha=0.25, label='Shuffle null (95% CI)')
+
+    # SEM ribbon + mean trace
+    ax.fill_between(lags_s,
+                    mean_xcorr - sem_xcorr,
+                    mean_xcorr + sem_xcorr,
+                    color=color, alpha=0.3)
+    ax.plot(lags_s, mean_xcorr,
+            color=color, linewidth=2,
+            label=f'Cross-correlation  (n={n_bouts} bouts)')
+
+    # ── Significance indicator ────────────────────────────────────────────────
+    if sig_style == 'bar':
+        # Thin coloured bar pinned to the top of the axes in axes coordinates
+        # (x = data coords, y = axes fraction → independent of y-axis scale)
+        ax.fill_between(lags_s, 0.97, 1.0,
+                        where=is_sig,
+                        transform=ax.get_xaxis_transform(),
+                        color='firebrick', alpha=0.85,
+                        linewidth=0, label='p < 0.05')
+
+    elif sig_style == 'overlay':
+        # Replot only the significant samples as a thicker line on top
+        sig_xcorr = np.where(is_sig, mean_xcorr, np.nan)
+        ax.plot(lags_s, sig_xcorr,
+                color='firebrick', linewidth=4,
+                solid_capstyle='round',
+                alpha=0.75, zorder=4,
+                label='p < 0.05')
+
+    # Reference lines
+    ax.axvline(x=0,          color='black',     linewidth=1,   linestyle='--')
+    ax.axvline(x=peak_lag_s, color='firebrick', linewidth=1.5, linestyle=':',
+               label=f'Peak lag = {peak_lag_s:.3f} s')
+    ax.axhline(y=0,          color='grey',      linewidth=0.8, linestyle=':')
+
+    ax.set_xlabel('Lag (s)  [positive = 560 follows 465]', fontsize=12)
+    ax.set_ylabel('Normalized cross-correlation', fontsize=12)
+    ax.set_title(f'465→560 cross-correlation — {BOI}, {exp}, {group}', fontsize=12)
+    ax.legend(fontsize=9)
+    ax.margins(0, 0.05)
+    plt.tight_layout()
+    return fig
+
 def deconvolve_rgeco(signal, sr, tau_rise=0.5, tau_decay=2.0):
     """
     Remove R-GECO indicator kinetics from a 560nm dFF trace by
@@ -132,7 +258,7 @@ def deconvolve_rgeco(signal, sr, tau_rise=0.5, tau_decay=2.0):
     return deconv
 
 def test_granger_causality(fiberbehav_df,behavior_col,max_lag_s=1,sr=None,
-    alpha=0.05,exclude_corrupted=True,exclusion_col='Excluded_mask',exclusion_padding_s=2,
+    alpha=0.05,exclude_corrupted=True,exclusion_col='dFF ExclusionMask',exclusion_padding_s=2,
     min_bout_s=2,min_std=0.01):
     """
     Test whether dFF Granger-causes 560 dFF within behavior bouts.

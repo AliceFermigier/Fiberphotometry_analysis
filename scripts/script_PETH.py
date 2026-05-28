@@ -34,7 +34,7 @@ importlib.reload(cs)
 import modules.common.quantification as quantif
 importlib.reload(quantif)
 
-from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batches
+from scripts.loader import experiment_path, analysis_path, data_path, proto_df, subjects_df, batches
 
 #%%
 
@@ -73,7 +73,6 @@ for exp in ['RewardHab']: #[f.name for f in analysis_path.iterdir() if f.is_dir(
     exp_path = analysis_path / exp
     datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
-    # Loop over each session folder in the experiment path
     print('##########################################')
     print(f'EXPERIMENT : {exp}')
     print('##########################################')
@@ -86,8 +85,8 @@ for exp in ['RewardHab']: #[f.name for f in analysis_path.iterdir() if f.is_dir(
     # Loop over each mouse in the subjects DataFrame
     for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
         fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
-
-        if fiberbehav_path.exists():  # Check if fiber behavior file exists for this mouse
+        # Check if fiber behavior file exists for this mouse and if mouse not excluded
+        if fiberbehav_path.exists():  
             print("--------------")
             print(f'MOUSE : {mouse} {batch}')
             print("--------------")
@@ -165,9 +164,9 @@ MAXBOUTSNUMBER = 20
 event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [5, 5]
-Y_LIM = [-2,2.5]
-Y_LIM_DUAL = [-2,2.5]
+TIME_WINDOW = [3, 8]
+Y_LIM = [-1,1.5]
+Y_LIM_DUAL = [-1,1.5]
 
 # ── PETH by bout number
 MIN_MICE_PER_BOUT = 3    # hide bout positions covered by fewer mice
@@ -183,6 +182,10 @@ else:
 subjects_df['Group'] = subjects_df['Group'].fillna('')
 included_groups = set(subjects_df['Group'])
 # ----------------------------- #
+
+#Load excluded subjects
+excluded_subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', 
+                                     sheet_name=f'Excluded_{exp}')
 
 print('##########################################')
 print(f'EXPERIMENT: {exp}')
@@ -212,8 +215,12 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
 
     fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
 
+    # Check if file exists and mouse not manually excluded
     if not fiberbehav_file.exists():
         print(f"File not found: {fiberbehav_file}")
+        continue
+    if mouse in excluded_subjects_df['Subject']:
+        print(f"Mouse {mouse} excluded")
         continue
 
     dfiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)

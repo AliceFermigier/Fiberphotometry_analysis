@@ -283,7 +283,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.5 - Manually remove corrupted data if some are left
 
 #------------------#
-mouse = '996'
+mouse = '1014'
 batch = 1
 filecode = f'{exp}_{mouse}'
 #------------------# 

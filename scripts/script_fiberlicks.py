@@ -215,7 +215,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         print(f'n_licks_filtered {mouse} : {len(np.where(dfiberbehav_df["Licks_filtered"]==1)[0])}')
     if airpuff_path.exists():
         print(f'n_airpuffs {mouse} : {len(np.where(dfiberbehav_df["Airpuffs"]==1)[0])}')
-    dfiberbehav_df.to_csv(fiberbehav_path, index=False)
+    dfiberbehav_df.to_csv(fiberbehav_path)
 
     # Plotting
     fig = bp.plot_fiberpho_behav(

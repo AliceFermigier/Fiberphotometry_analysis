@@ -334,7 +334,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD,
     # Check if the window does not overlap with a corrupted region stored in exclusions excel
     for ind_event in list_ind_event:
 
-        if exclude_corrupted and 'Excluded_mask' in behavprocess_df.columns:
+        if exclude_corrupted and 'dFF ExclusionMask' in behavprocess_df.columns:
             start_idx = int(ind_event - PRE_TIME * sr)
             end_idx   = int(ind_event + POST_TIME * sr)
 
@@ -342,10 +342,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD,
             if start_idx < 0 or end_idx >= len(behavprocess_df):
                 continue
 
-            exclusion_window = behavprocess_df.loc[
-                start_idx:end_idx,
-                'Excluded_mask'
-            ]
+            exclusion_window = behavprocess_df.loc[start_idx:end_idx,'dFF ExclusionMask'].astype(bool)
             if exclusion_window.any():
                 continue
 
@@ -354,11 +351,17 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD,
     # Preallocate the PETH array to store the z-scored traces
     n_bouts = len(clean_events)
     n_timepoints = (POST_TIME + PRE_TIME) * sr + 1
-    PETH_array = np.zeros((n_bouts, n_timepoints))
-    
-    # Initialize mean and std on whole trace
-    F0 = behavprocess_df[dFF_column].mean()
-    std0 = behavprocess_df[dFF_column].std()
+    PETH_array = np.full((n_bouts, n_timepoints), np.nan)
+
+    # Initialize mean and std on whole trace, excluding corrupted regions
+    if exclude_corrupted and 'dFF ExclusionMask' in behavprocess_df.columns:
+        mask = behavprocess_df['dFF ExclusionMask'].astype(bool)
+        valid_signal = behavprocess_df.loc[~mask,dFF_column]
+    else:
+        valid_signal = behavprocess_df[dFF_column]
+
+    F0 = valid_signal.mean()
+    std0 = valid_signal.std()
 
     # Loop through each event and extract the fiberpho trace centered on the event
     for i, ind_event in enumerate(clean_events):

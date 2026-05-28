@@ -56,7 +56,7 @@ EVENT_TIME_THRESHOLD = 0.5
 exp = 'RewardHab'
 BOI = 'Licks_filtered'
 baseline = False
-MAXBOUTSNUMBER = 30
+MAXBOUTSNUMBER = 10
 event = 'onset'
 
 # Plot parameters
@@ -173,6 +173,20 @@ for group in included_groups:
     fig_corr.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_crosscorrelation.png')
     plt.close(fig_corr)
 
+    ## Compute cross-correlation significance
+    lags_s_sig, mean_xcorr_sig, sem_xcorr_sig, peak_lag_s_sig, ci_low, ci_high, is_sig = corr.compute_crosscorr_significance(
+        PETH_list_group, PETH_list_560_group, sr, max_lag_s=TIME_WINDOW[0], n_shuffles=1000, ci=95)
+    
+    fig_corr_sig = corr.plot_crosscorr_with_significance(lags_s, mean_xcorr, sem_xcorr,
+                                      peak_lag_s, ci_low, ci_high, is_sig,
+                                      BOI, exp, group, MAXBOUTSNUMBER,
+                                      color='cornflowerblue',
+                                      sig_style='overlay')
+    
+    fig_corr_sig.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[0]}_crosscorrelation_sig.pdf')
+    fig_corr_sig.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[0]}_crosscorrelation_sig.png')
+    plt.close(fig_corr_sig)
+    
     ## Compute deconvolved correlation (matches R-GECO signal to GRAB-ACh dynamics)
     peth_560_deconv_list = [
         np.array([corr.deconvolve_rgeco(row, sr) for row in peth])
