@@ -44,73 +44,95 @@ dual_color = True
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 3
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
 #%% Plot PETH for each mouse
 
 # PETH parameters 
-baseline = True # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = 30
+baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
+MAXBOUTSNUMBER = None
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
 else:
     tag = f"wholetrace_maxbouts{MAXBOUTSNUMBER}"
 
 # Plot parameters
-EVENT_LIST = ['onset','withdrawal']
-TIME_WINDOWS = [[3, 8],[3, 8]]  # Time window for PETH calculation (pre, post), for each event
-Y_LIM = [-2,10]
-Y_LIM_DUAL = [-2,5]
-behaviors_of_interest = ['Licks_filtered','Airpuffs']
+EVENT_LIST = ['onset']
+TIME_WINDOWS = [[3, 3]]  # Time window for PETH calculation (pre, post), for each event
+Y_LIM = [-5,20]
+Y_LIM_DUAL = [-5,20]
+exp = 'FearHabituation'
+behaviors_of_interest = ['CS+','CS-']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']
 #['Open arm','Closed arm','Head dipping','Center']
 
-for exp in ['RewardAirpuffs']: #[f.name for f in analysis_path.iterdir() if f.is_dir()]:
-    exp_path = analysis_path / exp
-    datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
+exp_path = analysis_path / exp
+datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
-    print('##########################################')
-    print(f'EXPERIMENT : {exp}')
-    print('##########################################')
+print('##########################################')
+print(f'EXPERIMENT : {exp}')
+print('##########################################')
 
-    # Create the repository and PETH paths
-    repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
-    peth_path = repo_path / f'PETH_{tag}'
-    peth_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
+# Create the repository and PETH paths
+repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+peth_path = repo_path / f'PETH_{tag}'
+peth_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
 
-    # Loop over each mouse in the subjects DataFrame
-    for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
-        fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
-        # Check if fiber behavior file exists for this mouse and if mouse not excluded
-        if fiberbehav_path.exists():  
-            print("--------------")
-            print(f'MOUSE : {mouse} {batch}')
-            print("--------------")
+# Loop over each mouse in the subjects DataFrame
+for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
+    fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+    # Check if fiber behavior file exists for this mouse and if mouse not excluded
+    if fiberbehav_path.exists():  
+        print("--------------")
+        print(f'MOUSE : {mouse} {batch}')
+        print("--------------")
 
+        try:
+            # Read the fiber behavior file
+            dfiberbehav_df = pd.read_csv(fiberbehav_path, index_col=0)
+        except Exception as e:
+            warnings.warn(f"Failed to read file {fiberbehav_path}: {e}")
+            continue
+        
+        for behavior in behaviors_of_interest:
             try:
-                # Read the fiber behavior file
-                dfiberbehav_df = pd.read_csv(fiberbehav_path, index_col=0)
-            except Exception as e:
-                warnings.warn(f"Failed to read file {fiberbehav_path}: {e}")
-                continue
-            
-            for behavior in behaviors_of_interest:
-                try:
-                    if behavior == 'Airpuffs':
-                        dfiberbehav_clean = bp.remove_first_bout(dfiberbehav_df.reset_index(drop=True), behavior)
-                    else:
-                        dfiberbehav_clean = dfiberbehav_df.reset_index(drop=True)
+                if behavior == 'Airpuffs':
+                    dfiberbehav_clean = bp.remove_first_bout(dfiberbehav_df.reset_index(drop=True), behavior)
+                else:
+                    dfiberbehav_clean = dfiberbehav_df.reset_index(drop=True)
 
-                    for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
+                for event, time_window in zip(EVENT_LIST, TIME_WINDOWS):  
+                    # Generate the PETH data for the current behavior, event, and time window
+                    print(f"Getting PETH data for {behavior} {event} 465nm")
+                    peth_data = bp.PETH(dfiberbehav_clean, behavior, event, time_window, 
+                                        EVENT_TIME_THRESHOLD, baselinewindow = baseline, 
+                                        maxboutsnumber=MAXBOUTSNUMBER)
+                    
+                    # Create a DataFrame from the PETH data
+                    sr = round(pp.samplerate(dfiberbehav_df))
+                    PRE_TIME, POST_TIME = time_window
+                    n_timepoints = (PRE_TIME + POST_TIME) * sr + 1
+                    time_index = np.linspace(-PRE_TIME, POST_TIME, n_timepoints)
+
+                    peth_df = pd.DataFrame(np.transpose(peth_data), index=time_index)
+                    
+                    # Plot the PETH and save the figure 
+                    print(f"Plotting PETH 465nm")
+                    peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, exp, batch, mouse, group, ylim=Y_LIM)
+                    peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_465_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
+                    peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_465_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
+                    plt.close(peth_plot)
+            
+                    if dual_color:
                         # Generate the PETH data for the current behavior, event, and time window
-                        print(f"Getting PETH data for {behavior} {event} 465nm")
+                        print(f"Getting PETH data for {behavior} {event} 560nm")
                         peth_data = bp.PETH(dfiberbehav_clean, behavior, event, time_window, 
                                             EVENT_TIME_THRESHOLD, baselinewindow = baseline, 
-                                            maxboutsnumber=MAXBOUTSNUMBER)
+                                            maxboutsnumber=MAXBOUTSNUMBER, dFF_column = '560 dFF')
                         
                         # Create a DataFrame from the PETH data
                         sr = round(pp.samplerate(dfiberbehav_df))
@@ -120,38 +142,16 @@ for exp in ['RewardAirpuffs']: #[f.name for f in analysis_path.iterdir() if f.is
 
                         peth_df = pd.DataFrame(np.transpose(peth_data), index=time_index)
                         
-                        # Plot the PETH and save the figure 
-                        print(f"Plotting PETH 465nm")
-                        peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, exp, batch, mouse, group, ylim=Y_LIM)
-                        peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_465_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
-                        peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_465_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
+                        # Plot the PETH and save the figure
+                        print(f"Plotting PETH 560nm")
+                        peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, 
+                                                exp, batch, mouse, group, ylim=Y_LIM_DUAL,
+                                                dff_column = '560')
+                        peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_560_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
+                        peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_560_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
                         plt.close(peth_plot)
-                
-                        if dual_color:
-                            # Generate the PETH data for the current behavior, event, and time window
-                            print(f"Getting PETH data for {behavior} {event} 560nm")
-                            peth_data = bp.PETH(dfiberbehav_clean, behavior, event, time_window, 
-                                                EVENT_TIME_THRESHOLD, baselinewindow = baseline, 
-                                                maxboutsnumber=MAXBOUTSNUMBER, dFF_column = '560 dFF')
-                            
-                            # Create a DataFrame from the PETH data
-                            sr = round(pp.samplerate(dfiberbehav_df))
-                            PRE_TIME, POST_TIME = time_window
-                            n_timepoints = (PRE_TIME + POST_TIME) * sr + 1
-                            time_index = np.linspace(-PRE_TIME, POST_TIME, n_timepoints)
-
-                            peth_df = pd.DataFrame(np.transpose(peth_data), index=time_index)
-                            
-                            # Plot the PETH and save the figure
-                            print(f"Plotting PETH 560nm")
-                            peth_plot = bp.plot_PETH(peth_data, behavior, event, time_window, 
-                                                    exp, batch, mouse, group, ylim=Y_LIM_DUAL,
-                                                    dff_column = '560')
-                            peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_560_{event[0]}{time_window[0] - time_window[1]}_PETH.png')
-                            peth_plot.savefig(peth_path / f'{batch}_{mouse}_{behavior}_560_{event[0]}{time_window[0] - time_window[1]}_PETH.pdf')
-                            plt.close(peth_plot)
-                except Exception as e:
-                    print(f'Error processing mouse {mouse}:{e}')
+            except Exception as e:
+                print(f'Error processing mouse {mouse}:{e}')
 
 print(f"All plots saved to {peth_path}")
         
@@ -159,21 +159,21 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuffs'
-BOI = 'Licks'
+exp = 'FearHabituation'
+BOI = 'CS-'
 baseline = False
-MAXBOUTSNUMBER = 30
+MAXBOUTSNUMBER = None
 event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [1, 2]
-Y_LIM = [-1.5,1.5]
-Y_LIM_DUAL = [-1.5,1.5]
+TIME_WINDOW = [5, 40]
+Y_LIM = [-2,11]
+Y_LIM_DUAL = [-2,11]
 
 # ── PETH by bout number
 MIN_MICE_PER_BOUT = 3    # hide bout positions covered by fewer mice
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
-STEP = 5
+STEP = 1
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"

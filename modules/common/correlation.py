@@ -16,9 +16,6 @@ def compute_peth_crosscorr(peth_465_list, peth_560_list, sr,
     Compute normalized cross-correlation between 465nm and 560nm PETH traces,
     pooled across bouts and mice.
 
-    Convention: positive lag means 560 follows 465 (consistent with ACh
-    driving calcium with a delay).
-
     Parameters
     ----------
     peth_465_list, peth_560_list : list of np.ndarray, shape (n_bouts, timepoints)

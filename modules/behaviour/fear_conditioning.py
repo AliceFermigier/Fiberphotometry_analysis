@@ -113,13 +113,43 @@ def parse_protocol_sheet(path, sheet_name):
         "LED3": led3
     }
 
-def convert_to_absolute(intervals, protocol_start_time):
+def get_protocol_remapping(protocol_start_df, proto):
     """
-    intervals: list of (start_s, end_s) relative to protocol start
-    protocol_start_time: bonsai timestamp (seconds) for protocol start
-    returns list of (abs_start_s, abs_end_s)
+    Compute effective slope and start by comparing LED3 duration in
+    Doric time (from corrected Bonsai CSV) vs Imetronic time (from Excel).
+    
+    Returns: protocol_start (Doric), effective_slope
     """
-    return [(protocol_start_time + s, protocol_start_time + e) for s, e in intervals]
+    # Doric-corrected anchors from LED3.csv
+    protocol_start = protocol_start_df['Time(s)'].values[0]
+    protocol_stop  = protocol_start_df['Time(s)'].values[-1]
+    doric_duration = protocol_stop - protocol_start
+
+    # Imetronic anchors from Excel (relative seconds)
+    led3_onset, led3_offset = proto["LED3"][0]
+    imetronic_duration = led3_offset - led3_onset
+
+    effective_slope = doric_duration / imetronic_duration
+    #protocol_start=protocol_start-0.08
+    print(f"Protocol start: {protocol_start}")
+
+    print(f"Protocol duration — Imetronic : {imetronic_duration:.3f} s")
+    print(f"Protocol duration — Doric     : {doric_duration:.3f} s")
+    print(f"Effective slope               : {effective_slope:.8f}")
+    print(f"Accumulated drift corrected   : {(doric_duration - imetronic_duration)*1000:.1f} ms")
+
+    return protocol_start, effective_slope
+
+def convert_to_absolute(intervals, protocol_start, effective_slope):
+    """
+    Remap relative Imetronic intervals to absolute Doric timestamps
+    using empirically measured effective slope from LED3 anchors.
+    """
+    return [
+        (protocol_start + (onset * effective_slope),
+         protocol_start + (offset * effective_slope))
+        for onset, offset in intervals
+    ]
 
 def add_interval_column(fp_df, intervals, colname, time_col='Time(s)'):
     """

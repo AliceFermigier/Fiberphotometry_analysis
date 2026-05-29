@@ -63,7 +63,7 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'FearConditioning'
+exp = 'FearHabituation'
 if 'Conditioning' in exp:
     list_BOI = ['Freezing','Shock','CS+','CS-']
     dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_110_filtered'
@@ -157,14 +157,18 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     # Get absolute protocol start from bonsai
     protocol_start_df = cp.get_timestamps_from_bonsai_csv(LED3_path)
     protocol_start_df = cp.correct_behav_timestamps(protocol_start_df, slope, intercept)
-    protocol_start = protocol_start_df['Time(s)'].values[0]
+
+    # Get correction data for Imetronic timestamps
+    protocol_start, effective_slope = fc.get_protocol_remapping(protocol_start_df, proto)
+    print(f'Protocol start:{protocol_start}')
+    protocol_start=protocol_start-0.1
 
     # Convert relative intervals to absolute Bonsai time
-    cs_plus_abs = fc.convert_to_absolute(proto["CS+"], protocol_start)
-    cs_minus_abs = fc.convert_to_absolute(proto["CS-"], protocol_start)
-    led3_abs = fc.convert_to_absolute(proto["LED3"], protocol_start)
+    cs_plus_abs  = fc.convert_to_absolute(proto["CS+"],   protocol_start, effective_slope)
+    cs_minus_abs = fc.convert_to_absolute(proto["CS-"],   protocol_start, effective_slope)
+    led3_abs     = fc.convert_to_absolute(proto["LED3"],  protocol_start, effective_slope)
     if 'Shock' in list_BOI:
-        shock_abs = fc.convert_to_absolute(proto["Shock"], protocol_start)
+        shock_abs    = fc.convert_to_absolute(proto["Shock"], protocol_start, effective_slope)
 
     # Add interval columns to your fiberphotometry data
     fiberbehav_df = fc.add_interval_column(fiberpho_df, cs_plus_abs, "CS+")
@@ -208,10 +212,10 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     # Save outputs
     fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
     fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
-    fiberbehav_df.to_csv(fiberbehav_notderived_path, index=False)
+    fiberbehav_df.to_csv(fiberbehav_notderived_path)
 
     dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
-    dfiberbehav_df.to_csv(fiberbehav_path, index=False)
+    dfiberbehav_df.to_csv(fiberbehav_path)
 
     # Plotting
     fig = bp.plot_fiberpho_behav(
