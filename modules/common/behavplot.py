@@ -350,7 +350,7 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD,
 
     # Preallocate the PETH array to store the z-scored traces
     n_bouts = len(clean_events)
-    n_timepoints = (POST_TIME + PRE_TIME) * sr + 1
+    n_timepoints = int(round((POST_TIME + PRE_TIME) * sr)) + 1
     PETH_array = np.full((n_bouts, n_timepoints), np.nan)
 
     # Initialize mean and std on whole trace, excluding corrupted regions
@@ -660,7 +660,7 @@ def PETH_by_bout(PETH_list, max_bouts=None, min_mice=1, step=1):
 def plot_PETH_by_bout(bout_means, bout_sems, bout_n,
                       BOI, event, timewindow, exp, group,
                       max_bouts_to_show=None, min_mice=1, step=1,
-                      cmap_name='plasma', ylim=None, fill_alpha=0.15,
+                      cmap_name='jet', ylim=None, fill_alpha=0.15,
                       dff_column='465'):
 
     PRE_TIME, POST_TIME = float(timewindow[0]), float(timewindow[1])

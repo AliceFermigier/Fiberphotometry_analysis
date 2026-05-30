@@ -97,32 +97,29 @@ def plot_peth_crosscorr(lags_s, mean_xcorr, sem_xcorr, peak_lag_s,
     plt.tight_layout()
     return fig
 
+def _phase_randomize(signal):
+    """
+    Destroy cross-signal temporal structure while preserving the
+    signal's own power spectrum (autocorrelation).
+    """
+    f   = np.fft.rfft(signal)
+    phi = np.random.uniform(0, 2 * np.pi, len(f))
+    phi[0] = 0                              # keep DC real
+    if len(signal) % 2 == 0:
+        phi[-1] = 0                         # keep Nyquist real for even-length signals
+    return np.fft.irfft(np.abs(f) * np.exp(1j * phi), n=len(signal))
+
+
 def compute_crosscorr_significance(peth_465_list, peth_560_list, sr,
+                                    method='trial_permutation',  # ← underscore
                                     max_lag_s=5, n_shuffles=1000, ci=95):
     """
-    Assess cross-correlation significance via trial-shuffle permutation test.
+    Assess cross-correlation significance.
 
-    Null hypothesis: the co-modulation between 465nm and 560nm traces is no
-    stronger than expected from randomly paired (unpaired) bouts.
-
-    Parameters
-    ----------
-    peth_465_list, peth_560_list : list of np.ndarray (n_bouts, timepoints)
-    sr          : float   — sampling rate (Hz)
-    n_shuffles  : int     — number of permutations
-    ci          : float   — confidence interval width (%)
-
-    Returns
-    -------
-    lags_s      : np.ndarray
-    mean_xcorr  : np.ndarray   — real cross-correlation
-    sem_xcorr   : np.ndarray
-    peak_lag_s  : float
-    ci_low      : np.ndarray   — lower bound of shuffle null
-    ci_high     : np.ndarray   — upper bound of shuffle null
-    is_sig      : np.ndarray   — boolean mask, True where real > null CI
+    method : 'trial_permutation'   — shuffle bout pairing across mice
+             'phase_randomization' — randomize phase spectrum of 560nm traces
     """
-    def _xcorr_matrix(traces_465, traces_560, n_tp):
+    def _xcorr_matrix(traces_465, traces_560):             # ← removed unused n_tp
         xcorrs = []
         for s1, s2 in zip(traces_465, traces_560):
             s1 = s1 - s1.mean();  s2 = s2 - s2.mean()
@@ -132,36 +129,131 @@ def compute_crosscorr_significance(peth_465_list, peth_560_list, sr,
             xcorrs.append(correlate(s2, s1, mode='full') / norm)
         return np.array(xcorrs) if xcorrs else None
 
-    # Flatten all bouts across mice
     all_465 = np.concatenate(peth_465_list, axis=0)
     all_560 = np.concatenate(peth_560_list, axis=0)
     n_tp    = all_465.shape[1]
 
-    lags   = correlation_lags(n_tp, n_tp, mode='full')
-    lags_s = lags / sr
+    lags_s = correlation_lags(n_tp, n_tp, mode='full') / sr
     mask   = np.abs(lags_s) <= max_lag_s
 
     # ── Real cross-correlation ────────────────────────────────────────────────
-    real_mat   = _xcorr_matrix(all_465, all_560, n_tp)
+    real_mat   = _xcorr_matrix(all_465, all_560)           # ← removed n_tp
     mean_xcorr = real_mat[:, mask].mean(axis=0)
     sem_xcorr  = real_mat[:, mask].std(axis=0) / np.sqrt(len(real_mat))
     peak_lag_s = float(lags_s[mask][np.argmax(mean_xcorr)])
 
-    # ── Shuffle null distribution ─────────────────────────────────────────────
+    # ── Null distribution ─────────────────────────────────────────────────────
     shuffle_means = []
-    for _ in range(n_shuffles):
-        perm         = np.random.permutation(len(all_465))
-        shuf_mat     = _xcorr_matrix(all_465, all_560[perm], n_tp)
-        if shuf_mat is not None:
-            shuffle_means.append(shuf_mat[:, mask].mean(axis=0))
 
-    shuffle_arr = np.array(shuffle_means)          # (n_shuffles, n_lags)
-    alpha       = (100 - ci) / 2
-    ci_low      = np.percentile(shuffle_arr, alpha,       axis=0)
-    ci_high     = np.percentile(shuffle_arr, 100 - alpha, axis=0)
+    if method == 'trial_permutation':                      # ← underscore
+        for _ in range(n_shuffles):
+            perm     = np.random.permutation(len(all_465))
+            shuf_mat = _xcorr_matrix(all_465, all_560[perm])
+            if shuf_mat is not None:
+                shuffle_means.append(shuf_mat[:, mask].mean(axis=0))
+
+    elif method == 'phase_randomization':                  # ← underscore
+        for _ in range(n_shuffles):
+            shuf_560 = np.array([_phase_randomize(row) for row in all_560])
+            shuf_mat = _xcorr_matrix(all_465, shuf_560)
+            if shuf_mat is not None:
+                shuffle_means.append(shuf_mat[:, mask].mean(axis=0))  # ← was missing
+
+    else:
+        raise ValueError(f"Unknown method '{method}'. "
+                         "Use 'trial_permutation' or 'phase_randomization'.")
+
+    shuffle_arr = np.array(shuffle_means)                  # (n_shuffles, n_lags) ✓
+    tail_pct    = (100 - ci) / 2                           # ← renamed from alpha
+    ci_low      = np.percentile(shuffle_arr, tail_pct,         axis=0)
+    ci_high     = np.percentile(shuffle_arr, 100 - tail_pct,   axis=0)
     is_sig      = (mean_xcorr > ci_high) | (mean_xcorr < ci_low)
 
     return lags_s[mask], mean_xcorr, sem_xcorr, peak_lag_s, ci_low, ci_high, is_sig
+
+def compute_baseline_crosscorr(fiberbehav_df, behaviours_excluded_list,
+                                sr, pad_s=5, max_lag_s=5,
+                                min_segment_s=10,
+                                exclusion_col='dFF ExclusionMask'):
+    """
+    Compute cross-correlation between 465nm and 560nm during baseline periods,
+    excluding all behavioral bouts (with padding) and corrupted regions.
+
+    Parameters
+    ----------
+    behaviours_excluded_list : list of str
+        Derived behavior columns (1=onset, -1=offset) to exclude.
+    pad_s : float
+        Padding in seconds around each excluded bout.
+    min_segment_s : float
+        Minimum length of a contiguous baseline segment to use.
+    """
+    pad_samples     = int(pad_s * sr)
+    min_seg_samples = int(min_segment_s * sr)
+    n               = len(fiberbehav_df)
+    baseline_mask   = np.ones(n, dtype=bool)
+
+    # ── Exclude each behavior bout + padding ──────────────────────────────────
+    for behav in behaviours_excluded_list:
+        if behav not in fiberbehav_df.columns:
+            print(f"  [!] '{behav}' not found, skipping.")
+            continue
+        onsets  = fiberbehav_df.index[fiberbehav_df[behav] == 1].tolist()
+        offsets = fiberbehav_df.index[fiberbehav_df[behav] == -1].tolist()
+        for onset, offset in zip(onsets, offsets):
+            start = max(0, onset - pad_samples)
+            end   = min(n - 1, offset + pad_samples)
+            baseline_mask[start : end + 1] = False
+
+    # ── Exclude corrupted regions ─────────────────────────────────────────────
+    if exclusion_col in fiberbehav_df.columns:
+        corrupted = fiberbehav_df[exclusion_col].fillna(False).astype(bool).values
+        baseline_mask &= ~corrupted
+
+    print(f"  Baseline: {baseline_mask.sum()} / {n} frames retained "
+          f"({100 * baseline_mask.sum() / n:.1f}%)")
+
+    # ── Find contiguous baseline segments ─────────────────────────────────────
+    segments = []
+    in_seg, start = False, 0
+    for i, val in enumerate(baseline_mask):
+        if val and not in_seg:
+            start, in_seg = i, True
+        elif not val and in_seg:
+            if i - start >= min_seg_samples:
+                segments.append((start, i))
+            in_seg = False
+    if in_seg and n - start >= min_seg_samples:
+        segments.append((start, n))
+
+    print(f"  Found {len(segments)} baseline segments ≥ {min_segment_s}s")
+    if not segments:
+        print("  [!] No usable baseline segments.")
+        return None, None
+
+    # ── Cross-correlate within each segment, then average ────────────────────
+    xcorrs = []
+    for start, end in segments:
+        seg = fiberbehav_df.iloc[start:end][['dFF', '560 dFF']].dropna()
+        if len(seg) < min_seg_samples:
+            continue
+        s1 = seg['dFF'].values;      s1 -= s1.mean()
+        s2 = seg['560 dFF'].values;  s2 -= s2.mean()
+        norm = np.sqrt(np.dot(s1, s1) * np.dot(s2, s2))
+        if norm < 1e-10:
+            continue
+        xc   = correlate(s2, s1, mode='full') / norm
+        lags = correlation_lags(len(s1), len(s1), mode='full') / sr
+        mask = np.abs(lags) <= max_lag_s
+        xcorrs.append(xc[mask])
+        lags_trimmed = lags[mask]
+
+    if not xcorrs:
+        return None, None
+
+    mean_xcorr = np.mean(xcorrs, axis=0)
+    sem_xcorr  = np.std(xcorrs,  axis=0) / np.sqrt(len(xcorrs))
+    return lags_trimmed, mean_xcorr, sem_xcorr
 
 def plot_crosscorr_with_significance(lags_s, mean_xcorr, sem_xcorr,
                                       peak_lag_s, ci_low, ci_high, is_sig,
@@ -273,7 +365,7 @@ def test_granger_causality(fiberbehav_df,behavior_col,max_lag_s=1,sr=None,
         Behavioral column containing:
             1  = onset
            -1  = offset
-    max_lag_s : float
+    max_lag_s : float 
         Maximum lag tested in seconds.
     exclusion_padding_s : float
         Reject bouts within ±padding seconds of excluded regions.
@@ -397,120 +489,117 @@ def test_granger_causality(fiberbehav_df,behavior_col,max_lag_s=1,sr=None,
     return pd.DataFrame(output)
 
 def compute_joint_psth(peth_465, peth_560):
-    """
-    Compute the joint PSTH between two fiber photometry channels,
-    event-aligned.
-
-    Parameters
-    ----------
-    peth_465, peth_560 : np.ndarray, shape (n_bouts, timepoints)
-        Z-scored PETH arrays (from the existing PETH function).
-
-    Returns
-    -------
-    jpsth_raw       : np.ndarray (timepoints, timepoints)
-        Mean across bouts of the outer product z465 ⊗ z560.
-    predictor       : np.ndarray (timepoints, timepoints)
-        Outer product of the individual mean PSTHs — expected correlation
-        from signal-driven modulation alone.
-    jpsth_corrected : np.ndarray (timepoints, timepoints)
-        Shuffle-corrected JPSTH: residual correlation beyond the predictor.
-    coincidence     : np.ndarray (timepoints,)
-        Main diagonal of jpsth_corrected — instantaneous co-activation.
-    """
     n_bouts, n_tp = peth_465.shape
 
-    # Raw JPSTH: mean outer product across bouts
     jpsth_raw = sum(
         np.outer(peth_465[i], peth_560[i]) for i in range(n_bouts)
     ) / n_bouts
 
-    # Predictor: outer product of individual mean PSTHs
-    predictor = np.outer(peth_465.mean(axis=0), peth_560.mean(axis=0))
+    mean_465  = peth_465.mean(axis=0)
+    mean_560  = peth_560.mean(axis=0)
+    predictor = np.outer(mean_465, mean_560)
 
-    # Corrected JPSTH and coincidence histogram
-    jpsth_corrected = jpsth_raw - predictor
-    coincidence     = np.diag(jpsth_corrected)
+    # Normalisation: correlation-coefficient scale
+    predictor_std = np.outer(
+        peth_465.std(axis=0),
+        peth_560.std(axis=0)
+    )
+    predictor_std = np.where(predictor_std < 1e-10, np.nan, predictor_std)
 
-    return jpsth_raw, predictor, jpsth_corrected, coincidence
+    jpsth_corrected  = jpsth_raw - predictor
+    jpsth_normalized = jpsth_corrected/predictor_std
 
-def plot_joint_psth(jpsth_corrected, coincidence, timewindow,
-                    BOI, event, exp, group,
-                    n_bouts, cmap='RdBu_r', dff_column='465/560'):
+    jpsth_raw_norm=jpsth_raw/predictor_std
+
+    coincidence = np.diag(jpsth_normalized)
+    coincidence_raw = np.diag(jpsth_raw_norm)
+
+    return jpsth_raw_norm, predictor, jpsth_normalized, coincidence, coincidence_raw
+
+def extract_coincidence_metrics(coincidence, timewindow):
     """
-    Plot the shuffle-corrected JPSTH with marginal PSTHs and coincidence
-    histogram.
-
-    Layout
-    ------
-    ┌──────────────┬───┐
-    │  JPSTH 2D    │   │  ← right strip: coincidence histogram
-    │  (heatmap)   │   │
-    └──────────────┴───┘
-    The diagonal dashed line marks zero lag (t1 = t2).
-    A ridge below the diagonal means 465 leads 560.
+    Extract mean and max co-activation from the coincidence diagonal
+    before the event, after the event, and across the full window.
 
     Parameters
     ----------
-    jpsth_corrected : np.ndarray (timepoints, timepoints)
-    coincidence     : np.ndarray (timepoints,)  — diagonal of jpsth_corrected
-    timewindow      : [PRE_TIME, POST_TIME]
-    n_bouts         : int  — number of bouts used
+    coincidence : np.ndarray (n_timepoints,)
+    timewindow  : [PRE_TIME, POST_TIME]
+
+    Returns
+    -------
+    dict of six scalar metrics.
     """
+    PRE_TIME, POST_TIME = float(timewindow[0]), float(timewindow[1])
+    n_tp    = len(coincidence)
+    pre_idx = round(PRE_TIME * (n_tp - 1) / (PRE_TIME + POST_TIME))
+
+    pre  = coincidence[:pre_idx]
+    post = coincidence[pre_idx:]
+
+    return {
+        'mean_coincidence_before' : float(np.nanmean(pre)),
+        'max_coincidence_before'  : float(np.nanmax(pre)),
+        'mean_coincidence_after'  : float(np.nanmean(post)),
+        'max_coincidence_after'   : float(np.nanmax(post)),
+        'mean_coincidence_total'  : float(np.nanmean(coincidence)),
+        'max_coincidence_total'   : float(np.nanmax(coincidence)),
+    }
+
+def plot_joint_psth(jpsth_corrected, coincidence, timewindow,
+                    BOI, event, exp, group,
+                    n_bouts, cmap='RdBu_r', dff_column='465/560',
+                    mouse=None,
+                    vmin=None, vmax=None,           
+                    coincidence_sem=None):         
     PRE_TIME, POST_TIME = float(timewindow[0]), float(timewindow[1])
     n_tp      = jpsth_corrected.shape[0]
     peri_time = np.linspace(-PRE_TIME, POST_TIME, n_tp)
 
-    # ── Layout: main heatmap + narrow right strip for coincidence ─────────────
     fig = plt.figure(figsize=(10, 9))
-    gs  = fig.add_gridspec(
-        1, 2,
-        width_ratios = [10, 2],
-        wspace       = 0.08,
-    )
+    gs  = fig.add_gridspec(1, 2, width_ratios=[10, 2], wspace=0.08)
     ax_jpsth = fig.add_subplot(gs[0, 0])
     ax_coinc = fig.add_subplot(gs[0, 1], sharey=ax_jpsth)
 
-    # ── JPSTH heatmap ─────────────────────────────────────────────────────────
-    abs_max = np.nanmax(np.abs(jpsth_corrected))
-    extent  = [-PRE_TIME, POST_TIME, POST_TIME, -PRE_TIME]   # (left, right, bottom, top)
+    # ── Colour scale ──────────────────────────────────────────────────────────
+    if vmin is None and vmax is None:
+        abs_max = np.nanmax(np.abs(jpsth_corrected))
+        vmin, vmax = -abs_max, abs_max
+    elif vmin is None:
+        vmin = -vmax
+    elif vmax is None:
+        vmax = -vmin
 
+    extent = [-PRE_TIME, POST_TIME, POST_TIME, -PRE_TIME]
     im = ax_jpsth.imshow(
         jpsth_corrected,
-        cmap        = cmap,
-        aspect      = 'auto',
-        interpolation = 'bilinear',
-        extent      = extent,
-        vmin        = -abs_max,
-        vmax        =  abs_max,
-        origin      = 'upper',
+        cmap=cmap, aspect='auto', interpolation='bilinear',
+        extent=extent, vmin=vmin, vmax=vmax
     )
-
-    # Diagonal: zero-lag reference line
     ax_jpsth.plot(peri_time, peri_time,
-                  color='black', linewidth=1, linestyle='--',
-                  label='Zero lag (t₁ = t₂)', alpha=0.6)
-
-    # Event lines
-    ax_jpsth.axvline(x=0, color='white', linewidth=2, linestyle='--',
-                     alpha=0.8, label=f'{event.capitalize()} (465 axis)')
-    ax_jpsth.axhline(y=0, color='white', linewidth=2, linestyle='--',
-                     alpha=0.8, label=f'{event.capitalize()} (560 axis)')
-
+                  color='black', linewidth=1, linestyle='--', alpha=0.6,
+                  label='Zero lag (t₁ = t₂)')
+    ax_jpsth.axvline(x=0, color='white', linewidth=2, linestyle='--', alpha=0.8)
+    ax_jpsth.axhline(y=0, color='white', linewidth=2, linestyle='--', alpha=0.8)
     ax_jpsth.set_xlabel('465nm time re. event (s)', fontsize=13)
     ax_jpsth.set_ylabel('560nm time re. event (s)', fontsize=13)
     ax_jpsth.set_title(
-        f'Joint PSTH — {BOI} {event.capitalize()}\n{exp}, {group}  (n={n_bouts} bouts)',
+        f'Joint PSTH — {BOI} {event.capitalize()}\n{exp}, {mouse} {group}  (n={n_bouts} bouts)',
         fontsize=13
     )
     ax_jpsth.legend(loc='upper left', fontsize=9, framealpha=0.6)
-
     cbar = fig.colorbar(im, ax=ax_jpsth, fraction=0.046, pad=0.04)
-    cbar.set_label(f'Corrected co-activation\n(z-scored {dff_column} ΔF/F)', fontsize=10)
+    cbar.set_label(f'Normalised co-activation\n({dff_column} ΔF/F)', fontsize=10)
 
-    # ── Coincidence histogram (main diagonal) ─────────────────────────────────
-    ax_coinc.plot(coincidence, peri_time,
-                  color='slategray', linewidth=1.5)
+    # ── Coincidence panel ─────────────────────────────────────────────────────
+    if coincidence_sem is not None:
+        ax_coinc.fill_betweenx(
+            peri_time,
+            coincidence - coincidence_sem,
+            coincidence + coincidence_sem,
+            color='slategray', alpha=0.25
+        )
+    ax_coinc.plot(coincidence, peri_time, color='slategray', linewidth=1.5)
     ax_coinc.fill_betweenx(peri_time, 0, coincidence,
                             where=(coincidence > 0),
                             color='firebrick', alpha=0.4, label='Positive')
@@ -523,6 +612,43 @@ def plot_joint_psth(jpsth_corrected, coincidence, timewindow,
     ax_coinc.set_title('Coinc.', fontsize=10)
     plt.setp(ax_coinc.get_yticklabels(), visible=False)
 
+    plt.tight_layout()
+    return fig
+
+def plot_coincidence(coincidence, timewindow, BOI, event, exp, group,
+                     n_bouts, coincidence_sem=None):
+    """
+    Standalone coincidence histogram with optional SEM shading.
+    """
+    PRE_TIME, POST_TIME = float(timewindow[0]), float(timewindow[1])
+    peri_time = np.linspace(-PRE_TIME, POST_TIME, len(coincidence))
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+
+    if coincidence_sem is not None:
+        ax.fill_between(peri_time,
+                        coincidence - coincidence_sem,
+                        coincidence + coincidence_sem,
+                        color='slategray', alpha=0.25)
+    ax.plot(peri_time, coincidence, color='slategray', linewidth=2)
+    ax.fill_between(peri_time, 0, coincidence,
+                    where=(coincidence > 0),
+                    color='firebrick', alpha=0.35, label='Positive')
+    ax.fill_between(peri_time, 0, coincidence,
+                    where=(coincidence < 0),
+                    color='steelblue', alpha=0.35, label='Negative')
+    ax.axvline(x=0, color='black', linewidth=1.5, linestyle='--',
+               label=f'{event.capitalize()} {BOI}')
+    ax.axhline(y=0, color='grey', linewidth=0.8, linestyle=':')
+
+    ax.set_xlabel('Time re. event (s)', fontsize=12)
+    ax.set_ylabel('Normalised co-activation', fontsize=12)
+    ax.set_title(
+        f'Coincidence — {BOI} {event.capitalize()}\n{exp}, {group}  (n={n_bouts} bouts)',
+        fontsize=12
+    )
+    ax.legend(fontsize=10)
+    ax.margins(0, 0.1)
     plt.tight_layout()
     return fig
 

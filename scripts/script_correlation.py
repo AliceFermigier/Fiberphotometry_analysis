@@ -23,7 +23,7 @@ importlib.reload(sc)
 import modules.common.transients as tr
 importlib.reload(tr)
 import modules.common.nomenclature as nom
-importlib.reload(nom)
+importlib.reload(nom) 
 import modules.behaviour.mouse_position as mp
 importlib.reload(mp)
 import modules.behaviour.epm as epm
@@ -44,17 +44,217 @@ dual_color = True
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = None #in Hz
+CUT_FREQ = 20 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 3
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-#%% Compute and plot cross-correlation 
-
+#%% Compute and plot joint PETHs
 # ----------------------------- #
 # PETH parameters
-exp = 'FearHabituation'
+exp = 'RewardAirpuff'
+BOI = 'Licks_filtered'
+baseline = False
+MAXBOUTSNUMBER = 40
+event = 'onset'
+
+# Plot parameters
+TIME_WINDOW = [2, 2]
+Y_LIM = [-2,2.5]
+Y_LIM_DUAL = [-2,2.5]
+
+# PETH by bout number
+MIN_MICE_PER_BOUT = 2
+MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
+
+if baseline:
+    tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
+else:
+    tag = f"wholetrace_maxbouts{MAXBOUTSNUMBER}"
+
+# Set groups
+subjects_df['Group'] = subjects_df['Group'].fillna('')
+included_groups = set(subjects_df['Group'])
+# ----------------------------- #
+
+print('##########################################')
+print(f'EXPERIMENT: {exp}')
+print('##########################################')
+
+excluded_subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', 
+                                     sheet_name=f'Excluded_{exp}')
+
+exp_path = analysis_path / exp
+repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+corr_path = repo_path / f'PETH_correlation_{tag}'
+corr_path.mkdir(parents=True, exist_ok=True)
+
+# Initialize data storage lists
+subject_list = []
+group_list = []
+PETH_list     = []
+PETH_list_560 = []
+dfiberbehav_dict = {}
+
+# Loop over each subject (mouse)
+for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
+    print("--------------")
+    print(f'MOUSE: {mouse} {batch}')
+    print("--------------")
+
+    fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+
+    if not fiberbehav_file.exists():
+        print(f"File not found: {fiberbehav_file}")
+        continue
+    if int(mouse) in excluded_subjects_df['Subject'].values:
+        print(f"Mouse {mouse} excluded")
+        continue
+
+    dfiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
+    if BOI == 'Airpuffs':
+        dfiberbehav_clean = bp.remove_first_bout(dfiberbehav_df.reset_index(drop=True), BOI)
+    else:
+        dfiberbehav_clean = dfiberbehav_df.reset_index(drop=True)
+
+    sr = pp.samplerate(dfiberbehav_clean)
+    dfiberbehav_dict[mouse] = dfiberbehav_clean
+
+    if BOI in dfiberbehav_df.columns[2:].tolist():
+        subject_list.append(mouse)
+        group_list.append(group)
+        print(f'PETH {BOI} for {mouse}')
+
+        ## Get PETHs
+        # --- 465 channel ---
+        PETH_mouse = bp.PETH(
+            dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
+            baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER
+        )
+        print(f"PETH shape : {PETH_mouse.shape}")
+        PETH_list.append(PETH_mouse)
+
+        # --- 560 channel ---
+        PETH_mouse_560 = bp.PETH(
+            dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
+            baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER, dFF_column='560 dFF'
+        )
+        PETH_list_560.append(PETH_mouse_560)
+
+all_coinc_records = []   # collects one row per mouse across all groups
+
+for group in included_groups:
+    group_indices = [i for i, g in enumerate(group_list) if g == group]
+
+    per_mouse_jpsth = []
+    per_mouse_coinc = []
+
+    per_mouse_jpsth_raw = []
+    per_mouse_coinc_raw = []
+
+    # ── Per-mouse JPSTH ───────────────────────────────────────────────────────
+    for i in group_indices:
+        mouse          = subject_list[i]
+        peth_465_mouse = PETH_list[i]
+        peth_560_mouse = PETH_list_560[i]
+        n_bouts_mouse  = len(peth_465_mouse)
+
+        jpsth_m_raw, _, jpsth_m, coinc_m, coinc_m_raw = corr.compute_joint_psth(peth_465_mouse, peth_560_mouse)
+        per_mouse_jpsth.append(jpsth_m)
+        per_mouse_coinc.append(coinc_m)
+
+        per_mouse_jpsth_raw.append(jpsth_m_raw)
+        per_mouse_coinc_raw.append(coinc_m_raw)
+
+        # Per-mouse figure
+        fig_m = corr.plot_joint_psth(
+            jpsth_m, coinc_m, TIME_WINDOW, BOI, event, exp, group,
+            n_bouts=n_bouts_mouse, mouse=mouse 
+        )
+        fig_m.savefig(corr_path / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.pdf')
+        fig_m.savefig(corr_path / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.png')
+        plt.close(fig_m)
+
+        # Per-mouse figure raw
+        fig_m_raw = corr.plot_joint_psth(
+            jpsth_m_raw, coinc_m_raw, TIME_WINDOW, BOI, event, exp, group,
+            n_bouts=n_bouts_mouse, mouse=mouse 
+        )
+        fig_m_raw.savefig(corr_path / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_raw.pdf')
+        fig_m_raw.savefig(corr_path / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_raw.png')
+        plt.close(fig_m_raw)
+
+        # Coincidence metrics
+        metrics = corr.extract_coincidence_metrics(coinc_m, TIME_WINDOW)
+        all_coinc_records.append({
+            'Mouse'   : mouse,
+            'Group'   : group,
+            'n_bouts' : n_bouts_mouse,
+            **metrics,
+        })
+
+    # ── Group average (mouse as unit, not bout) ───────────────────────────────
+    jpsth_stack   = np.stack(per_mouse_jpsth)          # (n_mice, n_tp, n_tp)
+    coinc_stack   = np.stack(per_mouse_coinc)          # (n_mice, n_tp)
+    jpsth_group   = np.nanmean(jpsth_stack, axis=0)
+    coinc_group   = np.nanmean(coinc_stack, axis=0)
+    coinc_sem     = np.nanstd(coinc_stack, axis=0) / np.sqrt(len(group_indices))
+    n_bouts_group = len(group_indices)
+
+    # Group JPSTH figure
+    fig_g = corr.plot_joint_psth(
+        jpsth_group, coinc_group, TIME_WINDOW, BOI, event, exp, group,
+        n_bouts=n_bouts_group, coincidence_sem=coinc_sem
+    )
+    fig_g.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.pdf')
+    fig_g.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.png')
+    plt.close(fig_g)
+
+    # Standalone coincidence figure
+    fig_coinc = corr.plot_coincidence(
+        coinc_group, TIME_WINDOW, BOI, event, exp, group,
+        n_bouts=n_bouts_group, coincidence_sem=coinc_sem
+    )
+    fig_coinc.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence.pdf')
+    fig_coinc.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence.png')
+    plt.close(fig_coinc)
+
+    # ── Group average (mouse as unit, not bout) ───────────────────────────────
+    jpsth_stack_raw   = np.stack(per_mouse_jpsth_raw)          # (n_mice, n_tp, n_tp)
+    coinc_stack_raw   = np.stack(per_mouse_coinc_raw)          # (n_mice, n_tp)
+    jpsth_group_raw   = np.nanmean(jpsth_stack_raw, axis=0)
+    coinc_group_raw   = np.nanmean(coinc_stack_raw, axis=0)
+    coinc_sem_raw     = np.nanstd(coinc_stack_raw, axis=0) / np.sqrt(len(group_indices))
+
+    # Group JPSTH figure
+    fig_g_raw = corr.plot_joint_psth(
+        jpsth_group_raw, coinc_group_raw, TIME_WINDOW, BOI, event, exp, group,
+        n_bouts=n_bouts_group, coincidence_sem=coinc_sem_raw
+    )
+    fig_g_raw.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_raw.pdf')
+    fig_g_raw.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_raw.png')
+    plt.close(fig_g_raw)
+
+    # Standalone coincidence figure
+    fig_coinc_raw = corr.plot_coincidence(
+        coinc_group_raw, TIME_WINDOW, BOI, event, exp, group,
+        n_bouts=n_bouts_group, coincidence_sem=coinc_sem_raw
+    )
+    fig_coinc_raw.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence_raw.pdf')
+    fig_coinc_raw.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence_raw.png')
+    plt.close(fig_coinc_raw)
+
+# ── Export all per-mouse metrics ──────────────────────────────────────────────
+pd.DataFrame(all_coinc_records).to_excel(
+    corr_path / f'{BOI}_coincidence_metrics.xlsx', index=False
+)
+print(f"✔ Coincidence metrics exported to: {corr_path}")
+
+#%% Compute and plot cross-correlation 
+# ----------------------------- #
+# PETH parameters
+exp = 'FearRetrieval'
 BOI = 'CS+'
 baseline = False
 MAXBOUTSNUMBER = None
@@ -66,7 +266,7 @@ Y_LIM = [-2,2.5]
 Y_LIM_DUAL = [-2,2.5]
 
 # PETH by bout number
-MIN_MICE_PER_BOUT = 3
+MIN_MICE_PER_BOUT = 2
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
 
 # Granger causality max lag
@@ -152,22 +352,6 @@ for group in included_groups:
     PETH_list_group   = [PETH_list[i] for i in group_indices]
     PETH_list_560_group = [PETH_list_560[i] for i in group_indices]
 
-    ## Plot joint PETHs
-    # Stack all bouts from all mice in this group
-    peth_465_all = np.concatenate(PETH_list_group, axis=0)
-    peth_560_all = np.concatenate(PETH_list_560_group, axis=0)
-
-    _, _, jpsth_corr, coincidence = corr.compute_joint_psth(peth_465_all, peth_560_all)
-
-    fig_jpsth = corr.plot_joint_psth(
-        jpsth_corr, coincidence,
-        TIME_WINDOW, BOI, event, exp, group,
-        n_bouts=len(peth_465_all)
-    )
-    fig_jpsth.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.pdf')
-    fig_jpsth.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.png')
-    plt.close(fig_jpsth)
-
     ## Compute cross-correlation
     lags_s, mean_xcorr, sem_xcorr, peak_lag_s, _ = corr.compute_peth_crosscorr(
             PETH_list_group, PETH_list_560_group, sr
@@ -181,19 +365,20 @@ for group in included_groups:
     fig_corr.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_crosscorrelation.png')
     plt.close(fig_corr)
 
-    ## Compute cross-correlation significance
-    lags_s_sig, mean_xcorr_sig, sem_xcorr_sig, peak_lag_s_sig, ci_low, ci_high, is_sig = corr.compute_crosscorr_significance(
-        PETH_list_group, PETH_list_560_group, sr, max_lag_s=TIME_WINDOW[0], n_shuffles=1000, ci=95)
-    
-    fig_corr_sig = corr.plot_crosscorr_with_significance(lags_s_sig, mean_xcorr_sig, sem_xcorr_sig,
-                                      peak_lag_s_sig, ci_low, ci_high, is_sig,
-                                      BOI, exp, group, MAXBOUTSNUMBER,
-                                      color='cornflowerblue',
-                                      sig_style='overlay')
-    
-    fig_corr_sig.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[0]}_crosscorrelation_sig.pdf')
-    fig_corr_sig.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[0]}_crosscorrelation_sig.png')
-    plt.close(fig_corr_sig)
+    for method_corrsig in ['phase_randomization','trial_permutation']:
+        ## Compute cross-correlation significance
+        lags_s_sig, mean_xcorr_sig, sem_xcorr_sig, peak_lag_s_sig, ci_low, ci_high, is_sig = corr.compute_crosscorr_significance(
+            PETH_list_group, PETH_list_560_group, sr, method=method_corrsig, max_lag_s=TIME_WINDOW[0], n_shuffles=1000, ci=95)
+        
+        fig_corr_sig = corr.plot_crosscorr_with_significance(lags_s_sig, mean_xcorr_sig, sem_xcorr_sig,
+                                        peak_lag_s_sig, ci_low, ci_high, is_sig,
+                                        BOI, exp, group, MAXBOUTSNUMBER,
+                                        color='cornflowerblue',
+                                        sig_style='overlay')
+        
+        fig_corr_sig.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[0]}_{method_corrsig}_crosscorrelation_sig.pdf')
+        fig_corr_sig.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[0]}_{method_corrsig}_crosscorrelation_sig.png')
+        plt.close(fig_corr_sig)
     
     ## Compute deconvolved correlation (matches R-GECO signal to GRAB-ACh dynamics)
     peth_560_deconv_list = [
@@ -272,5 +457,3 @@ for group in included_groups:
     plt.close(fig_granger)
 
     print(f"✔ Correlation and causality results and plots exported to:{corr_path}")
-
-# %%

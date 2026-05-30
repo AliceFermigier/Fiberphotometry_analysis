@@ -42,9 +42,9 @@ dual_color = True
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = None #in Hz
+CUT_FREQ = 20 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 3
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -63,8 +63,8 @@ EVENT_LIST = ['onset']
 TIME_WINDOWS = [[3, 5]]  # Time window for PETH calculation (pre, post), for each event
 Y_LIM = [-2,5]
 Y_LIM_DUAL = [-2,5]
-exp = 'FCRetrieval'
-behaviors_of_interest = ['CS+','CS-']
+exp = 'RewardAirpuffs'
+behaviors_of_interest = ['Licks_filtered','Airpuffs']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']
@@ -161,21 +161,21 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'FCRetrieval'
-BOI = 'CS-'
+exp = 'RewardAirpuff'
+BOI = 'Airpuffs'
 baseline = False
-MAXBOUTSNUMBER = None
+MAXBOUTSNUMBER = 40
 event = 'onset'
 
 # Plot parameters
 TIME_WINDOW = [1, 1]
-Y_LIM = [-2,5]
-Y_LIM_DUAL = [-2,5]
+Y_LIM = [-2,4]
+Y_LIM_DUAL = [-2,4]
 
 # ── PETH by bout number
 MIN_MICE_PER_BOUT = 2    # hide bout positions covered by fewer mice
-MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
-STEP = 1
+MAX_BOUTS_TO_SHOW = None
+STEP = 5
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
@@ -211,6 +211,10 @@ PETH_mean_list = []
 PETH_max_list = []
 PETH_mean_list_560 = []
 PETH_max_list_560 = []
+PETH_mean_lick_list = []
+PETH_max_lick_list = []
+PETH_mean_lick_list_560 = []
+PETH_max_lick_list_560 = []
 
 # Loop over each subject (mouse)
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
@@ -218,90 +222,116 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     print(f'MOUSE: {mouse} {batch}')
     print("--------------")
 
-    try:
-        fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
 
-        # Check if file exists and mouse not manually excluded
-        if not fiberbehav_file.exists():
-            print(f"File not found: {fiberbehav_file}")
-            continue
-        if int(mouse) in excluded_subjects_df['Subject'].values:
-            print(f"Mouse {mouse} excluded")
-            continue
+    fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
 
-        dfiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
-        if BOI == 'Airpuffs':
-            dfiberbehav_clean = bp.remove_first_bout(dfiberbehav_df.reset_index(drop=True), BOI)
+    # Check if file exists and mouse not manually excluded
+    if not fiberbehav_file.exists():
+        print(f"File not found: {fiberbehav_file}")
+        continue
+    if int(mouse) in excluded_subjects_df['Subject'].values:
+        print(f"Mouse {mouse} excluded")
+        continue
+
+    dfiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
+    if BOI == 'Airpuffs':
+        dfiberbehav_clean = bp.remove_first_bout(dfiberbehav_df.reset_index(drop=True), BOI)
+    else:
+        dfiberbehav_clean = dfiberbehav_df.reset_index(drop=True)
+
+    sr = pp.samplerate(dfiberbehav_clean)
+
+    if BOI in dfiberbehav_df.columns[2:].tolist():
+        subject_list.append(mouse)
+        group_list.append(group)
+        print(f'PETH {BOI} for {mouse}')
+
+        # --- 465 channel ---
+        PETH_mouse = bp.PETH(
+            dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
+            baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER
+        )
+        print(f"PETH shape : {PETH_mouse.shape}")
+        PETH_list.append(PETH_mouse)
+        PETH_mouse_mean = np.mean(PETH_mouse, axis=0, keepdims=True)
+
+        if PETH_array is None:
+            PETH_array = PETH_mouse_mean
+            print('Initialized PETH_array successfully')
         else:
-            dfiberbehav_clean = dfiberbehav_df.reset_index(drop=True)
+            PETH_array = np.concatenate((PETH_array, PETH_mouse_mean))
 
-        sr = pp.samplerate(dfiberbehav_clean)
-
-        if BOI in dfiberbehav_df.columns[2:].tolist():
-            subject_list.append(mouse)
-            group_list.append(group)
-            print(f'PETH {BOI} for {mouse}')
-
-            # --- 465 channel ---
-            PETH_mouse = bp.PETH(
+        # --- 560 channel ---
+        if dual_color:
+            PETH_mouse_560 = bp.PETH(
                 dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
-                baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER
+                baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER, dFF_column='560 dFF'
             )
-            print(f"PETH shape : {PETH_mouse.shape}")
-            PETH_list.append(PETH_mouse)
-            PETH_mouse_mean = np.mean(PETH_mouse, axis=0, keepdims=True)
+            PETH_list_560.append(PETH_mouse_560)
+            PETH_mouse_mean_560 = np.mean(PETH_mouse_560, axis=0, keepdims=True)
 
-            if PETH_array is None:
-                PETH_array = PETH_mouse_mean
-                print('Initialized PETH_array successfully')
+            if PETH_array_560 is None:
+                PETH_array_560 = PETH_mouse_mean_560
+                print('Initialized PETH_array_560 successfully')
             else:
-                PETH_array = np.concatenate((PETH_array, PETH_mouse_mean))
+                PETH_array_560 = np.concatenate((PETH_array_560, PETH_mouse_mean_560))
 
-            # --- 560 channel ---
-            if dual_color:
-                PETH_mouse_560 = bp.PETH(
-                    dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
-                    baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER, dFF_column='560 dFF'
-                )
-                PETH_list_560.append(PETH_mouse_560)
-                PETH_mouse_mean_560 = np.mean(PETH_mouse_560, axis=0, keepdims=True)
+        # --- 465 channel: mean and max dFF before and after the event ---
+        event_idx = int(TIME_WINDOW[0] * sr)
 
-                if PETH_array_560 is None:
-                    PETH_array_560 = PETH_mouse_mean_560
-                    print('Initialized PETH_array_560 successfully')
-                else:
-                    PETH_array_560 = np.concatenate((PETH_array_560, PETH_mouse_mean_560))
+        mean_before = np.mean(PETH_mouse_mean[0,:event_idx])
+        mean_after  = np.mean(PETH_mouse_mean[0,event_idx:])
+        mean_during = np.mean(PETH_mouse_mean[0])
 
-            # --- 465 channel: mean and max dFF before and after the event ---
-            event_idx = int(TIME_WINDOW[0] * sr)
+        max_before  = np.max(PETH_mouse_mean[0,:event_idx])
+        max_after   = np.max(PETH_mouse_mean[0,event_idx:])
+        max_during = np.max(PETH_mouse_mean[0])
 
-            mean_before = np.mean(PETH_mouse_mean[0,:event_idx])
-            mean_after  = np.mean(PETH_mouse_mean[0,event_idx:])
-            mean_during = np.mean(PETH_mouse_mean[0])
+        if BOI == 'Licks_filtered':
 
-            max_before  = np.max(PETH_mouse_mean[0,:event_idx])
-            max_after   = np.max(PETH_mouse_mean[0,event_idx:])
-            max_during = np.max(PETH_mouse_mean[0])
+            start_during = int(event_idx - 0.5 * sr)
+            end_during   = int(event_idx + 0.5 * sr)
 
-            PETH_mean_list.append((mean_before, mean_after, mean_during))
-            PETH_max_list.append((max_before, max_after, max_during))
+            start_before = int(event_idx - 1.5 * sr)
+            end_before   = int(event_idx - 0.5 * sr)
 
-            # --- 560 channel: mean and max dFF before and after the event ---
-            if dual_color:
+            mean_during_lick = np.mean(PETH_mouse_mean[0, start_during:end_during])
+            mean_before_lick = np.mean(PETH_mouse_mean[0, start_before:end_before])
 
-                mean_before_560 = np.mean(PETH_mouse_mean_560[0,:event_idx])
-                mean_after_560  = np.mean(PETH_mouse_mean_560[0,event_idx:])
-                mean_during_560 = np.mean(PETH_mouse_mean_560[0])
+            max_during_lick = np.max(PETH_mouse_mean[0, start_during:end_during])
+            max_before_lick = np.max(PETH_mouse_mean[0, start_before:end_before])
 
-                max_before_560  = np.max(PETH_mouse_mean_560[0,:event_idx])
-                max_after_560   = np.max(PETH_mouse_mean_560[0,event_idx:])
-                max_during_560 = np.max(PETH_mouse_mean_560[0])
+            PETH_mean_lick_list.append((mean_before_lick, mean_during_lick))
+            PETH_max_lick_list.append((max_before_lick, max_during_lick))
 
-                PETH_mean_list_560.append((mean_before_560, mean_after_560, mean_during_560))
-                PETH_max_list_560.append((max_before_560, max_after_560, max_during_560))
-                
-    except Exception as e:
-                print(f'Error processing mouse {mouse}:{e}')
+        PETH_mean_list.append((mean_before, mean_after, mean_during))
+        PETH_max_list.append((max_before, max_after, max_during))
+
+        # --- 560 channel: mean and max dFF before and after the event ---
+        if dual_color:
+
+            mean_before_560 = np.mean(PETH_mouse_mean_560[0,:event_idx])
+            mean_after_560  = np.mean(PETH_mouse_mean_560[0,event_idx:])
+            mean_during_560 = np.mean(PETH_mouse_mean_560[0])
+
+            max_before_560  = np.max(PETH_mouse_mean_560[0,:event_idx])
+            max_after_560   = np.max(PETH_mouse_mean_560[0,event_idx:])
+            max_during_560 = np.max(PETH_mouse_mean_560[0])
+
+            if BOI == 'Licks_filtered':
+                mean_during_lick_560 = np.mean(PETH_mouse_mean_560[0,start_during:end_during])
+                mean_before_lick_560 = np.mean(PETH_mouse_mean_560[0,start_before:end_before])
+
+                max_during_lick_560 = np.max(PETH_mouse_mean_560[0,start_during:end_during])
+                max_before_lick_560 = np.max(PETH_mouse_mean_560[0,start_before:end_before])
+
+                PETH_mean_lick_list_560.append((mean_before_lick_560, mean_during_lick_560))
+                PETH_max_lick_list_560.append((max_before_lick_560, max_during_lick_560))
+
+            PETH_mean_list_560.append((mean_before_560, mean_after_560, mean_during_560))
+            PETH_max_list_560.append((max_before_560, max_after_560, max_during_560))
+            
+
 
 # Export mean/max PETH data to Excel
 export_dict = {
@@ -309,11 +339,18 @@ export_dict = {
     'Group': group_list,
     f'465 Mean dFF before {BOI}': [x[0] for x in PETH_mean_list],
     f'465 Mean dFF after {BOI}':  [x[1] for x in PETH_mean_list],
-    f'465 Mean dFF during {BOI}':  [x[2] for x in PETH_mean_list],
+    f'465 Mean dFF during {BOI}': [x[2] for x in PETH_mean_list],
     f'465 Max dFF before {BOI}':  [x[0] for x in PETH_max_list],
     f'465 Max dFF after {BOI}':   [x[1] for x in PETH_max_list],
-    f'465 Max dFF during {BOI}':   [x[2] for x in PETH_max_list],
+    f'465 Max dFF during {BOI}':  [x[2] for x in PETH_max_list],
 }
+if BOI == 'Licks_filtered':
+    export_dict.update({
+        '465 Mean dFF 1s before lick': [x[0] for x in PETH_mean_lick_list],
+        '465 Mean dFF during lick':    [x[1] for x in PETH_mean_lick_list],
+        '465 Max dFF 1s before lick':  [x[0] for x in PETH_max_lick_list],
+        '465 Max dFF during lick':     [x[1] for x in PETH_max_lick_list],
+    })
 if dual_color:
     export_dict.update({
         f'560 Mean dFF before {BOI}': [x[0] for x in PETH_mean_list_560],
@@ -323,6 +360,13 @@ if dual_color:
         f'560 Max dFF after {BOI}':   [x[1] for x in PETH_max_list_560],
         f'560 Max dFF during {BOI}':   [x[2] for x in PETH_max_list_560],
     })
+    if BOI == 'Licks_filtered':
+        export_dict.update({
+            '560 Mean dFF 1s before lick': [x[0] for x in PETH_mean_lick_list_560],
+            '560 Mean dFF during lick':    [x[1] for x in PETH_mean_lick_list_560],
+            '560 Max dFF 1s before lick':  [x[0] for x in PETH_max_lick_list_560],
+            '560 Max dFF during lick':     [x[1] for x in PETH_max_lick_list_560],
+        })
 
 meanmaxPETH_df = pd.DataFrame(export_dict)
 meanmaxPETH_df.to_excel(peth_path / f'{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETHmeanmax.xlsx')
