@@ -58,12 +58,12 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 3
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'RewardHab'
-list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport']
+exp = 'RewardAirpuff'
+list_BOI = ['Licks', 'Licks_filtered', 'Nose_in_any_airport','Airpuffs']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
@@ -229,7 +229,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
 print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 
-#%% 2.2.1 - Plot sample traces
+ #%% 2.2.1 - Plot sample traces
 
 TIME_WINDOW = [8000, 13000]
 for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
@@ -252,7 +252,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
 #%% 2.3 - Plot behavioural metrics
 
-exp = 'RewardAirpuffs'
+exp = 'RewardAirpuff'
 
 print('###################')
 print(f'EXPERIMENT : {exp}')
@@ -278,7 +278,7 @@ behav_path_exp = data_path_exp / 'Behaviour'
 all_metrics = {}
 
 # Loop through each mouse in the subject DataFrame 
-for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
     print("-----------------------------") 
     print(f'BATCH : {batch}, MOUSE : {mouse}')
     print("-----------------------------")
@@ -323,6 +323,7 @@ try:
     for mouse, df in all_metrics.items():
         df = df.copy()
         df["Mouse"] = mouse
+        df["Group"] = group
         metrics_list.append(df)
 
     all_metrics_df = pd.concat(metrics_list, ignore_index=True)
@@ -349,12 +350,13 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 ref_ports = bm.compute_reference_ports(all_ports_px) 
 
 # ── Pass 2: transform coordinates, per-mouse plots, collect group data ────────
-all_metrics        = {} 
 all_aligned_pos    = []
 all_dfs_group      = []
 all_arena_bounds   = []
+all_groups         = []
 
-for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
+for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
+    #here add a way to plot the heatmap within groups and not with all mice
     print("-----------------------------") 
     print(f'BATCH : {batch}, MOUSE : {mouse}')
     print("-----------------------------")
@@ -375,21 +377,26 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
  
     all_aligned_pos.append((x_aligned, y_aligned))
     all_arena_bounds.append(bm.get_aligned_arena_bounds(arena_json, M))
-    all_dfs_group.append(fiberbehav_notderived_df)
+    all_groups.append(group)
 
 # Mean arena bounds across all mice → shared boundary for group plot
 shared_bounds = tuple(np.mean(all_arena_bounds, axis=0))
 
-group_fig_dir = behavioural_analysis_path / 'Figures' / 'Group'
+included_groups = subjects_df['Group'].unique()
+for group in included_groups:
+    group_indices = [i for i, g in enumerate(all_groups) if g == group]
+    group_fig_dir = behavioural_analysis_path / 'Figures' / f'Group_{group}'
 
-bm.plot_group_heatmap(
-    all_aligned_pos,
-    list(all_metrics.keys()),
-    ref_ports    = ref_ports,
-    arena_bounds = shared_bounds,
-    bins         = HEATMAP_BINS,
-    n_bins       = N_TIME_BINS_HEATMAP,
-    save_dir     = group_fig_dir,
-)
+    group_aligned_pos = [all_aligned_pos[i] for i in group_indices]
+
+    bm.plot_group_heatmap(
+        group_aligned_pos,
+        ref_ports    = ref_ports,
+        arena_bounds = shared_bounds,
+        bins         = HEATMAP_BINS,
+        n_bins       = N_TIME_BINS_HEATMAP,
+        label        = f'Group {group}',
+        save_dir     = group_fig_dir,
+    )
 # %%
  

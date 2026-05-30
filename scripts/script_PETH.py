@@ -60,15 +60,17 @@ else:
 
 # Plot parameters
 EVENT_LIST = ['onset']
-TIME_WINDOWS = [[3, 3]]  # Time window for PETH calculation (pre, post), for each event
-Y_LIM = [-5,20]
-Y_LIM_DUAL = [-5,20]
-exp = 'FearHabituation'
+TIME_WINDOWS = [[3, 5]]  # Time window for PETH calculation (pre, post), for each event
+Y_LIM = [-2,5]
+Y_LIM_DUAL = [-2,5]
+exp = 'FCRetrieval'
 behaviors_of_interest = ['CS+','CS-']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']
 #['Open arm','Closed arm','Head dipping','Center']
+#['CS+','CS-','Freezing']
+#['Shock','CS+','CS-','Freezing']
 
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
@@ -159,19 +161,19 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'FearHabituation'
+exp = 'FCRetrieval'
 BOI = 'CS-'
 baseline = False
 MAXBOUTSNUMBER = None
 event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [5, 40]
-Y_LIM = [-2,11]
-Y_LIM_DUAL = [-2,11]
+TIME_WINDOW = [1, 1]
+Y_LIM = [-2,5]
+Y_LIM_DUAL = [-2,5]
 
 # ── PETH by bout number
-MIN_MICE_PER_BOUT = 3    # hide bout positions covered by fewer mice
+MIN_MICE_PER_BOUT = 2    # hide bout positions covered by fewer mice
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
 STEP = 1
 
@@ -193,6 +195,7 @@ print('##########################################')
 print(f'EXPERIMENT: {exp}')
 print('##########################################')
 
+exp_path = analysis_path / exp
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
 peth_path = repo_path / f'PETH_grouped_{tag}'
 peth_path.mkdir(parents=True, exist_ok=True)
@@ -394,7 +397,7 @@ for group in included_groups:
             PETH_list_560_group, min_mice=MIN_MICE_PER_BOUT, step=STEP
         )
         fig_bybout_560 = bp.plot_PETH_by_bout(
-            bout_means_560, bout_sems_560, bout_n_560,
+            bout_means_560, bout_sems_560, bout_n_560, 
             BOI, event, TIME_WINDOW, exp, group,
             max_bouts_to_show=MAX_BOUTS_TO_SHOW,
             min_mice=MIN_MICE_PER_BOUT, ylim=Y_LIM_DUAL, 

@@ -433,7 +433,7 @@ def get_aligned_arena_bounds(arena_json, M, pad=100):
     tx, ty = apply_transform(cx, cy, M)
     return tx.min(), ty.min(), tx.max(), ty.max()
 
-def plot_group_heatmap(aligned_positions_list, mouse_list,
+def plot_group_heatmap(aligned_positions_list,
                        ref_ports=None, arena_bounds=None,
                        bins=(50, 50), n_bins=1,
                        cmap="jet", vmax=None, label='Group', save_dir=None):

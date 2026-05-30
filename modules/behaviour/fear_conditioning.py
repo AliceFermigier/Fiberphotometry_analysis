@@ -2,9 +2,10 @@ import pandas as pd
 import numpy as np
 from scipy.ndimage import uniform_filter1d
 import json
-import os
 import importlib
 import matplotlib.pyplot as plt
+from dash import Dash, dcc, html, Input, Output, State
+import plotly.graph_objects as go
 
 import modules.behaviour.mouse_position as mp
 importlib.reload(mp)
@@ -257,4 +258,4 @@ def detect_freezing(dlc_df, arena_scale, threshold=None):
     behav_df = pd.concat([dlc_df, freezing_df, total_speed_df], axis=1)
 
     return behav_df
- 
+

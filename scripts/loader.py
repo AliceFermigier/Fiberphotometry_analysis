@@ -16,12 +16,12 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
     
 import modules.common.nomenclature as nom
-
+ 
 ########
 #LOADER#
 ########
 
-experiment_path = Path(r'F:\202603_FiberGRABACh-FlexRGECO')
+experiment_path = Path(r'F:\202602_FiberMEC-GRABACh-FlexRGECO')
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)

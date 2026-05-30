@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import importlib
 import os
+import matplotlib.pyplot as plt
 from pathlib import Path
 import modules.common.switch_matplotlib_backends as smb
 importlib.reload(smb)
@@ -63,14 +64,14 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'FearHabituation'
-if 'Conditioning' in exp:
+exp = 'FCRetrieval'
+if 'Cond' in exp:
     list_BOI = ['Freezing','Shock','CS+','CS-']
     dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_110_filtered'
     sheet = 'Conditioning'
 else:
     list_BOI = ['Freezing','CS+','CS-']
-    if 'Habituation' in exp:
+    if 'Hab' in exp:
         sheet = 'Habituation'
         dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_090_filtered'
     else:
@@ -107,7 +108,6 @@ print('###################')
 print(f'EXPERIMENT : {exp}')
 print('###################')
 
-import matplotlib.pyplot as plt
 dlc_data = True
 dual_color = True
 
@@ -155,13 +155,17 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     slope, intercept = cp.time_mapping(ttl_sync_df, led_df)
 
     # Get absolute protocol start from bonsai
-    protocol_start_df = cp.get_timestamps_from_bonsai_csv(LED3_path)
-    protocol_start_df = cp.correct_behav_timestamps(protocol_start_df, slope, intercept)
-
-    # Get correction data for Imetronic timestamps
-    protocol_start, effective_slope = fc.get_protocol_remapping(protocol_start_df, proto)
-    print(f'Protocol start:{protocol_start}')
-    protocol_start=protocol_start-0.1
+    try:
+        protocol_start_df = cp.get_timestamps_from_bonsai_csv(LED3_path)
+        protocol_start_df = cp.correct_behav_timestamps(protocol_start_df, slope, intercept)
+        protocol_start, effective_slope = fc.get_protocol_remapping(protocol_start_df, proto)
+    except Exception as e:
+        print(f"[!] LED3 unavailable ({e}), falling back to manual shock scoring")
+        score_path = behav_path_exp / f'{batch}_{mouse}_manual_shock_scoring.json'
+        with open(score_path, 'r') as f:
+            score_json = json.load(f)
+        protocol_start = score_json['protocol_start']
+        effective_slope = score_json['effective_slope']
 
     # Convert relative intervals to absolute Bonsai time
     cs_plus_abs  = fc.convert_to_absolute(proto["CS+"],   protocol_start, effective_slope)
@@ -227,7 +231,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
     plt.close()
 
-#%% 2.3 - Plot behavioural metrics
+  #%% 2.3 - Plot behavioural metrics
 
 print('###################')
 print(f'EXPERIMENT : {exp}')
@@ -287,4 +291,4 @@ try:
 except Exception as e:
     print(f"[!] Error while exporting behavioral metrics: {e}")
 
-# %%
+ #%% 
