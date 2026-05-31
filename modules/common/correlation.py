@@ -509,12 +509,85 @@ def compute_joint_psth(peth_465, peth_560):
     jpsth_corrected  = jpsth_raw - predictor
     jpsth_normalized = jpsth_corrected/predictor_std
 
-    jpsth_raw_norm=jpsth_raw/predictor_std
-
     coincidence = np.diag(jpsth_normalized)
-    coincidence_raw = np.diag(jpsth_raw_norm)
+    coincidence_raw = np.diag(jpsth_raw)
+    predictor_diag = np.diag(predictor)
 
-    return jpsth_raw_norm, predictor, jpsth_normalized, coincidence, coincidence_raw
+    return jpsth_raw, predictor, jpsth_normalized, coincidence, coincidence_raw, predictor_diag
+
+def compute_baseline_jpsth(fiberbehav_df, behaviours_excluded_list,
+                             sr, timewindow, pad_s=2,
+                             min_segment_s=None,
+                             exclusion_col='dFF ExclusionMask'):
+    """
+    Compute a JPSTH from randomly sampled baseline windows,
+    matched in length to the PETH time window.
+    Used as a noise-floor baseline to subtract from event-aligned JPS THs.
+    """
+    from itertools import islice
+
+    PRE_TIME, POST_TIME = float(timewindow[0]), float(timewindow[1])
+    win_samples = int((PRE_TIME + POST_TIME) * sr) + 1
+    pad_samples = int(pad_s * sr)
+    if min_segment_s is None:
+        min_segment_s = PRE_TIME + POST_TIME + 2 * pad_s
+    min_seg_samples = int(min_segment_s * sr)
+    n = len(fiberbehav_df)
+
+    # Build exclusion mask
+    baseline_mask = np.ones(n, dtype=bool)
+    for behav in behaviours_excluded_list:
+        if behav not in fiberbehav_df.columns:
+            continue
+        onsets  = fiberbehav_df.index[fiberbehav_df[behav] == 1].tolist()
+        offsets = fiberbehav_df.index[fiberbehav_df[behav] == -1].tolist()
+        for onset, offset in zip(onsets, offsets):
+            baseline_mask[max(0, onset - pad_samples):
+                          min(n, offset + pad_samples + 1)] = False
+    if exclusion_col in fiberbehav_df.columns:
+        baseline_mask &= ~fiberbehav_df[exclusion_col].fillna(False).astype(bool).values
+
+    # Find contiguous segments
+    segments, in_seg, start = [], False, 0
+    for i, val in enumerate(baseline_mask):
+        if val and not in_seg:
+            start, in_seg = i, True
+        elif not val and in_seg:
+            if i - start >= min_seg_samples:
+                segments.append((start, i))
+            in_seg = False
+    if in_seg and n - start >= min_seg_samples:
+        segments.append((start, n))
+
+    # Extract windows from baseline segments
+    sig_465 = fiberbehav_df['dFF'].values
+    sig_560 = fiberbehav_df['560 dFF'].values
+
+    windows_465, windows_560 = [], []
+    for start, end in segments:
+        for t in range(start, end - win_samples, win_samples // 2):
+            w465 = sig_465[t : t + win_samples]
+            w560 = sig_560[t : t + win_samples]
+            if np.any(np.isnan(w465)) or np.any(np.isnan(w560)):
+                continue
+            # Z-score each window
+            std465 = w465.std()
+            std560 = w560.std()
+            if std465 < 1e-10 or std560 < 1e-10:
+                continue
+            windows_465.append((w465 - w465.mean()) / std465)
+            windows_560.append((w560 - w560.mean()) / std560)
+
+    if not windows_465:
+        print("  [!] No usable baseline windows found.")
+        return None, None
+
+    peth_465_bl = np.stack(windows_465)
+    peth_560_bl = np.stack(windows_560)
+    _, _, jpsth_bl, coinc_bl, _, _ = compute_joint_psth(peth_465_bl, peth_560_bl)
+
+    print(f"  Baseline JPSTH from {len(windows_465)} windows.")
+    return jpsth_bl, coinc_bl
 
 def extract_coincidence_metrics(coincidence, timewindow):
     """

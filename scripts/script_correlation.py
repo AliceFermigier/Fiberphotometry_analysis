@@ -53,20 +53,23 @@ EVENT_TIME_THRESHOLD = 0
 #%% Compute and plot joint PETHs
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuff'
-BOI = 'Licks_filtered'
+exp = 'RewardAirpuffs'
+BOI = 'Airpuffs'
 baseline = False
 MAXBOUTSNUMBER = 40
 event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [2, 2]
+TIME_WINDOW = [3, 3]
 Y_LIM = [-2,2.5]
 Y_LIM_DUAL = [-2,2.5]
 
 # PETH by bout number
 MIN_MICE_PER_BOUT = 2
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
+
+# Behaviours to exclude from baseline
+behaviours_excluded_baseline_list = ['Airpuffs','Licks_filtered']
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
@@ -89,6 +92,9 @@ exp_path = analysis_path / exp
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
 corr_path = repo_path / f'PETH_correlation_{tag}'
 corr_path.mkdir(parents=True, exist_ok=True)
+
+corr_path_indiv = corr_path / 'Individual plots'
+corr_path_indiv.mkdir(parents=True, exist_ok=True)
 
 # Initialize data storage lists
 subject_list = []
@@ -153,6 +159,9 @@ for group in included_groups:
     per_mouse_jpsth_raw = []
     per_mouse_coinc_raw = []
 
+    per_mouse_jpsth_corrected = []
+    per_mouse_coinc_corrected = []
+
     # ── Per-mouse JPSTH ───────────────────────────────────────────────────────
     for i in group_indices:
         mouse          = subject_list[i]
@@ -160,20 +169,38 @@ for group in included_groups:
         peth_560_mouse = PETH_list_560[i]
         n_bouts_mouse  = len(peth_465_mouse)
 
-        jpsth_m_raw, _, jpsth_m, coinc_m, coinc_m_raw = corr.compute_joint_psth(peth_465_mouse, peth_560_mouse)
+        # Per-mouse baseline JPSTH
+        jpsth_bl, coinc_bl = corr.compute_baseline_jpsth(
+            dfiberbehav_clean,
+            behaviours_excluded_baseline_list,
+            sr, TIME_WINDOW,
+            pad_s=2,
+            exclusion_col='dFF ExclusionMask'
+        )
+
+        # Per-mouse JPSTH
+        jpsth_m_raw, predictor_m, jpsth_m, coinc_m, coinc_m_raw, predictor_diag_m = corr.compute_joint_psth(peth_465_mouse, peth_560_mouse)
+       
         per_mouse_jpsth.append(jpsth_m)
         per_mouse_coinc.append(coinc_m)
 
         per_mouse_jpsth_raw.append(jpsth_m_raw)
         per_mouse_coinc_raw.append(coinc_m_raw)
 
+        # JPSTH correction with baseline
+        jpsth_corrected_m = jpsth_m  - jpsth_bl
+        coinc_corrected_m = coinc_m  - coinc_bl
+
+        per_mouse_jpsth_corrected.append(jpsth_corrected_m)
+        per_mouse_coinc_corrected.append(coinc_corrected_m)
+
         # Per-mouse figure
         fig_m = corr.plot_joint_psth(
             jpsth_m, coinc_m, TIME_WINDOW, BOI, event, exp, group,
             n_bouts=n_bouts_mouse, mouse=mouse 
         )
-        fig_m.savefig(corr_path / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.pdf')
-        fig_m.savefig(corr_path / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.png')
+        fig_m.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.pdf')
+        fig_m.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH.png')
         plt.close(fig_m)
 
         # Per-mouse figure raw
@@ -181,12 +208,39 @@ for group in included_groups:
             jpsth_m_raw, coinc_m_raw, TIME_WINDOW, BOI, event, exp, group,
             n_bouts=n_bouts_mouse, mouse=mouse 
         )
-        fig_m_raw.savefig(corr_path / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_raw.pdf')
-        fig_m_raw.savefig(corr_path / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_raw.png')
+        fig_m_raw.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_raw.pdf')
+        fig_m_raw.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_raw.png')
         plt.close(fig_m_raw)
 
+        # Per-mouse predictor
+        fig_m_predictor = corr.plot_joint_psth(
+            predictor_m, predictor_diag_m, TIME_WINDOW, BOI, event, exp, group,
+            n_bouts=n_bouts_mouse, mouse=mouse 
+        )
+        fig_m_predictor.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_predictor.pdf')
+        fig_m_predictor.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_predictor.png')
+        plt.close(fig_m_predictor)
+
+        # Per-mouse figure baseline
+        fig_m_bl = corr.plot_joint_psth(
+            jpsth_bl, coinc_bl, TIME_WINDOW, BOI, event, exp, group,
+            n_bouts=n_bouts_mouse, mouse=mouse 
+        )
+        fig_m_bl.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_bl.pdf')
+        fig_m_bl.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_bl.png')
+        plt.close(fig_m_bl)
+
+        # Per-mouse figure corrected
+        fig_m_corrected = corr.plot_joint_psth(
+            jpsth_corrected_m, coinc_corrected_m, TIME_WINDOW, BOI, event, exp, group,
+            n_bouts=n_bouts_mouse, mouse=mouse 
+        )
+        fig_m_corrected.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_corrected.pdf')
+        fig_m_corrected.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_corrected.png')
+        plt.close(fig_m_corrected)
+
         # Coincidence metrics
-        metrics = corr.extract_coincidence_metrics(coinc_m, TIME_WINDOW)
+        metrics = corr.extract_coincidence_metrics(coinc_corrected_m, TIME_WINDOW)
         all_coinc_records.append({
             'Mouse'   : mouse,
             'Group'   : group,
@@ -194,7 +248,7 @@ for group in included_groups:
             **metrics,
         })
 
-    # ── Group average (mouse as unit, not bout) ───────────────────────────────
+    # ── Group average ───────────────────────────────
     jpsth_stack   = np.stack(per_mouse_jpsth)          # (n_mice, n_tp, n_tp)
     coinc_stack   = np.stack(per_mouse_coinc)          # (n_mice, n_tp)
     jpsth_group   = np.nanmean(jpsth_stack, axis=0)
@@ -220,7 +274,7 @@ for group in included_groups:
     fig_coinc.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence.png')
     plt.close(fig_coinc)
 
-    # ── Group average (mouse as unit, not bout) ───────────────────────────────
+    # ── Group average raw ───────────────────────────────
     jpsth_stack_raw   = np.stack(per_mouse_jpsth_raw)          # (n_mice, n_tp, n_tp)
     coinc_stack_raw   = np.stack(per_mouse_coinc_raw)          # (n_mice, n_tp)
     jpsth_group_raw   = np.nanmean(jpsth_stack_raw, axis=0)
@@ -244,6 +298,31 @@ for group in included_groups:
     fig_coinc_raw.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence_raw.pdf')
     fig_coinc_raw.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence_raw.png')
     plt.close(fig_coinc_raw)
+
+    # ── Group average baseline-corrected ───────────────────────────────
+    jpsth_stack_corrected   = np.stack(per_mouse_jpsth_corrected)          # (n_mice, n_tp, n_tp)
+    coinc_stack_corrected   = np.stack(per_mouse_coinc_corrected)          # (n_mice, n_tp)
+    jpsth_group_corrected   = np.nanmean(jpsth_stack_corrected, axis=0)
+    coinc_group_corrected   = np.nanmean(coinc_stack_corrected, axis=0)
+    coinc_sem_corrected     = np.nanstd(coinc_stack_corrected, axis=0) / np.sqrt(len(group_indices))
+
+    # Group JPSTH figure
+    fig_g_corrected = corr.plot_joint_psth(
+        jpsth_group_corrected, coinc_group_corrected, TIME_WINDOW, BOI, event, exp, group,
+        n_bouts=n_bouts_group, coincidence_sem=coinc_sem_corrected
+    )
+    fig_g_corrected.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_corrected.pdf')
+    fig_g_corrected.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_corrected.png')
+    plt.close(fig_g_corrected)
+
+    # Standalone coincidence figure
+    fig_coinc_corrected = corr.plot_coincidence(
+        coinc_group_corrected, TIME_WINDOW, BOI, event, exp, group,
+        n_bouts=n_bouts_group, coincidence_sem=coinc_sem_corrected
+    )
+    fig_coinc_corrected.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence_corrected.pdf')
+    fig_coinc_corrected.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence_corrected.png')
+    plt.close(fig_coinc_corrected)
 
 # ── Export all per-mouse metrics ──────────────────────────────────────────────
 pd.DataFrame(all_coinc_records).to_excel(
