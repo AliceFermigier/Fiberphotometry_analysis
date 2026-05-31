@@ -53,7 +53,7 @@ EVENT_TIME_THRESHOLD = 0
 #%% Compute and plot joint PETHs
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuffs'
+exp = 'RewardAirpuff'
 BOI = 'Airpuffs'
 baseline = False
 MAXBOUTSNUMBER = 40
@@ -61,8 +61,8 @@ event = 'onset'
 
 # Plot parameters
 TIME_WINDOW = [3, 3]
-Y_LIM = [-2,2.5]
-Y_LIM_DUAL = [-2,2.5]
+HEATMAP_MINMAX = [-0.5,0.5]
+Y_LIM_COINCIDENCE = [-0.2,0.5]
 
 # PETH by bout number
 MIN_MICE_PER_BOUT = 2
@@ -309,7 +309,7 @@ for group in included_groups:
     # Group JPSTH figure
     fig_g_corrected = corr.plot_joint_psth(
         jpsth_group_corrected, coinc_group_corrected, TIME_WINDOW, BOI, event, exp, group,
-        n_bouts=n_bouts_group, coincidence_sem=coinc_sem_corrected
+        n_bouts=n_bouts_group, vmin=HEATMAP_MINMAX[0], vmax=HEATMAP_MINMAX[1], coincidence_sem=coinc_sem_corrected
     )
     fig_g_corrected.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_corrected.pdf')
     fig_g_corrected.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_corrected.png')
@@ -318,7 +318,7 @@ for group in included_groups:
     # Standalone coincidence figure
     fig_coinc_corrected = corr.plot_coincidence(
         coinc_group_corrected, TIME_WINDOW, BOI, event, exp, group,
-        n_bouts=n_bouts_group, coincidence_sem=coinc_sem_corrected
+        n_bouts=n_bouts_group, ylim=Y_LIM_COINCIDENCE, coincidence_sem=coinc_sem_corrected
     )
     fig_coinc_corrected.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence_corrected.pdf')
     fig_coinc_corrected.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence_corrected.png')
@@ -330,7 +330,7 @@ pd.DataFrame(all_coinc_records).to_excel(
 )
 print(f"✔ Coincidence metrics exported to: {corr_path}")
 
-#%% Compute and plot cross-correlation 
+ #%% Compute and plot cross-correlation 
 # ----------------------------- #
 # PETH parameters
 exp = 'FearRetrieval'

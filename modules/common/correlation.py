@@ -689,7 +689,7 @@ def plot_joint_psth(jpsth_corrected, coincidence, timewindow,
     return fig
 
 def plot_coincidence(coincidence, timewindow, BOI, event, exp, group,
-                     n_bouts, coincidence_sem=None):
+                     n_bouts, ylim=None, coincidence_sem=None):
     """
     Standalone coincidence histogram with optional SEM shading.
     """
@@ -722,6 +722,10 @@ def plot_coincidence(coincidence, timewindow, BOI, event, exp, group,
     )
     ax.legend(fontsize=10)
     ax.margins(0, 0.1)
+
+    if ylim is not None:
+        ax.set_ylim(ylim)
+        
     plt.tight_layout()
     return fig
 
