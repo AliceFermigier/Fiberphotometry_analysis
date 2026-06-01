@@ -1,4 +1,4 @@
-from scipy.signal import correlate, correlation_lags, fftconvolve
+from scipy.signal import correlate, correlation_lags, fftconvolve, savgol_filter
 import numpy as np
 import matplotlib.pyplot as plt
 from statsmodels.tsa.stattools import grangercausalitytests
@@ -9,6 +9,8 @@ import importlib
 #import functions
 import modules.common.preprocess as pp
 importlib.reload(pp)
+import modules.common.behavplot as bp
+importlib.reload(bp)
 
 def compute_peth_crosscorr(peth_465_list, peth_560_list, sr,
                             max_lag_s=5, min_bouts =1):
@@ -589,35 +591,241 @@ def compute_baseline_jpsth(fiberbehav_df, behaviours_excluded_list,
     print(f"  Baseline JPSTH from {len(windows_465)} windows.")
     return jpsth_bl, coinc_bl
 
-def extract_coincidence_metrics(coincidence, timewindow):
+def stationary_bootstrap(signal, average_block_size=120):
     """
-    Extract mean and max co-activation from the coincidence diagonal
-    before the event, after the event, and across the full window.
+    Resample a time series using stationary bootstrap (Politis & Romano 1994).
+    Blocks of geometrically distributed length are resampled with replacement,
+    preserving autocorrelation at lags < average_block_size.
+    NaNs are temporarily filled with linear interpolation to avoid propagation.
+    """
+    signal  = np.asarray(signal, dtype=float)
+    nan_mask = np.isnan(signal)
+
+    # Temporarily fill NaNs so they don't contaminate blocks
+    if nan_mask.any():
+        filled = pd.Series(signal).interpolate(
+            method='linear', limit_direction='both'
+        ).values
+    else:
+        filled = signal.copy()
+
+    l = len(filled)
+    p = 1 / average_block_size
+    resampled = np.empty_like(filled)
+    j = np.random.randint(l)
+    resampled[0] = filled[j]
+    for i in range(1, l):
+        if np.random.random() < 1 - p:
+            j = (j + 1) % l
+        else:
+            j = np.random.randint(l)
+        resampled[i] = filled[j]
+
+    # Re-apply the original NaN mask
+    resampled[nan_mask] = np.nan
+    return resampled
+
+def compute_shuffle_jpsth(dfiberbehav_df, peth_465_real,
+                           BOI, event, timewindow,
+                           event_time_threshold, sr,
+                           n_shuffles=100, baseline=False,
+                           sig_to_shuffle = '560 dFF',
+                           maxboutsnumber=None,
+                           exclusion_col='dFF ExclusionMask'):
+    """
+    Build a shuffle null distribution for the JPSTH by bootstrapping
+    the 560nm signal before PETH extraction, then compute the z-score JPSTH.
+
+    Parameters
+    ----------
+    dfiberbehav_df   : pd.DataFrame  — per-mouse aligned dataframe
+    peth_465_real    : np.ndarray (n_bouts, timepoints) — real 465 PETH
+    n_shuffles       : int           — number of bootstrappings
+    exclusion_col    : str           — column marking corrupted frames
+
+    Returns
+    -------
+    jpsth_shuffle_mean : np.ndarray (n_tp, n_tp)
+    jpsth_shuffle_std  : np.ndarray (n_tp, n_tp)  — floored at 1e-10 → nan
+    """
+    n            = len(dfiberbehav_df)
+
+    sig_560_orig = dfiberbehav_df[sig_to_shuffle].values.copy()
+
+    if exclusion_col in dfiberbehav_df.columns:
+        excl_mask = dfiberbehav_df[exclusion_col].fillna(False).astype(bool).values
+    else:
+        excl_mask = np.zeros(n, dtype=bool)
+
+    n_bouts_real = len(peth_465_real)
+    jpsth_shuffles = []
+
+    for _ in range(n_shuffles):
+        sig_shifted = stationary_bootstrap(sig_560_orig,average_block_size=3*sr) #bootstrapping in 3s blocks
+        sig_shifted[excl_mask] = np.nan          
+
+        df_shuf = dfiberbehav_df.copy()
+        df_shuf[sig_to_shuffle] = sig_shifted
+
+        peth_560_shuf = bp.PETH(
+            df_shuf, BOI, event, timewindow, event_time_threshold,
+            baselinewindow=baseline, maxboutsnumber=maxboutsnumber,
+            dFF_column=sig_to_shuffle
+        )
+
+        # Keep only as many bouts as the real PETH has
+        n_bouts = min(n_bouts_real, len(peth_560_shuf))
+        if n_bouts == 0:
+            continue
+
+        p465 = peth_465_real[:n_bouts]
+        p560 = peth_560_shuf[:n_bouts]
+
+        jpsth_shuf = sum(
+            np.outer(p465[i], p560[i]) for i in range(n_bouts)
+        ) / n_bouts
+        jpsth_shuffles.append(jpsth_shuf)
+
+    if len(jpsth_shuffles) < n_shuffles // 2:
+        print(f"  [!] Only {len(jpsth_shuffles)}/{n_shuffles} valid shuffles.")
+
+    stack = np.stack(jpsth_shuffles)                     # (n_valid, n_tp, n_tp)
+    mean  = stack.mean(axis=0)
+    std   = stack.std(axis=0)
+    std   = np.where(std < 1e-10, np.nan, std)
+
+    return mean, std
+
+def _smooth_coincidence(coincidence, sr_eff, smooth_window_s=0.5):
+    """Savitzky-Golay smoothing, returns smoothed array."""
+    win = max(5, int(smooth_window_s * sr_eff))
+    if win % 2 == 0:
+        win += 1                          # must be odd
+    win = min(win, len(coincidence) - 1)  # must be < signal length
+    if win < 5:
+        return coincidence.copy()
+    return savgol_filter(coincidence, window_length=win, polyorder=3)
+
+def extract_coincidence_dynamics(coincidence, timewindow,
+                                  smooth_window_s=0.5,
+                                  onset_fraction=0.2):
+    PRE_TIME, POST_TIME = float(timewindow[0]), float(timewindow[1])
+    n_tp      = len(coincidence)
+    sr_eff    = (n_tp - 1) / (PRE_TIME + POST_TIME)
+    peri_time = np.linspace(-PRE_TIME, POST_TIME, n_tp)
+    pre_idx   = round(PRE_TIME * sr_eff)
+    pre_idx_max = round((PRE_TIME+0.1) * sr_eff)
+
+    smooth = _smooth_coincidence(coincidence, sr_eff, smooth_window_s)
+
+    # ── 1. Maximum: search only from t=0 to end ───────────────────────────────
+    post_smooth = smooth[pre_idx_max:]
+    idx_max     = pre_idx_max + int(np.nanargmax(post_smooth))
+    t_max       = float(peri_time[idx_max])
+    val_max     = float(smooth[idx_max])
+
+    # ── 2. Trough: search only from t=0 to peak ──────────────────────────────
+    idx_trough = pre_idx + int(np.nanargmin(smooth[pre_idx : idx_max + 1]))
+
+    # ── 3. Inflection point: max first derivative between trough and peak ─────
+    deriv      = np.gradient(smooth, peri_time)
+    rise_deriv = deriv[idx_trough : idx_max + 1]
+
+    if len(rise_deriv) > 1:
+        idx_inflection = idx_trough + int(np.argmax(rise_deriv))
+        t_inflection   = float(peri_time[idx_inflection])
+    else:
+        t_inflection = np.nan
+
+    # ── 4. Onset: threshold crossing on the rising flank ─────────────────────
+    baseline  = float(np.nanmean(smooth[:pre_idx]))
+    threshold = baseline + onset_fraction * (val_max - baseline)
+
+    t_onset = np.nan
+    for idx in range(idx_trough, idx_max + 1):
+        if smooth[idx] >= threshold:
+            t_onset = float(peri_time[idx])
+            break
+
+    return {
+        't_max_coincidence' : t_max,
+        'max_coincidence'   : val_max,
+        't_inflection'      : t_inflection,
+        't_onset'           : t_onset,
+    }
+
+def extract_coincidence_metrics(coincidence, timewindow, step_s=0.2, smooth_window_s=0.5, onset_fraction=0.2):
+    """
+    Extract mean and max co-activation from the coincidence diagonal.
+
+    Returns global metrics (before / after / total) plus binned metrics
+    of width step_s radiating outward from t=0 in both directions.
 
     Parameters
     ----------
     coincidence : np.ndarray (n_timepoints,)
     timewindow  : [PRE_TIME, POST_TIME]
+    step_s      : float — bin width in seconds (default 0.2)
 
     Returns
     -------
-    dict of six scalar metrics.
+    dict of scalar metrics, one row per mouse in the output DataFrame.
     """
     PRE_TIME, POST_TIME = float(timewindow[0]), float(timewindow[1])
     n_tp    = len(coincidence)
-    pre_idx = round(PRE_TIME * (n_tp - 1) / (PRE_TIME + POST_TIME))
+    sr_eff  = (n_tp - 1) / (PRE_TIME + POST_TIME)   # samples per second
+    pre_idx = round(PRE_TIME * sr_eff)
 
+    def t_to_idx(t):
+        return int(np.clip(round(pre_idx + t * sr_eff), 0, n_tp - 1))
+
+    metrics = {}
+
+    # ── Global metrics (unchanged) ────────────────────────────────────────────
     pre  = coincidence[:pre_idx]
     post = coincidence[pre_idx:]
+    metrics['mean_coincidence_before'] = float(np.nanmean(pre))
+    metrics['max_coincidence_before']  = float(np.nanmax(pre))
+    metrics['mean_coincidence_after']  = float(np.nanmean(post))
+    metrics['max_coincidence_after']   = float(np.nanmax(post))
+    metrics['mean_coincidence_total']  = float(np.nanmean(coincidence))
+    metrics['max_coincidence_total']   = float(np.nanmax(coincidence))
 
-    return {
-        'mean_coincidence_before' : float(np.nanmean(pre)),
-        'max_coincidence_before'  : float(np.nanmax(pre)),
-        'mean_coincidence_after'  : float(np.nanmean(post)),
-        'max_coincidence_after'   : float(np.nanmax(post)),
-        'mean_coincidence_total'  : float(np.nanmean(coincidence)),
-        'max_coincidence_total'   : float(np.nanmax(coincidence)),
-    }
+    # ── Bins after event: [0, step_s], [step_s, 2*step_s], … ─────────────────
+    bin_edges_after = np.arange(0, POST_TIME, step_s)
+    for t0 in bin_edges_after:
+        t1  = t0 + step_s
+        i0  = t_to_idx(t0)
+        i1  = n_tp if t1 >= POST_TIME else t_to_idx(t1)   # last bin reaches end
+        if i1 <= i0:
+            continue
+        window = coincidence[i0:i1]
+        label  = f'{t0:+.2f}_to_{t1:+.2f}s'
+        metrics[f'mean_coinc_{label}'] = float(np.nanmean(window))
+        metrics[f'max_coinc_{label}']  = float(np.nanmax(window))
+
+    # ── Bins before event: [0, -step_s], [-step_s, -2*step_s], … ────────────
+    bin_edges_before = np.arange(0, -PRE_TIME, -step_s)
+    for t1 in bin_edges_before:
+        t0  = t1 - step_s
+        i0  = 0 if t0 <= -PRE_TIME else t_to_idx(t0)      # last bin reaches start
+        i1  = t_to_idx(t1)
+        if i1 <= i0:
+            continue
+        window = coincidence[i0:i1]
+        label  = f'{t0:+.2f}_to_{t1:+.2f}s'
+        metrics[f'mean_coinc_{label}'] = float(np.nanmean(window))
+        metrics[f'max_coinc_{label}']  = float(np.nanmax(window))
+
+    # ── Dynamics metrics ──────────────────────────────────────────────────────
+    dynamics = extract_coincidence_dynamics(
+        coincidence, timewindow,
+        smooth_window_s=smooth_window_s,
+        onset_fraction=onset_fraction
+    )
+    metrics.update(dynamics)
+
+    return metrics
 
 def plot_joint_psth(jpsth_corrected, coincidence, timewindow,
                     BOI, event, exp, group,
@@ -689,7 +897,7 @@ def plot_joint_psth(jpsth_corrected, coincidence, timewindow,
     return fig
 
 def plot_coincidence(coincidence, timewindow, BOI, event, exp, group,
-                     n_bouts, ylim=None, coincidence_sem=None):
+                     n_bouts, ylim=None, coincidence_sem=None, zscore=False):
     """
     Standalone coincidence histogram with optional SEM shading.
     """
@@ -697,6 +905,16 @@ def plot_coincidence(coincidence, timewindow, BOI, event, exp, group,
     peri_time = np.linspace(-PRE_TIME, POST_TIME, len(coincidence))
 
     fig, ax = plt.subplots(figsize=(7, 4))
+
+    # Shuffle null reference bands (only meaningful for z-scored data)
+    if zscore:
+        try:
+            ax.axhspan(-1, 1, color='grey',     alpha=0.12, label='Shuffle ±1 SD')
+            ax.axhspan(-2, 2, color='grey',     alpha=0.07, label='Shuffle ±2 SD')
+            ax.axhline(y= 2, color='grey', linewidth=0.8, linestyle='--')
+            ax.axhline(y=-2, color='grey', linewidth=0.8, linestyle='--')
+        except :
+            print('Range too small to draw significance z-score lines')
 
     if coincidence_sem is not None:
         ax.fill_between(peri_time,

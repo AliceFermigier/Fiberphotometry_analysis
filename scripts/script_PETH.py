@@ -52,7 +52,7 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = None
+MAXBOUTSNUMBER = 40
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
 else:
@@ -60,10 +60,10 @@ else:
 
 # Plot parameters
 EVENT_LIST = ['onset']
-TIME_WINDOWS = [[3, 5]]  # Time window for PETH calculation (pre, post), for each event
+TIME_WINDOWS = [[2, 2]]  # Time window for PETH calculation (pre, post), for each event
 Y_LIM = [-2,5]
 Y_LIM_DUAL = [-2,5]
-exp = 'RewardAirpuffs'
+exp = 'RewardAirpuff'
 behaviors_of_interest = ['Licks_filtered','Airpuffs']
 
 #['Licks_filtered','Airpuffs']

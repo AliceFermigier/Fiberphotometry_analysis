@@ -60,10 +60,10 @@ MAXBOUTSNUMBER = 40
 event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [3, 3]
+TIME_WINDOW = [2, 2]
 HEATMAP_MINMAX = [-0.5,0.5]
 Y_LIM_COINCIDENCE = [-0.2,0.5]
-
+ 
 # PETH by bout number
 MIN_MICE_PER_BOUT = 2
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
@@ -162,6 +162,9 @@ for group in included_groups:
     per_mouse_jpsth_corrected = []
     per_mouse_coinc_corrected = []
 
+    per_mouse_jpsth_zscore = []
+    per_mouse_coinc_zscore = []
+
     # ── Per-mouse JPSTH ───────────────────────────────────────────────────────
     for i in group_indices:
         mouse          = subject_list[i]
@@ -171,7 +174,7 @@ for group in included_groups:
 
         # Per-mouse baseline JPSTH
         jpsth_bl, coinc_bl = corr.compute_baseline_jpsth(
-            dfiberbehav_clean,
+            dfiberbehav_dict[mouse],
             behaviours_excluded_baseline_list,
             sr, TIME_WINDOW,
             pad_s=2,
@@ -239,8 +242,67 @@ for group in included_groups:
         fig_m_corrected.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_corrected.png')
         plt.close(fig_m_corrected)
 
-        # Coincidence metrics
-        metrics = corr.extract_coincidence_metrics(coinc_corrected_m, TIME_WINDOW)
+        jpsth_bl, coinc_bl
+
+        # ── Shuffle null and z-score correction ───────────────────────────────
+        jpsth_shuf_mean_560, jpsth_shuf_std_560 = corr.compute_shuffle_jpsth(
+            dfiberbehav_dict[mouse],         
+            peth_465_mouse,
+            BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD, sr,
+            n_shuffles=100,
+            baseline=baseline,
+            sig_to_shuffle = '560 dFF',
+            maxboutsnumber=MAXBOUTSNUMBER,
+        )
+        coinc_shuf_mean_560 = np.diag(jpsth_shuf_mean_560)
+
+        jpsth_shuf_mean_465, jpsth_shuf_std_465 = corr.compute_shuffle_jpsth(
+            dfiberbehav_dict[mouse],         
+            peth_465_mouse,
+            BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD, sr,
+            n_shuffles=100,
+            baseline=baseline,
+            sig_to_shuffle = 'dFF',
+            maxboutsnumber=MAXBOUTSNUMBER,
+        )
+        coinc_shuf_mean_465 = np.diag(jpsth_shuf_mean_465)
+
+        # Per-mouse figure shuffle
+        fig_shuf_m_560 = corr.plot_joint_psth(
+            jpsth_shuf_mean_560, coinc_shuf_mean_560, TIME_WINDOW, BOI, event, exp, group,
+            n_bouts=n_bouts_mouse, mouse=mouse 
+        )
+        fig_shuf_m_560.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_shuf_560.pdf')
+        fig_shuf_m_560.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_shuf_560.png')
+        plt.close(fig_shuf_m_560)
+
+        fig_shuf_m_465 = corr.plot_joint_psth(
+            jpsth_shuf_mean_465, coinc_shuf_mean_465, TIME_WINDOW, BOI, event, exp, group,
+            n_bouts=n_bouts_mouse, mouse=mouse 
+        )
+        fig_shuf_m_465.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_shuf_465.pdf')
+        fig_shuf_m_465.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_shuf_465.png')
+        plt.close(fig_shuf_m_465)
+
+        # Z-score: how many SDs above the circular-shift null is each cell?
+        jpsth_z_m = (jpsth_m_raw - (jpsth_shuf_mean_560+jpsth_shuf_mean_465)) / (jpsth_shuf_std_560+jpsth_shuf_std_465)
+        coinc_z_m = np.diag(jpsth_z_m)
+
+        per_mouse_jpsth_zscore.append(jpsth_z_m)
+        per_mouse_coinc_zscore.append(coinc_z_m)
+
+        # Per-mouse z-score figure
+        fig_m_z = corr.plot_joint_psth(
+            jpsth_z_m, coinc_z_m, TIME_WINDOW, BOI, event, exp, group,
+            n_bouts=n_bouts_mouse, mouse=mouse,
+            cmap='RdBu_r'     
+        )
+        fig_m_z.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_zscore.pdf')
+        fig_m_z.savefig(corr_path_indiv / f'{group}_{mouse}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_zscore.png')
+        plt.close(fig_m_z)
+
+        # Use z-scored coincidence for metrics (more interpretable than baseline-subtracted)
+        metrics = corr.extract_coincidence_metrics(coinc_z_m, TIME_WINDOW, step_s=0.1)
         all_coinc_records.append({
             'Mouse'   : mouse,
             'Group'   : group,
@@ -324,6 +386,31 @@ for group in included_groups:
     fig_coinc_corrected.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence_corrected.png')
     plt.close(fig_coinc_corrected)
 
+    # ── Group average z-scored ────────────────────────────────────────────────
+    jpsth_stack_z = np.stack(per_mouse_jpsth_zscore)
+    coinc_stack_z = np.stack(per_mouse_coinc_zscore)
+    jpsth_group_z = np.nanmean(jpsth_stack_z, axis=0)
+    coinc_group_z = np.nanmean(coinc_stack_z, axis=0)
+    coinc_sem_z   = np.nanstd(coinc_stack_z,  axis=0) / np.sqrt(len(group_indices))
+
+    fig_g_z = corr.plot_joint_psth(
+        jpsth_group_z, coinc_group_z, TIME_WINDOW, BOI, event, exp, group,
+        n_bouts=n_bouts_group, vmin=-4, vmax=4,
+        coincidence_sem=coinc_sem_z
+    )
+    fig_g_z.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_zscore.pdf')
+    fig_g_z.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_zscore.png')
+    plt.close(fig_g_z)
+
+    fig_coinc_z = corr.plot_coincidence(
+        coinc_group_z, TIME_WINDOW, BOI, event, exp, group,
+        n_bouts=n_bouts_group, coincidence_sem=coinc_sem_z,
+        ylim=[-0.5,5], zscore=True
+    )
+    fig_coinc_z.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence_zscore.pdf')
+    fig_coinc_z.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_coincidence_zscore.png')
+    plt.close(fig_coinc_z)
+
 # ── Export all per-mouse metrics ──────────────────────────────────────────────
 pd.DataFrame(all_coinc_records).to_excel(
     corr_path / f'{BOI}_coincidence_metrics.xlsx', index=False
@@ -348,7 +435,7 @@ Y_LIM_DUAL = [-2,2.5]
 MIN_MICE_PER_BOUT = 2
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
 
-# Granger causality max lag
+# Granger causality max lag 
 MAX_LAG_S = 0.15
 
 if baseline:
