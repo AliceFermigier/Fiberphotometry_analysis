@@ -62,8 +62,8 @@ THRESH_S = 3
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'RewardAirpuff'
-list_BOI = ['Licks_filtered', 'Airpuffs']
+exp = 'RewardHab'
+list_BOI = ['Licks_filtered', 'Licks']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
@@ -255,7 +255,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
 #%% 2.3 - Plot behavioural metrics
 
-exp = 'RewardHab2'
+exp = 'RewardHab'
 
 print('###################')
 print(f'EXPERIMENT : {exp}')

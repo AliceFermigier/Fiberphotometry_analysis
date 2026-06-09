@@ -45,7 +45,7 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'RewardHab2'
+exp = 'RewardHab'
 dual_color = True
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
@@ -279,7 +279,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF_corrected.png')
             plt.close(fig_dFF) 
 
-  # %%
+   # %%
 # 1.5 - Manually remove corrupted data if some are left
 
 #------------------#

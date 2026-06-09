@@ -61,10 +61,10 @@ else:
 # Plot parameters
 EVENT_LIST = ['onset']
 TIME_WINDOWS = [[2, 2]]  # Time window for PETH calculation (pre, post), for each event
-Y_LIM = [-2,5]
-Y_LIM_DUAL = [-2,5]
-exp = 'RewardAirpuff'
-behaviors_of_interest = ['Licks_filtered','Airpuffs']
+Y_LIM = [-2,2]
+Y_LIM_DUAL = [-2,2]
+exp = 'RewardHab'
+behaviors_of_interest = ['Licks_filtered']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']
@@ -161,16 +161,16 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuff'
-BOI = 'Airpuffs'
+exp = 'RewardHab'
+BOI = 'Licks_filtered'
 baseline = False
 MAXBOUTSNUMBER = 40
 event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [1, 1]
-Y_LIM = [-2,4]
-Y_LIM_DUAL = [-2,4]
+TIME_WINDOW = [2, 2]
+Y_LIM = [-2,2]
+Y_LIM_DUAL = [-2,2]
 
 # ── PETH by bout number
 MIN_MICE_PER_BOUT = 2    # hide bout positions covered by fewer mice
@@ -287,22 +287,24 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         max_after   = np.max(PETH_mouse_mean[0,event_idx:])
         max_during = np.max(PETH_mouse_mean[0])
 
-        if BOI == 'Licks_filtered':
+        if BOI == 'Licks':
+            try:
+                start_during = int(event_idx - 0.5 * sr)
+                end_during   = int(event_idx + 0.5 * sr)
 
-            start_during = int(event_idx - 0.5 * sr)
-            end_during   = int(event_idx + 0.5 * sr)
+                start_before = int(event_idx - 1.5 * sr)
+                end_before   = int(event_idx - 0.5 * sr)
 
-            start_before = int(event_idx - 1.5 * sr)
-            end_before   = int(event_idx - 0.5 * sr)
+                mean_during_lick = np.mean(PETH_mouse_mean[0, start_during:end_during])
+                mean_before_lick = np.mean(PETH_mouse_mean[0, start_before:end_before])
 
-            mean_during_lick = np.mean(PETH_mouse_mean[0, start_during:end_during])
-            mean_before_lick = np.mean(PETH_mouse_mean[0, start_before:end_before])
+                max_during_lick = np.max(PETH_mouse_mean[0, start_during:end_during])
+                max_before_lick = np.max(PETH_mouse_mean[0, start_before:end_before])
 
-            max_during_lick = np.max(PETH_mouse_mean[0, start_during:end_during])
-            max_before_lick = np.max(PETH_mouse_mean[0, start_before:end_before])
-
-            PETH_mean_lick_list.append((mean_before_lick, mean_during_lick))
-            PETH_max_lick_list.append((max_before_lick, max_during_lick))
+                PETH_mean_lick_list.append((mean_before_lick, mean_during_lick))
+                PETH_max_lick_list.append((max_before_lick, max_during_lick))
+            except:
+                print('Too short')
 
         PETH_mean_list.append((mean_before, mean_after, mean_during))
         PETH_max_list.append((max_before, max_after, max_during))
@@ -318,15 +320,18 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             max_after_560   = np.max(PETH_mouse_mean_560[0,event_idx:])
             max_during_560 = np.max(PETH_mouse_mean_560[0])
 
-            if BOI == 'Licks_filtered':
-                mean_during_lick_560 = np.mean(PETH_mouse_mean_560[0,start_during:end_during])
-                mean_before_lick_560 = np.mean(PETH_mouse_mean_560[0,start_before:end_before])
+            if BOI == 'Licks':
+                try:
+                    mean_during_lick_560 = np.mean(PETH_mouse_mean_560[0,start_during:end_during])
+                    mean_before_lick_560 = np.mean(PETH_mouse_mean_560[0,start_before:end_before])
 
-                max_during_lick_560 = np.max(PETH_mouse_mean_560[0,start_during:end_during])
-                max_before_lick_560 = np.max(PETH_mouse_mean_560[0,start_before:end_before])
+                    max_during_lick_560 = np.max(PETH_mouse_mean_560[0,start_during:end_during])
+                    max_before_lick_560 = np.max(PETH_mouse_mean_560[0,start_before:end_before])
 
-                PETH_mean_lick_list_560.append((mean_before_lick_560, mean_during_lick_560))
-                PETH_max_lick_list_560.append((max_before_lick_560, max_during_lick_560))
+                    PETH_mean_lick_list_560.append((mean_before_lick_560, mean_during_lick_560))
+                    PETH_max_lick_list_560.append((max_before_lick_560, max_during_lick_560))
+                except:
+                    print('Too short')
 
             PETH_mean_list_560.append((mean_before_560, mean_after_560, mean_during_560))
             PETH_max_list_560.append((max_before_560, max_after_560, max_during_560))
@@ -344,13 +349,16 @@ export_dict = {
     f'465 Max dFF after {BOI}':   [x[1] for x in PETH_max_list],
     f'465 Max dFF during {BOI}':  [x[2] for x in PETH_max_list],
 }
-if BOI == 'Licks_filtered':
-    export_dict.update({
-        '465 Mean dFF 1s before lick': [x[0] for x in PETH_mean_lick_list],
-        '465 Mean dFF during lick':    [x[1] for x in PETH_mean_lick_list],
-        '465 Max dFF 1s before lick':  [x[0] for x in PETH_max_lick_list],
-        '465 Max dFF during lick':     [x[1] for x in PETH_max_lick_list],
-    })
+if BOI == 'Licks':
+    try:
+        export_dict.update({
+            '465 Mean dFF 1s before lick': [x[0] for x in PETH_mean_lick_list],
+            '465 Mean dFF during lick':    [x[1] for x in PETH_mean_lick_list],
+            '465 Max dFF 1s before lick':  [x[0] for x in PETH_max_lick_list],
+            '465 Max dFF during lick':     [x[1] for x in PETH_max_lick_list],
+        })
+    except:
+        print('Too short')
 if dual_color:
     export_dict.update({
         f'560 Mean dFF before {BOI}': [x[0] for x in PETH_mean_list_560],
@@ -360,14 +368,16 @@ if dual_color:
         f'560 Max dFF after {BOI}':   [x[1] for x in PETH_max_list_560],
         f'560 Max dFF during {BOI}':   [x[2] for x in PETH_max_list_560],
     })
-    if BOI == 'Licks_filtered':
-        export_dict.update({
-            '560 Mean dFF 1s before lick': [x[0] for x in PETH_mean_lick_list_560],
-            '560 Mean dFF during lick':    [x[1] for x in PETH_mean_lick_list_560],
-            '560 Max dFF 1s before lick':  [x[0] for x in PETH_max_lick_list_560],
-            '560 Max dFF during lick':     [x[1] for x in PETH_max_lick_list_560],
-        })
-
+    if BOI == 'Licks':
+        try:
+            export_dict.update({
+                '560 Mean dFF 1s before lick': [x[0] for x in PETH_mean_lick_list_560],
+                '560 Mean dFF during lick':    [x[1] for x in PETH_mean_lick_list_560],
+                '560 Max dFF 1s before lick':  [x[0] for x in PETH_max_lick_list_560],
+                '560 Max dFF during lick':     [x[1] for x in PETH_max_lick_list_560],
+            })
+        except:
+            print('Too short')
 meanmaxPETH_df = pd.DataFrame(export_dict)
 meanmaxPETH_df.to_excel(peth_path / f'{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETHmeanmax.xlsx')
 

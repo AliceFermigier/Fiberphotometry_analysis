@@ -201,7 +201,6 @@ def linearfit_sklearn(sig_405, sig_465, filt_405, filt_465, trim=[10, -10], filt
     The model is always trained on trimmed, median-filtered signals to avoid
     contamination from edge artifacts and transient events. Prediction can be
     made on either the raw or the filtered 405nm signal (see `filtered_405`).
-    Prediction on filtered signal was added 
 
     Parameters
     ----------

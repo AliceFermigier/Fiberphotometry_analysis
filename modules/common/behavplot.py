@@ -706,7 +706,7 @@ def plot_PETH_by_bout(bout_means, bout_sems, bout_n,
         heatmap_data,
         cmap='RdBu_r', aspect='auto', interpolation='none',
         extent=[-PRE_TIME, POST_TIME, n_valid + 0.5, 0.5],
-        vmin=-abs_max, vmax=abs_max
+        vmin=-1, vmax=1
     )
     ax_hm.axvline(x=0, linewidth=1.5, color='black', linestyle='--')
     ax_hm.set_ylabel('Bout group' if step > 1 else 'Bout #', fontsize=14)

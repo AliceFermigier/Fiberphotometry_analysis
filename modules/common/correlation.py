@@ -13,91 +13,95 @@ import modules.common.behavplot as bp
 importlib.reload(bp)
 
 def compute_peth_crosscorr(peth_465_list, peth_560_list, sr,
-                            max_lag_s=5, min_bouts =1):
+                            max_lag_s=5, min_bouts=1):
     """
-    Compute normalized cross-correlation between 465nm and 560nm PETH traces,
-    pooled across bouts and mice.
-
-    Parameters
-    ----------
-    peth_465_list, peth_560_list : list of np.ndarray, shape (n_bouts, timepoints)
-        Matched per-mouse PETH arrays for the two channels.
-    sr : float
-        Sampling rate (Hz).
-    max_lag_s : float
-        Maximum lag to return (seconds).
-    min_bouts : int
-        Minimum number of bouts a mouse must have to be included.
-
-    Returns
-    -------
-    lags_s      : np.ndarray  — lag axis in seconds
-    mean_xcorr  : np.ndarray  — mean cross-correlation
-    sem_xcorr   : np.ndarray  — SEM across bouts
-    peak_lag_s  : float       — lag at peak correlation
-    xcorr_matrix: np.ndarray  — all individual bout cross-correlations (n_bouts_total, lags)
+    Cross-correlation with mouse as statistical unit.
+    Returns per-mouse array so callers can do group statistics.
     """
-    all_xcorrs = []
+    n_tp      = peth_465_list[0].shape[1]
+    lags_s    = correlation_lags(n_tp, n_tp, mode='full') / sr
+    mask      = np.abs(lags_s) <= max_lag_s
+    lags_trim = lags_s[mask]
 
+    per_mouse = []
     for peth_465, peth_560 in zip(peth_465_list, peth_560_list):
         n_bouts = min(len(peth_465), len(peth_560))
         if n_bouts < min_bouts:
             continue
-
-        for i in range(n_bouts):
-            sig1 = peth_465[i] - peth_465[i].mean()   # zero-mean
-            sig2 = peth_560[i] - peth_560[i].mean()
-
-            norm = np.sqrt(np.dot(sig1, sig1) * np.dot(sig2, sig2))
+        bout_xcorrs = []
+        for s1, s2 in zip(peth_465, peth_560):
+            s1 = s1 - s1.mean();  s2 = s2 - s2.mean()
+            norm = np.sqrt(np.dot(s1, s1) * np.dot(s2, s2))
             if norm < 1e-10:
                 continue
+            bout_xcorrs.append(correlate(s2, s1, mode='full')[mask] / norm)
+        if bout_xcorrs:
+            per_mouse.append(np.mean(bout_xcorrs, axis=0))   # one curve per mouse
 
-            # correlate(sig2, sig1): positive lag → sig2 (560) follows sig1 (465)
-            xcorr = correlate(sig2, sig1, mode='full') / norm
-            all_xcorrs.append(xcorr)
+    if not per_mouse:
+        raise ValueError("No valid mice found.")
 
-    if not all_xcorrs:
-        raise ValueError("No valid bouts found.")
+    per_mouse_arr = np.array(per_mouse)                      # (n_mice, n_lags)
+    mean_xcorr    = per_mouse_arr.mean(axis=0)
+    sem_xcorr     = per_mouse_arr.std(axis=0) / np.sqrt(len(per_mouse_arr))
+    peak_lag_s    = float(lags_trim[np.argmax(mean_xcorr)])
 
-    n_tp  = peth_465_list[0].shape[1]
-    lags  = correlation_lags(n_tp, n_tp, mode='full')
-    lags_s = lags / sr
+    return lags_trim, mean_xcorr, sem_xcorr, peak_lag_s, per_mouse_arr
 
-    mask          = np.abs(lags_s) <= max_lag_s
-    lags_s        = lags_s[mask]
-    xcorr_matrix  = np.array(all_xcorrs)[:, mask]
+def compute_crosscorr_significance(per_mouse_arr, lags_s,
+                                    peth_465_list, peth_560_list, sr,
+                                    method='phase_randomization',
+                                    n_shuffles=1000, ci=95):
+    """
+    Add a shuffle null distribution to an already-computed cross-correlation.
 
-    mean_xcorr = xcorr_matrix.mean(axis=0)
-    sem_xcorr  = xcorr_matrix.std(axis=0) / np.sqrt(len(xcorr_matrix))
+    Parameters
+    ----------
+    per_mouse_arr : np.ndarray (n_mice, n_lags)  — from compute_peth_crosscorr
+    lags_s        : np.ndarray (n_lags,)         — from compute_peth_crosscorr
+    """
+    mask = np.ones(len(lags_s), dtype=bool)      # already trimmed upstream
+
+    mean_xcorr = per_mouse_arr.mean(axis=0)
+    sem_xcorr  = per_mouse_arr.std(axis=0) / np.sqrt(len(per_mouse_arr))
     peak_lag_s = float(lags_s[np.argmax(mean_xcorr)])
 
-    return lags_s, mean_xcorr, sem_xcorr, peak_lag_s, xcorr_matrix
+    def _mouse_mean_xcorr(p465, p560):
+        n_tp = p465.shape[1]
+        lags_full = correlation_lags(n_tp, n_tp, mode='full') / sr
+        full_mask = np.abs(lags_full) <= lags_s.max() + 1 / sr
+        xcorrs = []
+        for s1, s2 in zip(p465, p560):
+            s1 = s1 - s1.mean();  s2 = s2 - s2.mean()
+            norm = np.sqrt(np.dot(s1, s1) * np.dot(s2, s2))
+            if norm < 1e-10:
+                continue
+            xcorrs.append(correlate(s2, s1, mode='full')[full_mask] / norm)
+        return np.mean(xcorrs, axis=0) if xcorrs else None
 
-def plot_peth_crosscorr(lags_s, mean_xcorr, sem_xcorr, peak_lag_s,
-                         BOI, exp, group, n_bouts,
-                         color='cornflowerblue', fill_alpha=0.25):
-    """
-    Plot mean ± SEM cross-correlogram with peak lag annotation.
-    """
-    fig, ax = plt.subplots(figsize=(8, 4))
+    shuffle_group_means = []
+    for _ in range(n_shuffles):
+        shuf_mouse_means = []
+        for p465, p560 in zip(peth_465_list, peth_560_list):
+            if method == 'phase_randomization':
+                p560_shuf = np.array([_phase_randomize(row) for row in p560])
+            elif method == 'trial_permutation':
+                p560_shuf = p560[np.random.permutation(len(p560))]
+            else:
+                raise ValueError(f"Unknown method '{method}'.")
+            m = _mouse_mean_xcorr(p465, p560_shuf)
+            if m is not None:
+                shuf_mouse_means.append(m)
+        if shuf_mouse_means:
+            shuffle_group_means.append(np.mean(shuf_mouse_means, axis=0))
 
-    ax.fill_between(lags_s, mean_xcorr - sem_xcorr, mean_xcorr + sem_xcorr,
-                    color=color, alpha=fill_alpha)
-    ax.plot(lags_s, mean_xcorr, color=color, linewidth=2,
-            label=f'Mean xcorr  (n={n_bouts} bouts)')
+    shuffle_arr = np.array(shuffle_group_means)
+    tail_pct    = (100 - ci) / 2
+    ci_low      = np.percentile(shuffle_arr, tail_pct,       axis=0)
+    ci_high     = np.percentile(shuffle_arr, 100 - tail_pct, axis=0)
+    is_sig      = (mean_xcorr > ci_high) | (mean_xcorr < ci_low)
 
-    ax.axvline(x=0, color='black', linewidth=1, linestyle='--', label='Zero lag')
-    ax.axvline(x=peak_lag_s, color='firebrick', linewidth=1.5, linestyle=':',
-               label=f'Peak lag = {peak_lag_s:.2f} s')
-    ax.axhline(y=0, color='grey', linewidth=0.8, linestyle=':')
-
-    ax.set_xlabel('Lag (s)  [positive = 560 follows 465]', fontsize=13)
-    ax.set_ylabel('Normalized cross-correlation', fontsize=13)
-    ax.set_title(f'465 → 560 cross-correlation\n{BOI} — {exp}, {group}', fontsize=13)
-    ax.legend(fontsize=10)
-    ax.margins(0, 0.05)
-    plt.tight_layout()
-    return fig
+    return mean_xcorr, sem_xcorr, peak_lag_s, ci_low, ci_high, is_sig
 
 def _phase_randomize(signal):
     """
@@ -110,68 +114,6 @@ def _phase_randomize(signal):
     if len(signal) % 2 == 0:
         phi[-1] = 0                         # keep Nyquist real for even-length signals
     return np.fft.irfft(np.abs(f) * np.exp(1j * phi), n=len(signal))
-
-
-def compute_crosscorr_significance(peth_465_list, peth_560_list, sr,
-                                    method='trial_permutation',  # ← underscore
-                                    max_lag_s=5, n_shuffles=1000, ci=95):
-    """
-    Assess cross-correlation significance.
-
-    method : 'trial_permutation'   — shuffle bout pairing across mice
-             'phase_randomization' — randomize phase spectrum of 560nm traces
-    """
-    def _xcorr_matrix(traces_465, traces_560):             # ← removed unused n_tp
-        xcorrs = []
-        for s1, s2 in zip(traces_465, traces_560):
-            s1 = s1 - s1.mean();  s2 = s2 - s2.mean()
-            norm = np.sqrt(np.dot(s1, s1) * np.dot(s2, s2))
-            if norm < 1e-10:
-                continue
-            xcorrs.append(correlate(s2, s1, mode='full') / norm)
-        return np.array(xcorrs) if xcorrs else None
-
-    all_465 = np.concatenate(peth_465_list, axis=0)
-    all_560 = np.concatenate(peth_560_list, axis=0)
-    n_tp    = all_465.shape[1]
-
-    lags_s = correlation_lags(n_tp, n_tp, mode='full') / sr
-    mask   = np.abs(lags_s) <= max_lag_s
-
-    # ── Real cross-correlation ────────────────────────────────────────────────
-    real_mat   = _xcorr_matrix(all_465, all_560)           # ← removed n_tp
-    mean_xcorr = real_mat[:, mask].mean(axis=0)
-    sem_xcorr  = real_mat[:, mask].std(axis=0) / np.sqrt(len(real_mat))
-    peak_lag_s = float(lags_s[mask][np.argmax(mean_xcorr)])
-
-    # ── Null distribution ─────────────────────────────────────────────────────
-    shuffle_means = []
-
-    if method == 'trial_permutation':                      # ← underscore
-        for _ in range(n_shuffles):
-            perm     = np.random.permutation(len(all_465))
-            shuf_mat = _xcorr_matrix(all_465, all_560[perm])
-            if shuf_mat is not None:
-                shuffle_means.append(shuf_mat[:, mask].mean(axis=0))
-
-    elif method == 'phase_randomization':                  # ← underscore
-        for _ in range(n_shuffles):
-            shuf_560 = np.array([_phase_randomize(row) for row in all_560])
-            shuf_mat = _xcorr_matrix(all_465, shuf_560)
-            if shuf_mat is not None:
-                shuffle_means.append(shuf_mat[:, mask].mean(axis=0))  # ← was missing
-
-    else:
-        raise ValueError(f"Unknown method '{method}'. "
-                         "Use 'trial_permutation' or 'phase_randomization'.")
-
-    shuffle_arr = np.array(shuffle_means)                  # (n_shuffles, n_lags) ✓
-    tail_pct    = (100 - ci) / 2                           # ← renamed from alpha
-    ci_low      = np.percentile(shuffle_arr, tail_pct,         axis=0)
-    ci_high     = np.percentile(shuffle_arr, 100 - tail_pct,   axis=0)
-    is_sig      = (mean_xcorr > ci_high) | (mean_xcorr < ci_low)
-
-    return lags_s[mask], mean_xcorr, sem_xcorr, peak_lag_s, ci_low, ci_high, is_sig
 
 def compute_baseline_crosscorr(fiberbehav_df, behaviours_excluded_list,
                                 sr, pad_s=5, max_lag_s=5,
@@ -260,56 +202,43 @@ def compute_baseline_crosscorr(fiberbehav_df, behaviours_excluded_list,
 def plot_crosscorr_with_significance(lags_s, mean_xcorr, sem_xcorr,
                                       peak_lag_s, ci_low, ci_high, is_sig,
                                       BOI, exp, group, n_bouts,
-                                      color='cornflowerblue',
-                                      sig_style='bar'):
-    """
-    Parameters
-    ----------
-    sig_style : str
-        'bar'     — thin coloured bar at the top of the axes where significant.
-        'overlay' — significant portion of the trace replotted thicker on top.
-    """
+                                      color='cornflowerblue', sig_style='bar',
+                                      baseline_xcorr=None,   
+                                      baseline_sem=None):    
+    
     fig, ax = plt.subplots(figsize=(8, 4))
 
-    # Shuffle null envelope
     ax.fill_between(lags_s, ci_low, ci_high,
                     color='grey', alpha=0.25, label='Shuffle null (95% CI)')
-
-    # SEM ribbon + mean trace
-    ax.fill_between(lags_s,
-                    mean_xcorr - sem_xcorr,
-                    mean_xcorr + sem_xcorr,
+    ax.fill_between(lags_s, mean_xcorr - sem_xcorr, mean_xcorr + sem_xcorr,
                     color=color, alpha=0.3)
-    ax.plot(lags_s, mean_xcorr,
-            color=color, linewidth=2,
-            label=f'Cross-correlation  (n={n_bouts} bouts)')
+    ax.plot(lags_s, mean_xcorr, color=color, linewidth=2,
+            label=f'Event xcorr  (n={n_bouts} mice)')
 
-    # ── Significance indicator ────────────────────────────────────────────────
+    # ── Baseline overlay ──────────────────────────────────────────────────────
+    if baseline_xcorr is not None:
+        if baseline_sem is not None:
+            ax.fill_between(lags_s,
+                            baseline_xcorr - baseline_sem,
+                            baseline_xcorr + baseline_sem,
+                            color='orange', alpha=0.2)
+        ax.plot(lags_s, baseline_xcorr, color='orange', linewidth=1.5,
+                linestyle='--', label='Baseline xcorr')
+
     if sig_style == 'bar':
-        # Thin coloured bar pinned to the top of the axes in axes coordinates
-        # (x = data coords, y = axes fraction → independent of y-axis scale)
-        ax.fill_between(lags_s, 0.97, 1.0,
-                        where=is_sig,
+        ax.fill_between(lags_s, 0.97, 1.0, where=is_sig,
                         transform=ax.get_xaxis_transform(),
-                        color='firebrick', alpha=0.85,
-                        linewidth=0, label='p < 0.05')
-
+                        color='firebrick', alpha=0.85, linewidth=0, label='p < 0.05')
     elif sig_style == 'overlay':
-        # Replot only the significant samples as a thicker line on top
         sig_xcorr = np.where(is_sig, mean_xcorr, np.nan)
-        ax.plot(lags_s, sig_xcorr,
-                color='firebrick', linewidth=4,
-                solid_capstyle='round',
-                alpha=0.75, zorder=4,
-                label='p < 0.05')
+        ax.plot(lags_s, sig_xcorr, color='firebrick', linewidth=4,
+                solid_capstyle='round', alpha=0.75, zorder=4, label='p < 0.05')
 
-    # Reference lines
-    ax.axvline(x=0,          color='black',     linewidth=1,   linestyle='--')
+    ax.axvline(x=0, color='black', linewidth=1, linestyle='--')
     ax.axvline(x=peak_lag_s, color='firebrick', linewidth=1.5, linestyle=':',
                label=f'Peak lag = {peak_lag_s:.3f} s')
-    ax.axhline(y=0,          color='grey',      linewidth=0.8, linestyle=':')
-
-    ax.set_xlabel('Lag (s)  [positive = 560 follows 465]', fontsize=12)
+    ax.axhline(y=0, color='grey', linewidth=0.8, linestyle=':')
+    ax.set_xlabel('Lag (s)', fontsize=12)
     ax.set_ylabel('Normalized cross-correlation', fontsize=12)
     ax.set_title(f'465→560 cross-correlation — {BOI}, {exp}, {group}', fontsize=12)
     ax.legend(fontsize=9)
