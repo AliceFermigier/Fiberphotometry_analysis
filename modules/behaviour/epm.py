@@ -6,6 +6,7 @@ from matplotlib.colors import LinearSegmentedColormap
 import pathlib
 
 import modules.behaviour.mouse_position as mp
+import modules.behaviour.behaviour_metrics as bm
 
 def mask_outside_arena(coords, epm_coordinates, dist_scale, buffer_cm=2):
     """
@@ -758,4 +759,240 @@ def plot_epm_dff_heatmap_grouped(x_list, y_list, dFF_list, subject_list,
         fig.savefig(save_dir / f'{stem}.png', dpi=300, bbox_inches='tight')
         fig.savefig(save_dir / f'{stem}.pdf', bbox_inches='tight')
 
+    return fig
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EPM GROUP ALIGNMENT & PLOTTING
+# ─────────────────────────────────────────────────────────────────────────────
+
+def load_epm_landmarks(epm_coordinates):
+    """
+    Extract the 4 corners of the open arm and 4 corners of the closed arm
+    as named landmark points for affine alignment.
+
+    Parameters
+    ----------
+    epm_coordinates : dict
+
+    Returns
+    -------
+    dict {landmark_name: np.array([x, y])}
+    """
+    return {
+        'open_TL':   np.array([epm_coordinates['open_xL'],  epm_coordinates['open_yTop']]),
+        'open_TR':   np.array([epm_coordinates['open_xR'],  epm_coordinates['open_yTop']]),
+        'open_BL':   np.array([epm_coordinates['open_xL'],  epm_coordinates['open_yBot']]),
+        'open_BR':   np.array([epm_coordinates['open_xR'],  epm_coordinates['open_yBot']]),
+        'closed_TL': np.array([epm_coordinates['closed_xL'], epm_coordinates['closed_yTop']]),
+        'closed_TR': np.array([epm_coordinates['closed_xR'], epm_coordinates['closed_yTop']]),
+        'closed_BL': np.array([epm_coordinates['closed_xL'], epm_coordinates['closed_yBot']]),
+        'closed_BR': np.array([epm_coordinates['closed_xR'], epm_coordinates['closed_yBot']]),
+    }
+
+def compute_reference_epm(all_landmarks_dict):
+    """
+    Compute mean landmark positions across all mice.
+    Mirrors compute_reference_ports().
+
+    Parameters
+    ----------
+    all_landmarks_dict : dict {mouse: {landmark_name: np.array([x, y])}}
+
+    Returns
+    -------
+    dict {landmark_name: np.array([x, y])}
+    """
+    landmark_names = list(next(iter(all_landmarks_dict.values())).keys())
+    return {
+        name: np.mean(
+            [lm[name] for lm in all_landmarks_dict.values() if name in lm],
+            axis=0
+        )
+        for name in landmark_names
+    }
+
+def get_aligned_epm_coordinates(epm_coordinates, M):
+    """
+    Apply affine transform M to all epm_coordinates corner points,
+    returning a transformed epm_coordinates dict in the reference space.
+
+    Parameters
+    ----------
+    epm_coordinates : dict
+    M : np.ndarray, shape (2, 3)
+
+    Returns
+    -------
+    dict  (same keys as epm_coordinates)
+    """
+    # Collect all named points
+    keys_x = ['open_xL', 'open_xR', 'closed_xL', 'closed_xR', 'center_xL', 'center_xR']
+    keys_y = ['open_yBot', 'open_yTop', 'closed_yBot', 'closed_yTop', 'center_yBot', 'center_yTop']
+
+    # Transform the 6 x-coords paired with a neutral y (0) and vice-versa is wrong —
+    # we need to transform actual corner pairs, then unpack.
+    corners = {
+        'open_xL':    (epm_coordinates['open_xL'],    epm_coordinates['open_yBot']),
+        'open_xR':    (epm_coordinates['open_xR'],    epm_coordinates['open_yTop']),
+        'closed_xL':  (epm_coordinates['closed_xL'],  epm_coordinates['closed_yBot']),
+        'closed_xR':  (epm_coordinates['closed_xR'],  epm_coordinates['closed_yTop']),
+        'center_xL':  (epm_coordinates['center_xL'],  epm_coordinates['center_yBot']),
+        'center_xR':  (epm_coordinates['center_xR'],  epm_coordinates['center_yTop']),
+    }
+
+    xs = np.array([v[0] for v in corners.values()])
+    ys = np.array([v[1] for v in corners.values()])
+    tx, ty = bm.apply_transform(xs, ys, M)
+    t = dict(zip(corners.keys(), zip(tx, ty)))
+
+    return {
+        'open_xL':    t['open_xL'][0],    'open_xR':    t['open_xR'][0],
+        'open_yBot':  t['open_xL'][1],    'open_yTop':  t['open_xR'][1],
+        'closed_xL':  t['closed_xL'][0],  'closed_xR':  t['closed_xR'][0],
+        'closed_yBot':t['closed_xL'][1],  'closed_yTop':t['closed_xR'][1],
+        'center_xL':  t['center_xL'][0],  'center_xR':  t['center_xR'][0],
+        'center_yBot':t['center_xL'][1],  'center_yTop':t['center_xR'][1],
+    }
+
+def plot_group_epm_heatmap(aligned_positions_list, ref_epm_coordinates,
+                            bins=(50, 50), n_bins=1,
+                            cmap='hot', vmax=None, label='Group', save_dir=None):
+    """
+    Plot group-level occupancy heatmap for EPM, aligned across mice.
+
+    Parameters
+    ----------
+    aligned_positions_list : list of (x_array, y_array)
+    ref_epm_coordinates : dict
+        EPM coordinates in the reference (aligned) space, used for zone outlines.
+    bins : tuple
+    n_bins : int
+        Number of time bins.
+    cmap, vmax, label, save_dir : as in plot_group_heatmap
+    """
+    n_mice = len(aligned_positions_list)
+
+    all_x = np.concatenate([x for x, y in aligned_positions_list])
+    all_y = np.concatenate([y for x, y in aligned_positions_list])
+    x_min, x_max = all_x.min() - 50, all_x.max() + 50
+    y_min, y_max = all_y.min() - 50, all_y.max() + 50
+
+    hist_range = [[x_min, x_max], [y_min, y_max]]
+    extent     = [x_min, x_max, y_min, y_max]
+
+    fig, axes = plt.subplots(2, n_bins, figsize=(4 * n_bins, 8),
+                              gridspec_kw={"height_ratios": [1, 4]})
+    if n_bins == 1:
+        axes = axes[:, np.newaxis]
+
+    for bin_idx in range(n_bins):
+        heatmaps, traj_xs, traj_ys = [], [], []
+
+        for x, y in aligned_positions_list:
+            n = len(x)
+            start = int(bin_idx * n / n_bins)
+            stop  = n if bin_idx == n_bins - 1 else int((bin_idx + 1) * n / n_bins)
+            xb, yb = x[start:stop], y[start:stop]
+            traj_xs.append(xb); traj_ys.append(yb)
+            hm, _, _ = np.histogram2d(xb, yb, bins=bins, range=hist_range)
+            hm = hm / hm.sum() if hm.sum() > 0 else hm
+            heatmaps.append(hm)
+
+        group_map = np.mean(heatmaps, axis=0)
+
+        # ── Trajectory panel ──────────────────────────────────────────────────
+        ax_t = axes[0, bin_idx]
+        for xb, yb in zip(traj_xs, traj_ys):
+            ax_t.plot(xb, yb, color='black', linewidth=0.4, alpha=0.3)
+        _draw_epm_zones(ax_t, ref_epm_coordinates, linewidth=1.5)
+        ax_t.set(xlim=(x_min, x_max), ylim=(y_min, y_max),
+                 xticks=[], yticks=[], aspect='equal',
+                 title=f'Bin {bin_idx + 1}')
+
+        # ── Heatmap panel ─────────────────────────────────────────────────────
+        ax_h = axes[1, bin_idx]
+        nonzero = group_map[group_map > 0]
+        _vmax = vmax or (float(np.nanpercentile(nonzero, 99)) if nonzero.size else 1)
+        ax_h.imshow(group_map.T, origin='lower', cmap=cmap,
+                    vmin=0, vmax=_vmax, extent=extent,
+                    interpolation='bilinear', aspect='equal')
+        _draw_epm_zones(ax_h, ref_epm_coordinates, linewidth=2)
+        ax_h.set(xlim=(x_min, x_max), ylim=(y_min, y_max), xticks=[], yticks=[])
+
+    plt.suptitle(f'Group Occupancy Heatmap — {label} (n={n_mice})', fontsize=14)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+
+    if save_dir is not None:
+        save_dir = pathlib.Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_dir / f'group_epm_heatmap_{n_bins}bins.png', dpi=300)
+        fig.savefig(save_dir / f'group_epm_heatmap_{n_bins}bins.pdf')
+    plt.show()
+    return fig
+
+def plot_group_epm_pie(all_behav_dfs, all_groups, label='Group', save_dir=None):
+    """
+    Plot mean zone occupancy as a pie chart for each group, with per-mouse
+    values shown as scatter dots on a companion bar chart.
+
+    Parameters
+    ----------
+    all_behav_dfs : list of pd.DataFrame
+        One behav_df per mouse (output of analyze_mouse_position).
+    all_groups : list of str/int
+        Group label for each mouse (same order as all_behav_dfs).
+    label : str
+    save_dir : Path or None
+    """
+    groups = sorted(set(all_groups))
+    colors = ['#FF6B6B', '#4ECDC4', '#FFE66D']
+    zone_labels = ['Closed Arm', 'Open Arm', 'Center']
+
+    fig, axes = plt.subplots(1, len(groups), figsize=(5 * len(groups), 5))
+    if len(groups) == 1:
+        axes = [axes]
+
+    for ax, group in zip(axes, groups):
+        indices = [i for i, g in enumerate(all_groups) if g == group]
+        fractions = []  # shape: (n_mice, 3)
+
+        for i in indices:
+            df = all_behav_dfs[i]
+            closed = df['Closed arm'].sum()
+            open_  = df['Open arm'].sum() + df['Head dipping'].sum()
+            center = df['Center'].sum()
+            total  = closed + open_ + center
+            if total > 0:
+                fractions.append([closed / total, open_ / total, center / total])
+
+        fractions = np.array(fractions)  # (n_mice, 3)
+        mean_fracs = fractions.mean(axis=0)
+
+        wedges, _ = ax.pie(
+            mean_fracs,
+            colors=colors,
+            startangle=90,
+            wedgeprops=dict(width=0.6),   # donut style — cleaner for group plots
+        )
+        # Annotate wedges with mean %
+        for wedge, frac, zlabel in zip(wedges, mean_fracs, zone_labels):
+            angle = (wedge.theta1 + wedge.theta2) / 2
+            x = 0.75 * np.cos(np.radians(angle))
+            y = 0.75 * np.sin(np.radians(angle))
+            ax.text(x, y, f'{frac*100:.1f}%', ha='center', va='center', fontsize=10)
+
+        ax.legend(wedges, zone_labels, loc='lower center',
+                  bbox_to_anchor=(0.5, -0.15), fontsize=9, frameon=False)
+        n = len(fractions)
+        ax.set_title(f'Group {group}\n(n={n})', fontsize=12, fontweight='bold')
+
+    plt.suptitle(f'Zone Occupancy — {label}', fontsize=14, fontweight='bold')
+    plt.tight_layout()
+
+    if save_dir is not None:
+        save_dir = pathlib.Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_dir / 'group_epm_pie.png', dpi=300, bbox_inches='tight')
+        fig.savefig(save_dir / 'group_epm_pie.pdf', bbox_inches='tight')
+    plt.show()
     return fig

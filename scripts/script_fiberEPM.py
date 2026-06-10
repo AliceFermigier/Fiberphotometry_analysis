@@ -259,7 +259,7 @@ print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 
 ###### TO SET ######
 bodypart = 'center'
-use_zscore = False
+use_zscore = True
 
 # ── Data collection ───────────────────────────────────────────────────────────
 subjects_df['Group'] = subjects_df['Group'].fillna('')
@@ -316,6 +316,7 @@ for group in included_groups:
         dFF_list     = [dFF_list[i] for i in group_indices],
         subject_list = [subject_list[i] for i in group_indices],
         signal_name  = '465nm',
+        vmin=-3, vmax=3,
         **shared_kwargs,
     )
     plt.show()
@@ -335,9 +336,11 @@ for group in included_groups:
             )
             plt.show()
 
-# %% 2.4 - Quantify dFF in open arm, closed arm and center. Plotting and getting behavioural data.
+ # %% 2.4 - Quantify dFF in open arm, closed arm and center. Plotting and getting behavioural data.
 
 subjects_df['Group'] = subjects_df['Group'].fillna('') # if group = Nan, replaces it with an empty string
+
+behavioural_analysis_path = repo_path / 'Behavioural_analysis'
 
 behav_records = []
 dFF_records_raw = []
@@ -408,4 +411,79 @@ pd.DataFrame(dFF_records_zscored).to_excel(
     repo_path / 'dFF_summary_zscored.xlsx', index=False)
 print(f"Saved {len(dFF_records_raw)} mice to dFF_summary.xlsx and dFF_summary_zscored.xlsx")
 
+# %% 2.5 Plot grouped EPM heatmap and pie chart
+
+N_TIME_BINS_HEATMAP = 1
+
+behavioural_analysis_path = repo_path / 'Behavioural_analysis'
+
+data_path_exp = datapath_exp_dict[batch]
+behav_path_exp = data_path_exp / 'Behaviour'
+
+# ── Pass 1: collect landmarks and compute shared reference ────────────────────
+all_epm_landmarks = {}
+all_epm_coordinates = {}
+for mouse in subjects_df['Subject']:
+    arena_json = behav_path_exp / f"{mouse}_epm_coordinates.json"
+    with open(arena_json, 'r') as f:
+        arena_coordinates = json.load(f)
+    all_epm_landmarks[mouse] = epm.load_epm_landmarks(arena_coordinates)
+    all_epm_coordinates[mouse] = arena_coordinates
+
+ref_epm_landmarks = epm.compute_reference_epm(all_epm_landmarks)
+
+# ── Pass 2: align coordinates, collect group data ─────────────────────────────
+all_aligned_pos  = []
+all_behav_dfs    = []
+all_groups_list  = []
+ref_epm_coords_list = []  # transformed epm_coordinates per mouse → average for outlines
+
+for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
+    print(f"--- {batch} {mouse} {group} ---")
+    behav_file = behav_path_exp / f'behav_{mouse}.csv'
+    if not behav_file.exists():
+        print("  Behav file not found, skipping.")
+        continue
+
+    behav_df = pd.read_csv(behav_file, index_col=0)
+    mouse_epm_coords = all_epm_coordinates[mouse]  # your per-mouse epm_coordinates dict
+
+    M = bm.estimate_port_transform(all_epm_landmarks[mouse], ref_epm_landmarks)
+
+    x_aligned, y_aligned = bm.apply_transform(
+        behav_df['nose_x'].values,
+        behav_df['nose_y'].values, M)
+
+    all_aligned_pos.append((x_aligned, y_aligned))
+    all_behav_dfs.append(behav_df)
+    all_groups_list.append(group)
+    ref_epm_coords_list.append(epm.get_aligned_epm_coordinates(mouse_epm_coords, M))
+
+# Mean transformed EPM coordinates → use for zone outlines on group heatmap
+ref_epm_coords_keys = ref_epm_coords_list[0].keys()
+ref_epm_coordinates = {
+    k: np.mean([d[k] for d in ref_epm_coords_list])
+    for k in ref_epm_coords_keys
+}
+
+# ── Pass 3: plot per group ────────────────────────────────────────────────────
+for group in subjects_df['Group'].unique():
+    group_indices = [i for i, g in enumerate(all_groups_list) if g == group]
+    save_dir = behavioural_analysis_path / 'Grouped figures' / f'Group_{group}'
+
+    epm.plot_group_epm_heatmap(
+        [all_aligned_pos[i] for i in group_indices],
+        ref_epm_coordinates=ref_epm_coordinates,
+        bins=(50, 50),
+        n_bins=N_TIME_BINS_HEATMAP,
+        label=f'Group {group}',
+        save_dir=save_dir,
+    )
+
+    epm.plot_group_epm_pie(
+        [all_behav_dfs[i] for i in group_indices],
+        all_groups=[all_groups_list[i] for i in group_indices],
+        label=f'Group {group}',
+        save_dir=save_dir,
+    )
 # %%
