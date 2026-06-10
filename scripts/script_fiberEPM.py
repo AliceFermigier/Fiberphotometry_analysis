@@ -90,8 +90,6 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     behav_path_exp = data_path_exp / 'Behaviour'
     video_path = behav_path_exp / f"{mouse}.avi"
     output_json = behav_path_exp / f"{mouse}_epm_coordinates.json"
-
-    #Indicate the emplacement of the lickport and the two airpuff ports
     try:
         if output_json.is_file():
             print('EPM json already exists')
@@ -176,7 +174,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         print('Get DLC data')
         coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.90)
     except Exception as e:
-        print(f'[!] DLC file error for {mouse}: {e}')
+        print(f'[!] DLC or fiberpho file error for {mouse}: {e}')
 
     # Time alignment
     try:
@@ -207,54 +205,53 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
                 print('[!] No camera flashes found, falling back to automated alignment.')
                 automated_alignment = True
     except Exception as e:
-        print(f'[!] DLC file error for {mouse}: {e}')
+        print(f'[!] Behaviour time alignment error for {mouse}: {e}')
 
     # Analyze EPM position
     behav_df = None
-    try:
-        if 'EPM' in exp and coordinates_df is not None:
-            print(f'Analyzing mouse position for {mouse}')
-            list_BOI = ['Open arm', 'Closed arm', 'Center', 'Head dipping']
 
-            behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, arena_scale, bodypart='nose')
+    if 'EPM' in exp and coordinates_df is not None:
+        print(f'Analyzing mouse position for {mouse}')
+        list_BOI = ['Open arm', 'Closed arm', 'Center', 'Head dipping']
 
-        if behav_df is None:
-            raise ValueError("Behavior dataframe is missing or invalid.")
+        behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, arena_scale, bodypart='nose')
 
-        behav_path = behav_path_exp / f'behav_{mouse}.csv'
-        behav_df.to_csv(behav_path)
-        print(f'Behaviour file exported to {behav_path}')
+    if behav_df is None:
+        raise ValueError("Behavior dataframe is missing or invalid.")
 
-        # Load fiber photometry data and filter if specified
-        fiberpho = pd.read_csv(fiberpho_path)
-        if CUT_FREQ is not None:
-            fiberpho = cs.lowpass_dFF(fiberpho, ORDER, CUT_FREQ)
+    behav_path = behav_path_exp / f'behav_{mouse}.csv'
+    behav_df.to_csv(behav_path)
+    print(f'Behaviour file exported to {behav_path}')
 
-        # Align behavior and fiber data
-        print('Aligning fiberphotometry and behaviour data')
-        fiberbehav_df = bp.align_behav(behav_df, fiberpho, list_BOI)
-        fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
+    # Load fiber photometry data and filter if specified
+    fiberpho = pd.read_csv(fiberpho_path)
+    if CUT_FREQ is not None:
+        fiberpho = cs.lowpass_dFF(fiberpho, ORDER, CUT_FREQ)
 
-        # Save outputs
-        fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
-        fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
-        fiberbehav_df.to_csv(fiberbehav_notderived_path, index=False)
+    # Align behavior and fiber data
+    print('Aligning fiberphotometry and behaviour data')
+    fiberbehav_df = bp.align_behav(behav_df, fiberpho, list_BOI)
+    fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
 
-        dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
-        dfiberbehav_df.to_csv(fiberbehav_path, index=False)
+    # Save outputs
+    fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+    fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+    fiberbehav_df.to_csv(fiberbehav_notderived_path, index=False)
 
-        # Plotting fiberphotometry data along behavioural classification
-        fig = bp.plot_fiberpho_behav(
-            dfiberbehav_df, list_BOI, exp, mouse,
-            THRESH_S, EVENT_TIME_THRESHOLD, batch,
-            scaled = False)
-        plt.show()
-        fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.pdf')
-        fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
-        plt.close('all')
+    dfiberbehav_df = bp.derive(fiberbehav_df, list_BOI)
+    dfiberbehav_df.to_csv(fiberbehav_path, index=False)
 
-    except Exception as e:
-        print(f'[!] DLC file error for {mouse}: {e}')
+    # Plotting fiberphotometry data along behavioural classification
+    fig = bp.plot_fiberpho_behav(
+        dfiberbehav_df, list_BOI, exp, mouse,
+        THRESH_S, EVENT_TIME_THRESHOLD, batch,
+        scaled = False)
+    plt.show()
+    fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.pdf')
+    fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
+    plt.close('all')
+
+
 
 print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
                     
@@ -338,7 +335,7 @@ for group in included_groups:
             )
             plt.show()
 
-# %% 2.4 - Quantify dFF in open arm, closed arm and center. Plotting ang getting behavioural data.
+# %% 2.4 - Quantify dFF in open arm, closed arm and center. Plotting and getting behavioural data.
 
 subjects_df['Group'] = subjects_df['Group'].fillna('') # if group = Nan, replaces it with an empty string
 

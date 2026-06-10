@@ -178,7 +178,7 @@ def highlight_behavior_areas(ax, df, behavior_name, facecolor='grey', alpha=0.3,
     print(f"  → {i} spans drawn") 
 
 def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_TIME_THRESHOLD, batch, scaled=True):
-    behavprocesssnip_df = behavprocess_df.fillna(0)
+    behavprocesssnip_df = behavprocess_df.dropna()
     has_speed = 'Speed' in behavprocesssnip_df.columns
     has_560   = '560 dFF' in behavprocesssnip_df.columns
 
@@ -268,8 +268,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         speed_ax.tick_params(axis='both', labelsize=4 * fs_mult)
         speed_ax.legend(loc='upper right', fontsize=4 * fs_mult)
         speed_ax.margins(0, 0.2)
-        if scaled:
-            speed_ax.set_ylim([-1, 50])
+        speed_ax.set_ylim([-1, 40])
 
     plt.tight_layout()
     return fig

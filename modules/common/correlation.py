@@ -15,9 +15,29 @@ importlib.reload(bp)
 def compute_peth_crosscorr(peth_465_list, peth_560_list, sr,
                             max_lag_s=5, min_bouts=1):
     """
-    Cross-correlation with mouse as statistical unit.
-    Returns per-mouse array so callers can do group statistics.
+    Compute normalized cross-correlation between 465nm and 560nm PETH traces,
+    pooled across bouts and mice.
+
+    Parameters
+    ----------
+    peth_465_list, peth_560_list : list of np.ndarray, shape (n_bouts, timepoints)
+        Matched per-mouse PETH arrays for the two channels.
+    sr : float
+        Sampling rate (Hz).
+    max_lag_s : float
+        Maximum lag to return (seconds).
+    min_bouts : int
+        Minimum number of bouts a mouse must have to be included.
+
+    Returns
+    -------
+    lags_s      : np.ndarray  — lag axis in seconds
+    mean_xcorr  : np.ndarray  — mean cross-correlation
+    sem_xcorr   : np.ndarray  — SEM across bouts
+    peak_lag_s  : float       — lag at peak correlation
+    xcorr_matrix: np.ndarray  — all individual bout cross-correlations (n_bouts_total, lags)
     """
+    
     n_tp      = peth_465_list[0].shape[1]
     lags_s    = correlation_lags(n_tp, n_tp, mode='full') / sr
     mask      = np.abs(lags_s) <= max_lag_s
@@ -52,31 +72,26 @@ def compute_crosscorr_significance(per_mouse_arr, lags_s,
                                     peth_465_list, peth_560_list, sr,
                                     method='phase_randomization',
                                     n_shuffles=1000, ci=95):
-    """
-    Add a shuffle null distribution to an already-computed cross-correlation.
-
-    Parameters
-    ----------
-    per_mouse_arr : np.ndarray (n_mice, n_lags)  — from compute_peth_crosscorr
-    lags_s        : np.ndarray (n_lags,)         — from compute_peth_crosscorr
-    """
-    mask = np.ones(len(lags_s), dtype=bool)      # already trimmed upstream
 
     mean_xcorr = per_mouse_arr.mean(axis=0)
     sem_xcorr  = per_mouse_arr.std(axis=0) / np.sqrt(len(per_mouse_arr))
     peak_lag_s = float(lags_s[np.argmax(mean_xcorr)])
 
+    # Derive the slice indices once from lags_s length — avoids all float comparison
+    n_tp   = peth_465_list[0].shape[1]
+    center = n_tp - 1              
+    half_n = len(lags_s) // 2     
+
     def _mouse_mean_xcorr(p465, p560):
-        n_tp = p465.shape[1]
-        lags_full = correlation_lags(n_tp, n_tp, mode='full') / sr
-        full_mask = np.abs(lags_full) <= lags_s.max() + 1 / sr
         xcorrs = []
         for s1, s2 in zip(p465, p560):
             s1 = s1 - s1.mean();  s2 = s2 - s2.mean()
             norm = np.sqrt(np.dot(s1, s1) * np.dot(s2, s2))
             if norm < 1e-10:
                 continue
-            xcorrs.append(correlate(s2, s1, mode='full')[full_mask] / norm)
+            xcorr_full = correlate(s2, s1, mode='full') / norm
+            # Slice exactly len(lags_s) elements centred at lag=0
+            xcorrs.append(xcorr_full[center - half_n : center + half_n + 1])
         return np.mean(xcorrs, axis=0) if xcorrs else None
 
     shuffle_group_means = []
@@ -116,8 +131,8 @@ def _phase_randomize(signal):
     return np.fft.irfft(np.abs(f) * np.exp(1j * phi), n=len(signal))
 
 def compute_baseline_crosscorr(fiberbehav_df, behaviours_excluded_list,
-                                sr, pad_s=5, max_lag_s=5,
-                                min_segment_s=10,
+                                sr, pad_s=5, max_lag_s=1,
+                                min_segment_s=5,
                                 exclusion_col='dFF ExclusionMask'):
     """
     Compute cross-correlation between 465nm and 560nm during baseline periods,

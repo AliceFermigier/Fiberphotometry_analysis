@@ -53,11 +53,14 @@ EVENT_TIME_THRESHOLD = 0
 #%% Compute and plot cross-correlation 
 # ----------------------------- #
 # PETH parameters
-exp = 'FearRetrieval'
-BOI = 'CS+'
+exp = 'RewardAirpuff'
+BOI = 'Airpuffs'
 baseline = False
-MAXBOUTSNUMBER = None
+MAXBOUTSNUMBER = 40
 event = 'onset'
+
+# MAX LAG
+MAX_LAG_XCORR_S = 1
 
 # Plot parameters
 TIME_WINDOW = [2, 2]
@@ -149,7 +152,7 @@ for group in included_groups:
 
     ## Compute cross-correlation
     lags_s, mean_xcorr, sem_xcorr, peak_lag_s, per_mouse_arr = corr.compute_peth_crosscorr(
-        PETH_list_group, PETH_list_560_group, sr, max_lag_s=TIME_WINDOW[0]
+        PETH_list_group, PETH_list_560_group, sr, max_lag_s=MAX_LAG_XCORR_S
     )
 
     # Compute baseline cross-correlation
@@ -160,7 +163,7 @@ for group in included_groups:
         result = corr.compute_baseline_crosscorr(
             dfiberbehav_dict[mouse],
             behaviours_excluded_baseline_list,
-            sr, pad_s=5, max_lag_s=TIME_WINDOW[0],
+            sr, pad_s=2, max_lag_s=MAX_LAG_XCORR_S,
             exclusion_col='dFF ExclusionMask'
         )
         if result[0] is not None:
@@ -192,23 +195,6 @@ for group in included_groups:
         fig_corr_sig.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[0]}_{method_corrsig}_crosscorrelation_sig.pdf')
         fig_corr_sig.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[0]}_{method_corrsig}_crosscorrelation_sig.png')
         plt.close(fig_corr_sig)
-    
-    ## Compute deconvolved correlation (matches R-GECO signal to GRAB-ACh dynamics)
-    peth_560_deconv_list = [
-        np.array([corr.deconvolve_rgeco(row, sr) for row in peth])
-        for peth in PETH_list_560_group
-    ]
-    lags_s_deconvolved, mean_xcorr_deconvolved, sem_xcorr_deconvolved, peak_lag_s_deconvolved, _ = corr.compute_peth_crosscorr(
-        PETH_list_group, peth_560_deconv_list, sr
-    )
-
-    fig_corr_deconvolved = corr.plot_peth_crosscorr(lags_s_deconvolved, mean_xcorr_deconvolved, sem_xcorr_deconvolved, peak_lag_s_deconvolved,
-                    BOI, exp, group, MAXBOUTSNUMBER,
-                    color='cornflowerblue', fill_alpha=0.25)
-    
-    fig_corr_deconvolved.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_crosscorrelation_deconvolved.pdf')
-    fig_corr_deconvolved.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_crosscorrelation_deconvolved.png')
-    plt.close(fig_corr_deconvolved)
 
     print(f"✔ Cross-correlation results and plots exported to:{corr_path}")
 

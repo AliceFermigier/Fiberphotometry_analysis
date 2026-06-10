@@ -6,8 +6,62 @@ from matplotlib.colors import LinearSegmentedColormap
 import pathlib
 
 import modules.behaviour.mouse_position as mp
+
+def mask_outside_arena(coords, epm_coordinates, dist_scale, buffer_cm=2):
+    """
+    Set all body part coordinates to NaN for frames where the head is detected
+    outside the arena (open arm + buffer, closed arm, center), then interpolate.
+
+    Parameters:
+    -----------
+    coords : pd.DataFrame
+        DeepLabCut coordinates with columns like 'head_x', 'head_y', etc.
+    epm_coordinates : dict
+        EPM zone bounding boxes.
+    dist_scale : float
+        Scale in cm/px.
+    buffer_cm : float
+        Buffer around open arm in cm (default 6).
+
+    Returns:
+    --------
+    coords_clean : pd.DataFrame
+        Coordinates with outside-arena frames interpolated out.
+    """
+    buffer_px = buffer_cm / dist_scale
+
+    open_box_buffered = {
+        'xL':   epm_coordinates['open_xL']   - buffer_px,
+        'xR':   epm_coordinates['open_xR']   + buffer_px,
+        'yBot': epm_coordinates['open_yBot'] - buffer_px,
+        'yTop': epm_coordinates['open_yTop'] + buffer_px,
+    }
+    closed_box = {
+        'xL': epm_coordinates['closed_xL'], 'xR': epm_coordinates['closed_xR'],
+        'yBot': epm_coordinates['closed_yBot'], 'yTop': epm_coordinates['closed_yTop']
+    }
+    center_box = {
+        'xL': epm_coordinates['center_xL'], 'xR': epm_coordinates['center_xR'],
+        'yBot': epm_coordinates['center_yBot'], 'yTop': epm_coordinates['center_yTop']
+    }
+
+    center_x = coords['center_x']
+    center_y = coords['center_y']
+
+    in_arena = np.array([
+        is_in_zone(x, y, open_box_buffered)
+        or is_in_zone(x, y, closed_box)
+        or is_in_zone(x, y, center_box)
+        for x, y in zip(center_x, center_y)
+    ])
+
+    coords_clean = coords.copy()
+    coords_clean[~in_arena] = np.nan
+    coords_clean = coords_clean.interpolate(method='linear', limit_direction='both')
+
+    return coords_clean, ~in_arena
     
-def analyze_mouse_position(coords, epm_coordinates, arena_scale, bodypart='head'):
+def analyze_mouse_position(coords, epm_coordinates, arena_scale, bodypart='center'):
     """
     Analyze mouse position in elevated plus maze using absolute coordinates.
     
@@ -27,16 +81,24 @@ def analyze_mouse_position(coords, epm_coordinates, arena_scale, bodypart='head'
     behav_df : pd.DataFrame
         DataFrame with original coordinates, zone classification, and speed
     """
-    coords_x = coords[f'{bodypart}_x']
-    coords_y = coords[f'{bodypart}_y']
-
     dist_scale = arena_scale['Scale_cm_per_px']
-    video_fps = arena_scale['Video_fps']
-    
+    video_fps  = arena_scale['Video_fps']
+
+    # Step 1: clean coordinates before anything else
+    coords_clean, outside_mask = mask_outside_arena(coords, epm_coordinates, dist_scale)
+    n_excluded = outside_mask.sum()
+    if n_excluded > 0:
+        print(f"  {n_excluded} frames ({n_excluded / len(coords) * 100:.1f}%) removed and interpolated (outside arena).")
+
+    # Step 2: classify on cleaned coordinates
+    coords_x = coords_clean[f'{bodypart}_x']
+    coords_y = coords_clean[f'{bodypart}_y']
     coords_byzone_df = classify_position(coords_x, coords_y, epm_coordinates)
-    speed_df = mp.compute_speed(coords, video_fps, dist_scale)
-    
-    behav_df = pd.concat([coords, coords_byzone_df, speed_df], axis=1)
+
+    # Step 3: speed on cleaned coordinates
+    speed_df = mp.compute_speed(coords_clean, video_fps, dist_scale)
+
+    behav_df = pd.concat([coords_clean, coords_byzone_df, speed_df], axis=1)
     return behav_df
 
 def is_in_zone(x, y, zone_box):

@@ -262,7 +262,8 @@ def linearfit_sklearn(sig_405, sig_465, filt_405, filt_465, trim=[10, -10], filt
 
 def remove_artifacts(data_df, filtered_data_df, artifact_intervals, col,
                      method='fit', filtered_405=False,
-                     stitch_window=15, lowess_frac=0.1):
+                     stitch_window=15, lowess_frac=0.1,
+                     fit_model_name='linear'):
     """
     Remove disconnection artifacts from a signal column, segment by segment.
 
@@ -357,7 +358,8 @@ def remove_artifacts(data_df, filtered_data_df, artifact_intervals, col,
                     filtered_data_df.iloc[begin+1:end]['405 Deinterleaved'].values,
                     filtered_data_df.iloc[begin+1:end][col].values,
                     trim=trim_list,
-                    filtered_405=filtered_405)
+                    filtered_405=filtered_405,
+                    model_name=fit_model_name)
 
             # ── Boundary stitching (mean and lowess only) ─────────────────
             if method in ('mean', 'lowess'):
@@ -384,7 +386,7 @@ def remove_artifacts(data_df, filtered_data_df, artifact_intervals, col,
 
     return dFF_out, lowess_out
 
-def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = True):
+def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = True, fit_model_name='linear'):
     """
     Calculates dFF (delta F over F) and removes artifacts from 405nm and 465nm photometry data.
     
@@ -426,11 +428,14 @@ def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = Tru
         if filecode in artifacts_df['Filecode'].values:
             artifact_intervals = artifacts_df.loc[artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
-            dFFdata[0],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals, '465 Deinterleaved', method='fit')
+            dFFdata[0],_ = remove_artifacts(data_df, filtered_data_df, 
+                                            artifact_intervals, '465 Deinterleaved', 
+                                            method='fit', fit_model_name=fit_model_name)
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
         else:
             dFFdata[0] = linearfit_sklearn(data_df['405 Deinterleaved'], data_df['465 Deinterleaved'],
-                                            filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'])
+                                            filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'],
+                                            model_name=fit_model_name)
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
 
         # Calculate Denoised dFF
@@ -530,7 +535,7 @@ def dff_lowess_560(data_df, col, lowess_frac=0.1):
 
     return dFF, F0_full
 
-def dFF_dualcolor(data_df, artifacts_df, filecode, method_560='lowess', apply_median_filter=True):
+def dFF_dualcolor(data_df, artifacts_df, filecode, method_560='lowess', apply_median_filter=True, fit_model_name='linear'):
     """
     Calculates dFF for dual-color fiber photometry (465nm + 560nm).
 
@@ -584,7 +589,8 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, method_560='lowess', apply_me
                 artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
             dFFdata[0],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
-                                          '465 Deinterleaved', method='fit')
+                                          '465 Deinterleaved', method='fit',
+                                          fit_model_name=fit_model_name)
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
             dFFdata[2],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
                                           '560 Deinterleaved', method='fit', filtered_405=True)
@@ -592,12 +598,13 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, method_560='lowess', apply_me
         else:
             dFFdata[0] = linearfit_sklearn(
                 data_df['405 Deinterleaved'],      data_df['465 Deinterleaved'],
-                filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'])
+                filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'],
+                fit_model_name=fit_model_name)
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
             dFFdata[2] = linearfit_sklearn(
                 data_df['405 Deinterleaved'],      data_df['560 Deinterleaved'],
                 filtered_data_df['405 Deinterleaved'], filtered_data_df['560 Deinterleaved'],
-                filtered_405=True)
+                filtered_405=True, fit_model_name=fit_model_name)
             dFFdata[3] = data_df['560 Deinterleaved'].to_numpy()
 
         dFFdata[4] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
@@ -627,7 +634,7 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, method_560='lowess', apply_me
                 artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
             dFFdata[0],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
-                                          '465 Deinterleaved', method='fit')
+                                          '465 Deinterleaved', method='fit', fit_model_name=fit_model_name)
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
             dFFdata[2],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
                                           '560 Deinterleaved', method='mean')
@@ -665,7 +672,7 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, method_560='lowess', apply_me
                 artifacts_df['Filecode'] == filecode, 'Artifacts'].values
             artifact_intervals = literal_eval(artifact_intervals[0])
             dFFdata[0],_ = remove_artifacts(data_df, filtered_data_df, artifact_intervals,
-                                          '465 Deinterleaved', method='fit')
+                                          '465 Deinterleaved', method='fit', fit_model_name=fit_model_name)
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
             dFFdata[2], dFFdata[3] = remove_artifacts(data_df, filtered_data_df, artifact_intervals, 
                                                       '560 Deinterleaved', method='lowess', 
@@ -674,7 +681,8 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, method_560='lowess', apply_me
             # 465: fit isosbestic (median-filtered if requested)
             dFFdata[0] = linearfit_sklearn(
                 data_df['405 Deinterleaved'],          data_df['465 Deinterleaved'],
-                filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'])
+                filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'],
+                fit_model_name=fit_model_name)
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
             # 560: lowess normalization
             dFFdata[2], dFFdata[3] = dff_lowess_560(data_df, '560 Deinterleaved', lowess_frac=0.05)

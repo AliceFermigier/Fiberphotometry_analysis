@@ -45,8 +45,8 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'RewardHab'
-dual_color = True
+exp = 'EPM'
+dual_color = False
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
@@ -248,9 +248,14 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         if dual_color:
             dFFdata_df = pp.dFF_dualcolor(cleaned_df, artifacts_df, filecode, method_560='lowess', apply_median_filter=True)
         else:
-            dFFdata_df = pp.dFF(cleaned_df,artifacts_df,filecode,method,apply_median_filter=True)
-            _, _, median_fig = mf.iterative_median_filter(cleaned_df, '465 Deinterleaved')
-            median_fig.savefig(pp_path/f'{mouse}_median_filtering.png')
+            dFFdata_df = pp.dFF(cleaned_df,
+                                artifacts_df,
+                                filecode,
+                                method,
+                                apply_median_filter=True,
+                                fit_model_name='huber')
+            #_, _, median_fig = mf.iterative_median_filter(cleaned_df, '465 Deinterleaved')
+            #median_fig.savefig(pp_path/f'{mouse}_median_filtering.png')
 
         # interpolate missing data
         interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
@@ -279,12 +284,12 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             fig_dFF.savefig(pp_path/f'{mouse}_{method}dFF_corrected.png')
             plt.close(fig_dFF) 
 
-   # %%
+# %%
 # 1.5 - Manually remove corrupted data if some are left
 
 #------------------#
-mouse = '1009'
-batch = 4
+mouse = '904'
+batch = 1
 filecode = f'{exp}_{mouse}'
 #------------------# 
 
@@ -297,7 +302,7 @@ downsampled_df = pp.downsample(filtered_dFFdata_df, target_frequency=40)
 app = Dash(__name__)
 
 # Create the figure
-fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='560 dFF')
+fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='dFF')
 
 # App layout
 app.layout = html.Div([
