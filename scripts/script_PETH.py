@@ -38,11 +38,11 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 
 #%%
 
-dual_color = True
+dual_color = False
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = 20 #in Hz
+CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 3
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
@@ -52,7 +52,7 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = 40
+MAXBOUTSNUMBER = None
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
 else:
@@ -60,10 +60,13 @@ else:
 
 # Plot parameters
 EVENT_LIST = ['onset']
-TIME_WINDOWS = [[2, 2]]  # Time window for PETH calculation (pre, post), for each event
-Y_LIM = [-2,2]
+TIME_WINDOWS = [[5, 10]]  # Time window for PETH calculation (pre, post), for each event
+BASELINE_WINDOW = [5.0,1.0]
+
+Y_LIM = [-3,5]
 Y_LIM_DUAL = [-2,2]
-exp = 'RewardHab'
+
+exp = 'Reward_Hab2'
 behaviors_of_interest = ['Licks_filtered']
 
 #['Licks_filtered','Airpuffs']
@@ -73,7 +76,6 @@ behaviors_of_interest = ['Licks_filtered']
 #['Shock','CS+','CS-','Freezing']
 
 exp_path = analysis_path / exp
-datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
 print('##########################################')
 print(f'EXPERIMENT : {exp}')
@@ -95,7 +97,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
 
         try:
             # Read the fiber behavior file
-            dfiberbehav_df = pd.read_csv(fiberbehav_path, index_col=0)
+            dfiberbehav_df = pd.read_csv(fiberbehav_path)
         except Exception as e:
             warnings.warn(f"Failed to read file {fiberbehav_path}: {e}")
             continue
@@ -111,8 +113,12 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
                     # Generate the PETH data for the current behavior, event, and time window
                     print(f"Getting PETH data for {behavior} {event} 465nm")
                     peth_data = bp.PETH(dfiberbehav_clean, behavior, event, time_window, 
-                                        EVENT_TIME_THRESHOLD, baselinewindow = baseline, 
-                                        maxboutsnumber=MAXBOUTSNUMBER)
+                                        maxboutsnumber=MAXBOUTSNUMBER,
+                                        baselinewindow = baseline, 
+                                        baseline_start_stop_s=BASELINE_WINDOW, 
+                                        baseline_method='median',      
+                                        baseline_percentile=10
+                                        )
                     
                     # Create a DataFrame from the PETH data
                     sr = round(pp.samplerate(dfiberbehav_df))
@@ -133,8 +139,13 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
                         # Generate the PETH data for the current behavior, event, and time window
                         print(f"Getting PETH data for {behavior} {event} 560nm")
                         peth_data = bp.PETH(dfiberbehav_clean, behavior, event, time_window, 
-                                            EVENT_TIME_THRESHOLD, baselinewindow = baseline, 
-                                            maxboutsnumber=MAXBOUTSNUMBER, dFF_column = '560 dFF')
+                                            baselinewindow = baseline, 
+                                            maxboutsnumber=MAXBOUTSNUMBER, 
+                                            dFF_column = '560 dFF',
+                                            baseline_start_stop_s=BASELINE_WINDOW, 
+                                            baseline_method='median',      
+                                            baseline_percentile=10
+                                            )
                         
                         # Create a DataFrame from the PETH data
                         sr = round(pp.samplerate(dfiberbehav_df))
@@ -161,19 +172,21 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardHab'
+exp = 'Reward_Hab2'
 BOI = 'Licks_filtered'
 baseline = False
 MAXBOUTSNUMBER = 40
 event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [2, 2]
-Y_LIM = [-2,2]
+TIME_WINDOW = [5, 10]
+BASELINE_WINDOW = [TIME_WINDOW[0],1.0]
+
+Y_LIM = [-3,5]
 Y_LIM_DUAL = [-2,2]
 
 # ── PETH by bout number
-MIN_MICE_PER_BOUT = 2    # hide bout positions covered by fewer mice
+MIN_MICE_PER_BOUT = 3   # hide bout positions covered by fewer mice
 MAX_BOUTS_TO_SHOW = None
 STEP = 5
 
@@ -233,7 +246,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         print(f"Mouse {mouse} excluded")
         continue
 
-    dfiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
+    dfiberbehav_df = pd.read_csv(fiberbehav_file)
     if BOI == 'Airpuffs':
         dfiberbehav_clean = bp.remove_first_bout(dfiberbehav_df.reset_index(drop=True), BOI)
     else:
@@ -248,9 +261,13 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
 
         # --- 465 channel ---
         PETH_mouse = bp.PETH(
-            dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
-            baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER
+            dfiberbehav_clean, BOI, event, TIME_WINDOW,
+            baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER,
+            baseline_start_stop_s=BASELINE_WINDOW, 
+            baseline_method='median',      
+            baseline_percentile=10
         )
+
         print(f"PETH shape : {PETH_mouse.shape}")
         PETH_list.append(PETH_mouse)
         PETH_mouse_mean = np.mean(PETH_mouse, axis=0, keepdims=True)
@@ -263,10 +280,16 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
 
         # --- 560 channel ---
         if dual_color:
+
             PETH_mouse_560 = bp.PETH(
-                dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
-                baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER, dFF_column='560 dFF'
-            )
+                dfiberbehav_clean, BOI, event, TIME_WINDOW,
+                baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER, 
+                dFF_column='560 dFF',
+                baseline_start_stop_s=BASELINE_WINDOW, 
+                baseline_method='median',      
+                baseline_percentile=10
+                )
+            
             PETH_list_560.append(PETH_mouse_560)
             PETH_mouse_mean_560 = np.mean(PETH_mouse_560, axis=0, keepdims=True)
 
@@ -287,7 +310,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         max_after   = np.max(PETH_mouse_mean[0,event_idx:])
         max_during = np.max(PETH_mouse_mean[0])
 
-        if BOI == 'Licks':
+        if BOI == 'Licks_filtered' and TIME_WINDOW[0]>1.5 and TIME_WINDOW[1]>0.5:
             try:
                 start_during = int(event_idx - 0.5 * sr)
                 end_during   = int(event_idx + 0.5 * sr)
@@ -320,7 +343,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             max_after_560   = np.max(PETH_mouse_mean_560[0,event_idx:])
             max_during_560 = np.max(PETH_mouse_mean_560[0])
 
-            if BOI == 'Licks':
+            if BOI == 'Licks_filtered' and TIME_WINDOW[0]>1.5 and TIME_WINDOW[1]>0.5:
                 try:
                     mean_during_lick_560 = np.mean(PETH_mouse_mean_560[0,start_during:end_during])
                     mean_before_lick_560 = np.mean(PETH_mouse_mean_560[0,start_before:end_before])
@@ -349,7 +372,7 @@ export_dict = {
     f'465 Max dFF after {BOI}':   [x[1] for x in PETH_max_list],
     f'465 Max dFF during {BOI}':  [x[2] for x in PETH_max_list],
 }
-if BOI == 'Licks':
+if BOI == 'Licks_filtered' and TIME_WINDOW[0]>1.5 and TIME_WINDOW[1]>0.5:
     try:
         export_dict.update({
             '465 Mean dFF 1s before lick': [x[0] for x in PETH_mean_lick_list],
@@ -368,7 +391,7 @@ if dual_color:
         f'560 Max dFF after {BOI}':   [x[1] for x in PETH_max_list_560],
         f'560 Max dFF during {BOI}':   [x[2] for x in PETH_max_list_560],
     })
-    if BOI == 'Licks':
+    if BOI == 'Licks_filtered' and TIME_WINDOW[0]>1.5 and TIME_WINDOW[1]>0.5:
         try:
             export_dict.update({
                 '560 Mean dFF 1s before lick': [x[0] for x in PETH_mean_lick_list_560],

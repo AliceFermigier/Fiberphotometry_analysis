@@ -55,15 +55,15 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = 20 #in Hz
+CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 3
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'RewardHab'
-list_BOI = ['Licks_filtered', 'Licks']
+exp = 'Reward_Hab2'
+list_BOI = ['Licks_filtered', 'Licks', 'Nose_in_any_airport']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
@@ -121,7 +121,7 @@ print(f'EXPERIMENT : {exp}')
 print('###################')
 
 dlc_data = True
-dual_color = True
+dual_color = False
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
@@ -151,11 +151,20 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         # Extract sync channel from Doric raw data and Bonsai corresponding sync data
         ttl_sync_df = cp.extract_sync_channel(raw_doric_path, sync_channel = "DIO04")
         led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
-        led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) 
+
+        _, _, duplicated, missed = cp.diagnose_bonsai_sync(led_flashes_path, ttl_sync_df)
+
+        if duplicated+missed > 0:
+            led_df = cp.get_and_clean_sync_timestamps_from_bonsai_csv(led_flashes_path, ttl_sync_df)
+        else:
+            led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) 
+
         deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
         # Compute linear regression to correct for differences between clocks
         print(f"Syncing Doric and Bonsai clocks")
         slope, intercept = cp.time_mapping(ttl_sync_df, led_df)
+        print("Checking sync quality")
+        cp.diagnose_sync(ttl_sync_df, led_df)
 
         # Read dFF data and filter dFF data if specified
         fiberpho_df = pd.read_csv(fiberpho_path)
@@ -255,7 +264,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
 #%% 2.3 - Plot behavioural metrics
 
-exp = 'RewardHab'
+exp = 'Reward_Hab2'
 
 print('###################')
 print(f'EXPERIMENT : {exp}')

@@ -443,11 +443,11 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 if __name__ == "__main__":
         ##### TO BE CHANGED #####
     batch = 1
-    for mouse in ['991','1014']:    
-        exp='RewardAirpuffs'
+    for mouse in ['914']:    
+        exp='Reward_Hab2'
         behavior = "Licks_filtered"
-        data_path = Path(r'F:\202603_FiberGRABACh-FlexRGECO\Data\20260409_RewardAirpuff')
-        analysis_path = Path(r'F:\202603_FiberGRABACh-FlexRGECO\Analysis\RewardAirpuffs\length0_interbout3_o4fNone')
+        data_path = Path(r'F:\202601_FiberGCaMP\Data\20260122_RewardHab2')
+        analysis_path = Path(r'F:\202601_FiberGCaMP\Analysis\Reward_Hab2\length0_interbout3_o4fNone')
         #########################
 
         video_name = f'{mouse}.avi'

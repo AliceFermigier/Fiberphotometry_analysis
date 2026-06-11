@@ -273,9 +273,12 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     plt.tight_layout()
     return fig
 
-def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD, 
-         PRE_EVENT_TIME=0, maxboutsnumber=None, baselinewindow=False,
-         dFF_column = 'dFF', exclude_corrupted=True):
+def PETH(behavprocess_df, BOI, event, timewindow,
+         maxboutsnumber=None, baselinewindow=False,
+         dFF_column='dFF', exclude_corrupted=True,
+         baseline_start_stop_s=[2.0,0.0],     
+         baseline_method='mean',      
+         baseline_percentile=10):     
     """
     Creates dataframe of fiberpho data centered on bout event for BOI.
     
@@ -288,15 +291,20 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD,
             'onset' or 'withdrawal' (event type to center on).
     - timewindow : list 
             Time before and after the event, [PRE_TIME, POST_TIME].
-    - EVENT_TIME_THRESHOLD : float 
-            Minimum time (in seconds) a bout must last to be included.
-    - PRE_EVENT_TIME : float 
-            Time window before event for baseline calculations.
     - maxboutsnumber : int or None 
             Maximum number of bouts to include.
     - baselinewindow : Bool 
         Tells if standard deviation for z-score calculation is on a timewindow before behavior onset (True) or on whole trace (False)
-    
+    - dFF_column : str
+        Name of the column to use
+    - exclude_corrupted : Bool
+        Say wether corrupted regions can be used in the PETH or not
+    - baseline_start_stop_s : list of floats
+        What window take to calculate F0 (default is minus 2sec before event to event)
+    - baseline_method : str
+        Which method is used to calculate F0 : 'mean' | 'median' | 'percentile'
+    - baseline_percentile : int
+        Used when baseline_method='percentile'
     Returns
     - PETH_array : np.ndarray 
             Z-scored fiberpho data centered on event with shape (num_bouts, timepoints).
@@ -364,19 +372,26 @@ def PETH(behavprocess_df, BOI, event, timewindow, EVENT_TIME_THRESHOLD,
     # Loop through each event and extract the fiberpho trace centered on the event
     for i, ind_event in enumerate(clean_events):
         try: 
-            dFF_baseline = behavprocess_df.loc[ind_event - 1 * sr : ind_event - PRE_EVENT_TIME * sr, dFF_column]
+            dFF_baseline = behavprocess_df.loc[ind_event - baseline_start_stop_s[0] * sr : ind_event - baseline_start_stop_s[1] * sr, dFF_column]
             if baselinewindow:
                 # Calculate baseline standard deviation (std0) for the time window before the event
                 std0 = dFF_baseline.std()
 
-            # Calculate baseline mean for correct alignment
-            F0 = dFF_baseline.mean()
+            # Calculate baseline mean, median or percentile for correct alignment
+            if baseline_method == 'median':
+                F0 = float(dFF_baseline.median())
+            elif baseline_method == 'percentile':
+                F0 = float(np.nanpercentile(dFF_baseline.values, baseline_percentile))
+            else:                                          
+                F0 = float(dFF_baseline.mean())
+
             # Extract the fiberpho trace for the time window around the event
             event_window = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event + POST_TIME * sr, dFF_column]
             
             # Ensure the event window has the correct length to avoid shape mismatch
             if len(event_window) == n_timepoints:
                 PETH_array[i] = (event_window - F0) / std0
+                
         except Exception as e:
             print(f"Error processing event at index {ind_event}: {e}")
 
@@ -659,8 +674,8 @@ def PETH_by_bout(PETH_list, max_bouts=None, min_mice=1, step=1):
 def plot_PETH_by_bout(bout_means, bout_sems, bout_n,
                       BOI, event, timewindow, exp, group,
                       max_bouts_to_show=None, min_mice=1, step=1,
-                      cmap_name='jet', ylim=None, fill_alpha=0.15,
-                      dff_column='465'):
+                      cmap_name='rainbow', ylim=None, fill_alpha=0.15,
+                      dff_column='465', vmin=None, vmax=None):
 
     PRE_TIME, POST_TIME = float(timewindow[0]), float(timewindow[1])
     peri_time = np.linspace(-PRE_TIME, POST_TIME, bout_means.shape[1])
@@ -698,6 +713,9 @@ def plot_PETH_by_bout(bout_means, bout_sems, bout_n,
     fig.add_subplot(gs[1, 1]).set_visible(False)         # empty corner
 
     # ── Heatmap ───────────────────────────────────────────────────────────────
+    if vmin == None or vmax == None:
+        vmin = np.min(bout_means)
+        vmax = np.max(bout_means)
     heatmap_data = bout_means[valid]
     abs_max = np.nanmax(np.abs(heatmap_data))
 
@@ -705,7 +723,7 @@ def plot_PETH_by_bout(bout_means, bout_sems, bout_n,
         heatmap_data,
         cmap='RdBu_r', aspect='auto', interpolation='none',
         extent=[-PRE_TIME, POST_TIME, n_valid + 0.5, 0.5],
-        vmin=-1, vmax=1
+        vmin=vmin, vmax=vmax
     )
     ax_hm.axvline(x=0, linewidth=1.5, color='black', linestyle='--')
     ax_hm.set_ylabel('Bout group' if step > 1 else 'Bout #', fontsize=14)

@@ -856,7 +856,7 @@ def get_aligned_epm_coordinates(epm_coordinates, M):
 
 def plot_group_epm_heatmap(aligned_positions_list, ref_epm_coordinates,
                             bins=(50, 50), n_bins=1,
-                            cmap='hot', vmax=None, label='Group', save_dir=None):
+                            cmap='jet', vmax=None, label='Group', save_dir=None):
     """
     Plot group-level occupancy heatmap for EPM, aligned across mice.
 

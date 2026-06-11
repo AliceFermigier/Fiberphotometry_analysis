@@ -62,7 +62,7 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -179,11 +179,23 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     # Time alignment
     try:
         if bonsai_setup:
-                led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) # gets led flashes from Bonsai files
+                # Extract sync channel from Doric raw data and Bonsai corresponding sync data
                 ttl_sync_df = cp.extract_sync_channel(rawdata_path, sync_channel = "DIO04")
-                deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
-                slope, intercept = cp.time_mapping(ttl_sync_df, led_df)
+                led_flashes_path = data_path_exp / f'miniscope_sync_{mouse}.csv'
 
+                _, _, duplicated, missed = cp.diagnose_bonsai_sync(led_flashes_path, ttl_sync_df)
+
+                if duplicated+missed > 0:
+                    led_df = cp.get_and_clean_sync_timestamps_from_bonsai_csv(led_flashes_path, ttl_sync_df)
+                else:
+                    led_df = cp.get_timestamps_from_bonsai_csv(led_flashes_path) 
+
+                # Compute linear regression to correct for differences between clocks
+                print(f"Syncing Doric and Bonsai clocks")
+                slope, intercept = cp.time_mapping(ttl_sync_df, led_df)
+                print("Checking sync quality")
+                cp.diagnose_sync(ttl_sync_df, led_df)
+ 
                 frame_times_df = cp.get_timestamps_from_bonsai_csv(camera_flashes_path)
                 frame_times_df = cp.correct_behav_timestamps(frame_times_df, slope, intercept)
                 coordinates_df = cp.align_camera_flashes(coordinates_df, frame_times_df)
@@ -360,7 +372,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     # Plotting behavioural data for each mouse
     plt = smb.with_qt5agg()
     epm.plot_epm_behavior(behav_df, arena_coordinates, mouse, batch, bodypart='nose', 
-                    n_bins=1, bins=(50, 50), save_dir=repo_path)
+                    n_bins=1, bins=(50, 50), save_dir=behavioural_analysis_path)
     plt.close('all')
     plt = smb.with_agg()
 
@@ -402,7 +414,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
 
 # ── Save to Excel ─────────────────────────────────────────────────────────────
 pd.DataFrame(behav_records).to_excel(
-    repo_path / 'behav_summary.xlsx', index=False)
+    behavioural_analysis_path / 'behav_summary.xlsx', index=False)
 print(f"Saved {len(behav_records)} mice to behav_summary.xlsx")
 
 pd.DataFrame(dFF_records_raw).to_excel(
@@ -477,6 +489,7 @@ for group in subjects_df['Group'].unique():
         bins=(50, 50),
         n_bins=N_TIME_BINS_HEATMAP,
         label=f'Group {group}',
+        cmap='jet',
         save_dir=save_dir,
     )
 

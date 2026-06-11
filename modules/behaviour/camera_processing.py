@@ -53,6 +53,55 @@ def get_timestamps_from_bonsai_csv(file_path):
     output_df = df[df['Event'] == True][['Time(s)']].reset_index(drop=True)
     return output_df
 
+def get_and_clean_sync_timestamps_from_bonsai_csv(file_path, ttl_sync_df):
+    df = pd.read_csv(file_path)
+    df.columns = ['Time(s)', 'Event']
+    true_times = df[df['Event'] == True]['Time(s)'].values
+    
+    expected_ipi = np.median(np.diff(ttl_sync_df['Time(s)'].values))
+    threshold = expected_ipi * 0.5  # half-period: nothing real can be shorter
+
+    iteration = 0
+    while True:
+        ipi = np.diff(true_times)
+        short = ipi < threshold
+
+        if short.sum() == 0:
+            break
+
+        keep = np.ones(len(true_times), dtype=bool)
+        short_idx = np.where(short)[0]
+
+        for i in short_idx:
+            # Skip if already marked for removal
+            if not keep[i] or not keep[i + 1]:
+                continue
+            # A spurious insertion creates short IPIs on BOTH sides:
+            # check if the pulse AFTER the short gap also has a short gap before it
+            # i.e. both ipi[i] and ipi[i-1] are short → pulse i is the spurious one
+            # OR both ipi[i] and ipi[i+1] are short → pulse i+1 is the spurious one
+            prev_short = (i > 0) and (ipi[i - 1] < threshold)
+            next_short = (i < len(ipi) - 1) and (ipi[i + 1] < threshold)
+
+            if prev_short:
+                # pulse i is sandwiched: remove it
+                keep[i] = False
+            elif next_short:
+                # pulse i+1 is sandwiched: remove it
+                keep[i + 1] = False
+            else:
+                # isolated short IPI: remove the second (more conservative)
+                keep[i + 1] = False
+
+        true_times = true_times[keep]
+        iteration += 1
+
+    if iteration > 0:
+        print(f"  Removed spurious Bonsai pulses in {iteration} pass(es), "
+              f"{len(true_times)} pulses remaining.")
+
+    return pd.DataFrame({'Time(s)': true_times})
+
 def get_start_stop_timestamps_from_bonsai_csv(file_path):
     df = pd.read_csv(file_path)
     # Ensure correct column names
@@ -110,6 +159,70 @@ def time_mapping(ttl_sync_df, led_df):
         print(f"Large drift detected (>50ms).")
 
     return slope, intercept
+
+def diagnose_sync(ttl_sync_df, led_df):
+    d = ttl_sync_df['Time(s)'].values
+    b = led_df['Time(s)'].values
+
+    print(f"Doric  : {len(d)} pulses, span={d[-1]-d[0]:.1f}s")
+    print(f"Bonsai : {len(b)} pulses, span={b[-1]-b[0]:.1f}s")
+    print(f"Pulse count difference: {len(d) - len(b)}")
+
+    # Compare the span covered by each — should match if alignment is correct
+    ipi_d = np.diff(d)
+    ipi_b = np.diff(b)
+    print(f"\nDoric  IPI: mean={ipi_d.mean():.4f}s  std={ipi_d.std():.5f}s")
+    print(f"Bonsai IPI: mean={ipi_b.mean():.4f}s  std={ipi_b.std():.5f}s")
+
+    # The key check: do the spans match?
+    span_diff = (d[-1] - d[0]) - (b[-1] - b[0])
+    print(f"\nSpan difference (Doric - Bonsai): {span_diff:.3f}s")
+    if abs(span_diff) > 0.5:
+        print("WARNING: spans differ significantly — likely a pulse count mismatch at start or end")
+
+def diagnose_bonsai_sync(file_path, ttl_sync_df):
+    """
+    Diagnose spurious pulses in Bonsai sync CSV.
+    expected_ipi: expected inter-pulse interval in seconds (0.05s = 20Hz)
+    """
+    expected_ipi = np.median(np.diff(ttl_sync_df['Time(s)'].values))
+
+    df = pd.read_csv(file_path)
+    df.columns = ['Time(s)', 'Event']
+    
+    true_times = df[df['Event'] == True]['Time(s)'].values
+    ipi = np.diff(true_times)
+    
+    print(f"Total True events : {len(true_times)}")
+    print(f"Expected IPI      : {expected_ipi*1000:.3f} ms")
+    print(f"IPI mean          : {ipi.mean()*1000:.3f} ms")
+    print(f"IPI std           : {ipi.std()*1000:.3f} ms")
+    print(f"IPI min           : {ipi.min()*1000:.3f} ms")
+    print(f"IPI max           : {ipi.max()*1000:.3f} ms")
+    
+    # Flag suspiciously short IPIs (duplicates = same pulse logged twice)
+    short = ipi < expected_ipi * 0.5
+    # Flag suspiciously long IPIs (missed pulse)
+    long  = ipi > expected_ipi * 1.5
+    
+    print(f"\nSuspiciously short IPIs (<{expected_ipi*0.5*1000:.0f}ms, likely duplicates): {short.sum()}")
+    print(f"Suspiciously long  IPIs (>{expected_ipi*1.5*1000:.0f}ms, likely missed):     {long.sum()}")
+    
+    if short.sum() > 0:
+        print("\nDuplicate candidate times:")
+        dup_indices = np.where(short)[0]
+        for i in dup_indices[:20]:  # show first 20
+            print(f"  idx {i+1}: {true_times[i]:.6f}s → {true_times[i+1]:.6f}s  "
+                  f"(gap={ipi[i]*1000:.2f}ms)")
+    
+    if long.sum() > 0:
+        print("\nMissed pulse candidate times:")
+        long_indices = np.where(long)[0]
+        for i in long_indices[:20]:
+            print(f"  idx {i+1}: {true_times[i]:.6f}s → {true_times[i+1]:.6f}s  "
+                  f"(gap={ipi[i]*1000:.2f}ms)")
+    
+    return true_times, ipi, short.sum(), long.sum()
 
 def correct_behav_timestamps(behaviour_timestamps_df, slope, intercept, time_col='Time(s)', verbose=False):
     behaviour_timestamps_df = behaviour_timestamps_df.copy()
