@@ -713,11 +713,12 @@ def plot_PETH_by_bout(bout_means, bout_sems, bout_n,
     fig.add_subplot(gs[1, 1]).set_visible(False)         # empty corner
 
     # ── Heatmap ───────────────────────────────────────────────────────────────
-    if vmin == None or vmax == None:
-        vmin = np.min(bout_means)
-        vmax = np.max(bout_means)
     heatmap_data = bout_means[valid]
-    abs_max = np.nanmax(np.abs(heatmap_data))
+
+    if vmin is None or vmax is None:
+        finite = heatmap_data[np.isfinite(heatmap_data)]
+        vmin = float(np.nanmin(finite)) if finite.size else 0.0
+        vmax = float(np.nanmax(finite)) if finite.size else 1.0
 
     im = ax_hm.imshow(
         heatmap_data,

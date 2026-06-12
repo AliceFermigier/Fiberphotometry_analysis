@@ -58,7 +58,7 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 3
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -271,7 +271,7 @@ print(f'EXPERIMENT : {exp}')
 print('###################')
 
 BIN_SIZE = 300   # seconds
-N_TIME_BINS_HEATMAP = 2
+N_TIME_BINS_HEATMAP = 1
 HEATMAP_BINS = (50, 50)  # x, y bins
 
 behaviors_to_plot = [
@@ -354,6 +354,10 @@ except Exception as e:
 
 #%% Plot grouped heatmap
 
+# Set groups
+subjects_df['Group'] = subjects_df['Group'].fillna('')
+included_groups = set(subjects_df['Group'])
+
 # ── Pass 1: collect port positions and compute shared reference ───────────────
 all_ports_px = {}
 for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
@@ -369,7 +373,6 @@ all_arena_bounds   = []
 all_groups         = []
 
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
-    #here add a way to plot the heatmap within groups and not with all mice
     try:
         print("-----------------------------") 
         print(f'BATCH : {batch}, MOUSE : {mouse}')
@@ -398,9 +401,11 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
 # Mean arena bounds across all mice → shared boundary for group plot
 shared_bounds = tuple(np.mean(all_arena_bounds, axis=0))
 
-included_groups = subjects_df['Group'].unique()
 for group in included_groups:
     group_indices = [i for i, g in enumerate(all_groups) if g == group]
+    if not group_indices:
+        print(f"No valid mice for group {group}, skipping heatmap.")
+        continue
     group_fig_dir = behavioural_analysis_path / 'Figures' / f'Group_{group}'
 
     group_aligned_pos = [all_aligned_pos[i] for i in group_indices]

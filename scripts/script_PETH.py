@@ -66,8 +66,8 @@ BASELINE_WINDOW = [5.0,1.0]
 Y_LIM = [-3,5]
 Y_LIM_DUAL = [-2,2]
 
-exp = 'Reward_Hab2'
-behaviors_of_interest = ['Licks_filtered']
+exp = 'Reward_Airpuff2'
+behaviors_of_interest = ['Licks_filtered','Airpuffs']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']
@@ -172,23 +172,23 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'Reward_Hab2'
+exp = 'Reward_Airpuff2'
 BOI = 'Licks_filtered'
 baseline = False
-MAXBOUTSNUMBER = 40
+MAXBOUTSNUMBER = 10
 event = 'onset'
 
 # Plot parameters
 TIME_WINDOW = [5, 10]
 BASELINE_WINDOW = [TIME_WINDOW[0],1.0]
 
-Y_LIM = [-3,5]
+Y_LIM = [-2,7]
 Y_LIM_DUAL = [-2,2]
 
 # ── PETH by bout number
 MIN_MICE_PER_BOUT = 3   # hide bout positions covered by fewer mice
 MAX_BOUTS_TO_SHOW = None
-STEP = 5
+STEP = 1
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
