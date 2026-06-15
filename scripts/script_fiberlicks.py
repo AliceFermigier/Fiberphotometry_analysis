@@ -58,7 +58,7 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -141,6 +141,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         raw_doric_path = data_path_exp / f'{mouse}_0000.doric'
         camera_flashes_path = data_path_exp / f'camera_flashes_{mouse}.csv'
         licks_path = data_path_exp / f'licks_{mouse}.csv'
+        capacitance_txt_path = data_path_exp / f'capacitance_{mouse}.txt'
         airpuff_path = data_path_exp / f'airpuffs_{mouse}.csv'
         deinterleaved_raw_path = pp_path / f'{mouse}_deinterleaved.csv'
         fiberpho_path = pp_path / f'{mouse}_dFF_corrected_final.csv'
@@ -174,8 +175,10 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
         # Align licks and airpuff timestamps to dFF data
         print("Aligning licks")
-        licks_df = cp.get_timestamps_from_bonsai_csv(licks_path)
-        licks_df = cp.correct_behav_timestamps(licks_df, slope, intercept)
+        capacitance_df = ld.txt_to_df(capacitance_txt_path)
+        licks_df = ld.extract_lick_bouts(capacitance_df, threshold=150)
+        #licks_df = cp.get_timestamps_from_bonsai_csv(licks_path)
+        #licks_df = cp.correct_behav_timestamps(licks_df, slope, intercept)
         fiberbehav_df = cp.align_behav_timestamps(fiberpho_df, licks_df, "Licks")
 
         if airpuff_path.exists():

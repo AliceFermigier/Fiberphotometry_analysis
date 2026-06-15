@@ -1,13 +1,15 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import plotly.express as px
+import modules.common.preprocess as pp
 
 def txt_to_df(capacitance_txt_path):
     # Load all columns
     df = pd.read_csv(
         capacitance_txt_path,
         header=None,
-        names=["time(ms)", "capacitance", "recording"],
+        names=["time(ms)", "Capacitance", "recording"],
         low_memory=False
     )
 
@@ -22,56 +24,51 @@ def txt_to_df(capacitance_txt_path):
     df = df.loc[start_idx:stop_idx]
 
     # Reset time to start at 0 and convert to seconds
-    df["time(s)"] = (df["time(ms)"] - df["time(ms)"].iloc[0]) / 1000
+    df["Time(s)"] = (df["time(ms)"] - df["time(ms)"].iloc[0]) / 1000
 
     # Drop the original millisecond column
-    df = df[["time(s)", "capacitance"]]
+    df = df[["Time(s)", "Capacitance"]]
 
     # Convert capacitance to integer
-    df["capacitance"] = df["capacitance"].astype(int)
+    df["Capacitance"] = df["Capacitance"].astype(int)
 
     return df
 
-def load_mouse_data(mouse, batch, datapath_exp_dict):
-    data_path_exp = datapath_exp_dict[batch]
-    capacitance_txt_path = data_path_exp / f"{mouse}.txt"
+def extract_lick_bouts(capacitance_df, threshold):
+    licks_df = (
+        capacitance_df[capacitance_df["Capacitance"] > threshold][["Time(s)"]]
+        .reset_index(drop=True)
+    )
+    return licks_df
 
-    df = txt_to_df(capacitance_txt_path)
-    return df
+def plot_licks_and_threshold(capacitance_df, threshold=500, downsample=100):
 
-def extract_lick_bouts(licks_df, threshold):
-    lick_bouts_df = pd.Dataframe(data = {"time(ms)":licks_df["time(ms)"],"licks":np.zeros(len(licks_df["time(ms)"]))})
+    capacitance_df_downsampled = pp.downsample(capacitance_df, target_frequency=downsample)
 
-    return lick_bouts_df
-
-def plot_licks_and_threshold(licks_df, threshold):
-
-    plt.plot(
-        licks_df["time(ms)"],
-        licks_df["capacitance"],
-        linestyle="-",
-        label="Capacitance"
+    fig = px.line(
+        capacitance_df_downsampled,
+        x="Time(s)",
+        y="Capacitance",
+        title="Capacitance over time",
+        labels={"Time(s)": "Time (s)", "Capacitance": "Capacitance"},
     )
 
-    # Add horizontal threshold line
-    plt.axhline(
+    # Threshold line
+    fig.add_hline(
         y=threshold,
-        color="red",
-        linestyle="--",
-        linewidth=1.5,
-        label=f"Threshold = {threshold}"
+        line_dash="dash",
+        line_color="red",
+        annotation_text=f"Threshold ({threshold})",
+        annotation_position="top right",
     )
 
-    plt.xlabel("Time (ms)")
-    plt.ylabel("Capacitance")
-    plt.grid(True)
+    fig.update_layout(
+        xaxis_title="Time (s)",
+        yaxis_title="Capacitance",
+        hovermode="x unified",   # shows all values at a given x on hover
+    )
 
-    # Clean legend (avoid duplicates)
-    handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys())
-
-    plt.show()
+    fig.show()
 
 def compute_distance(df, port, scale, nose_x='nose_x', nose_y='nose_y'):
     """
