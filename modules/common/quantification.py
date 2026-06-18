@@ -10,6 +10,7 @@ import modules.common.preprocess as pp
 
 def extract_dff_summary(fiberbehav_df, mouse, batch, group,
                          zone_cols, behav_cols,
+                         baseline_col=None,
                          merge_into=None,
                          dff_col='dFF',
                          fps=20,
@@ -29,6 +30,12 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
     behav_cols : list of str
         Binary behaviour columns. Same metrics computed independently.
         E.g. ['Head dipping'].
+    baseline_col : str, optional
+        Binary column in fiberbehav_df used as the z-score baseline mask
+        (1 = baseline period) when use_zscore=True. E.g. 'Closed arm'.
+        If None, the baseline is instead defined as the frames where none
+        of the behav_cols are 1 (i.e. animal not engaged in any listed
+        behaviour).
     merge_into : dict, optional
         {behaviour: zone} pairs where frames of a behaviour should ALSO be
         included in the zone's signal. 
@@ -40,7 +47,9 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
         Frame rate, used to convert frame count to seconds for AUC 
         (AUC = sum(dFF) / fps, i.e. dFF integrated over time in seconds).
     use_zscore : bool
-        If True, z-score the full dFF trace before extracting metrics.
+        If True, z-score the dFF trace using the median/std computed only
+        from the baseline mask (see baseline_col), then apply that baseline
+        to the entire trace.
 
     Returns
     -------
@@ -56,7 +65,27 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
     signal = fiberbehav_df[dff_col].values.copy()
 
     if use_zscore:
-        signal = (signal - np.mean(signal)) / np.std(signal, ddof=1)
+        if baseline_col is not None:
+            if baseline_col not in fiberbehav_df.columns:
+                raise ValueError(f"Baseline column '{baseline_col}' not found in dataframe.")
+            baseline_mask = fiberbehav_df[baseline_col].values.astype(bool)
+        else:
+            # Baseline = frames where none of the behav_cols are 1
+            baseline_mask = np.ones(len(fiberbehav_df), dtype=bool)
+            for col in behav_cols:
+                if col in fiberbehav_df.columns:
+                    baseline_mask &= ~fiberbehav_df[col].values.astype(bool)
+                else:
+                    print(f"  Warning: behaviour column '{col}' not found, "
+                          f"skipping it when building baseline mask.")
+
+        baseline_signal = signal[baseline_mask]
+        if baseline_signal.size < 2:
+            raise ValueError(
+                "Not enough baseline samples to compute z-score baseline "
+                "(need at least 2)."
+            )
+        signal = (signal - np.median(baseline_signal)) / np.std(baseline_signal, ddof=1)
 
     record = {
         'Mouse' : mouse,

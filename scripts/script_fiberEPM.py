@@ -62,7 +62,7 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -270,18 +270,19 @@ print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 # %% 2.3 - Averaged heatmaps on all mice, grouped according to specified groups in subject file
 
 ###### TO SET ######
-bodypart = 'center'
+bodypart = 'nose'
 use_zscore = True
 
 # ── Data collection ───────────────────────────────────────────────────────────
 subjects_df['Group'] = subjects_df['Group'].fillna('')
 included_groups = set(subjects_df['Group'])
-subject_list = []
-group_list   = []
-x_list       = []
-y_list       = []
-dFF_list     = []
-dFF_560_list = []
+subject_list    = []
+group_list      = []
+x_list          = []
+y_list          = []
+dFF_list        = []
+dFF_560_list    = []
+closed_arm_list = []
 
 #Load excluded subjects
 excluded_subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', 
@@ -307,7 +308,8 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     dFF_list.append(dfiberbehav_df['dFF'].values)
     dFF_560_list.append(                                           
         dfiberbehav_df['560 dFF'].values
-        if '560 dFF' in dfiberbehav_df.columns else None)    
+        if '560 dFF' in dfiberbehav_df.columns else None) 
+    closed_arm_list.append(dfiberbehav_df[f'Closed arm'].values)
     has_dual = any(d is not None for d in dFF_560_list)
 
 print('Colllected data:')
@@ -332,11 +334,12 @@ for group in included_groups:
 
     # 465 nm — always
     fig_465 = epm.plot_epm_dff_heatmap_grouped(
-        x_list       = [x_list[i]   for i in group_indices],
-        y_list       = [y_list[i]   for i in group_indices],
-        dFF_list     = [dFF_list[i] for i in group_indices],
-        subject_list = [subject_list[i] for i in group_indices],
-        signal_name  = '465nm',
+        x_list          = [x_list[i]   for i in group_indices],
+        y_list          = [y_list[i]   for i in group_indices],
+        dFF_list        = [dFF_list[i] for i in group_indices],
+        closed_arm_list = [closed_arm_list[i] for i in group_indices],
+        subject_list    = [subject_list[i] for i in group_indices],
+        signal_name     = '465nm',
         vmin=-3, vmax=3,
         **shared_kwargs,
     )
@@ -351,6 +354,7 @@ for group in included_groups:
                 x_list       = [x_list[i]   for i in idx_560],
                 y_list       = [y_list[i]   for i in idx_560],
                 dFF_list     = list(dffs_560),
+                closed_arm_list = [closed_arm_list[i] for i in group_indices],
                 subject_list = [subject_list[i] for i in idx_560],
                 signal_name  = '560nm',
                 vmin=-3, vmax=3,
@@ -367,11 +371,17 @@ behavioural_analysis_path = repo_path / 'Behavioural_analysis'
 behav_records = []
 dFF_records_raw = []
 dFF_records_zscored = []
+dFF_records_raw_560 = []
+dFF_records_zscored_560 = []
 
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
     print(f"--- {mouse} {batch} {group} ---")
     behav_file = behav_path_exp / f'behav_{mouse}.csv'
     fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+
+    if int(mouse) in excluded_subjects_df['Subject'].values:
+        print(f"Mouse {mouse} excluded")
+        continue
 
     if not behav_file.exists():
         print(f"Behav file not found, skipping.")
@@ -407,6 +417,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     fiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
 
     for records, use_zscore in [(dFF_records_raw, False), (dFF_records_zscored, True)]:
+
         record = quantif.extract_dff_summary(
             fiberbehav_df = fiberbehav_df,
             mouse         = mouse,
@@ -414,6 +425,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             group         = group,
             zone_cols     = ['Closed arm', 'Open arm', 'Center'],
             behav_cols    = ['Head dipping'],
+            baseline_col  = 'Closed arm',
             # Head dipping also counts as Open arm
             merge_into    = {'Head dipping': 'Open arm'},
             dff_col       = 'dFF',
@@ -421,6 +433,24 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             use_zscore    = use_zscore,
         )
         records.append(record)
+
+    if '560 dFF' in fiberbehav_df.columns:
+        for records, use_zscore in [(dFF_records_raw_560, False), (dFF_records_zscored_560, True)]:
+            record = quantif.extract_dff_summary(
+                fiberbehav_df = fiberbehav_df,
+                mouse         = mouse,
+                batch         = batch,
+                group         = group,
+                zone_cols     = ['Closed arm', 'Open arm', 'Center'],
+                behav_cols    = ['Head dipping'],
+                # Head dipping also counts as Open arm
+                merge_into    = {'Head dipping': 'Open arm'},
+                dff_col       = '560 dFF',
+                fps           = arena_scale['Video_fps'],
+                use_zscore    = use_zscore,
+            )
+            records.append(record)
+
 
 # ── Save to Excel ─────────────────────────────────────────────────────────────
 pd.DataFrame(behav_records).to_excel(
@@ -431,12 +461,18 @@ pd.DataFrame(dFF_records_raw).to_excel(
     repo_path / 'dFF_summary_raw.xlsx', index=False)
 pd.DataFrame(dFF_records_zscored).to_excel(
     repo_path / 'dFF_summary_zscored.xlsx', index=False)
+if '560 dFF' in fiberbehav_df.columns:
+    pd.DataFrame(dFF_records_raw_560).to_excel(
+        repo_path / 'dFF_summary_raw_560.xlsx', index=False)
+    pd.DataFrame(dFF_records_zscored_560).to_excel(
+        repo_path / 'dFF_summary_zscored_560.xlsx', index=False)
 print(f"Saved {len(dFF_records_raw)} mice to dFF_summary.xlsx and dFF_summary_zscored.xlsx")
 
 # %% 2.5 Plot grouped EPM heatmap and pie chart
 
 N_TIME_BINS_HEATMAP = 1
 
+repo_path = exp_path / f'length0_interbout0_o{ORDER}f{CUT_FREQ}'
 behavioural_analysis_path = repo_path / 'Behavioural_analysis'
 
 data_path_exp = datapath_exp_dict[batch]
@@ -463,12 +499,16 @@ ref_epm_coords_list = []  # transformed epm_coordinates per mouse → average fo
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
     print(f"--- {batch} {mouse} {group} ---")
     behav_file = behav_path_exp / f'behav_{mouse}.csv'
+    if int(mouse) in excluded_subjects_df['Subject'].values:
+        print(f"Mouse {mouse} excluded")
+        continue
+
     if not behav_file.exists():
         print("  Behav file not found, skipping.")
         continue
 
     behav_df = pd.read_csv(behav_file, index_col=0)
-    mouse_epm_coords = all_epm_coordinates[mouse]  # your per-mouse epm_coordinates dict
+    mouse_epm_coords = all_epm_coordinates[mouse]  # per-mouse epm_coordinates dict
 
     M = bm.estimate_port_transform(all_epm_landmarks[mouse], ref_epm_landmarks)
 

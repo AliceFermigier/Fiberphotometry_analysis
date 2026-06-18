@@ -172,8 +172,8 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'Reward_Hab2'
-BOI = 'Licks_filtered'
+exp = 'EPM'
+BOI = 'Head dipping'
 baseline = False
 MAXBOUTSNUMBER = 20
 event = 'onset'
@@ -182,7 +182,7 @@ event = 'onset'
 TIME_WINDOW = [5, 10]
 BASELINE_WINDOW = [TIME_WINDOW[0],1.0]
 
-Y_LIM = [-2,7]
+Y_LIM = [-2,2]
 Y_LIM_DUAL = [-2,2]
 
 # ── PETH by bout number
