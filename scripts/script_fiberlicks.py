@@ -178,7 +178,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         #capacitance_df = ld.txt_to_df(capacitance_txt_path)
         #licks_df = ld.extract_lick_bouts(capacitance_df, threshold=100)
         licks_df = cp.get_timestamps_from_bonsai_csv(licks_path)
-        licks_df = cp.correct_behav_timestamps(licks_df, slope, 0)
+        licks_df = cp.correct_behav_timestamps(licks_df, slope, intercept)
         fiberbehav_df = cp.align_behav_timestamps(fiberpho_df, licks_df, "Licks")
 
         if airpuff_path.exists():

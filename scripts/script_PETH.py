@@ -38,13 +38,13 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 
 #%%
 
-dual_color = False
+dual_color = True
 
 #filter characteristics
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 3
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -66,8 +66,8 @@ BASELINE_WINDOW = [5.0,1.0]
 Y_LIM = [-3,5]
 Y_LIM_DUAL = [-2,2]
 
-exp = 'Reward_Hab2'
-behaviors_of_interest = ['Licks_filtered']
+exp = 'EPM'
+behaviors_of_interest = ['Open arm','Closed arm','Head dipping','Center']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']

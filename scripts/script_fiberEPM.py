@@ -49,7 +49,7 @@ importlib.reload(getvid)
 import modules.behaviour.behaviour_metrics as bm
 importlib.reload(bm)
 
-from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batches
+from scripts.loader import analysis_path, experiment_path, data_path, proto_df, subjects_df, batches
 
 #%% 2 - ANALYSIS - BEHAVIOUR
 ############################
@@ -172,7 +172,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     coordinates_df = None
     try:
         print('Get DLC data')
-        coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.90)
+        coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.60)
     except Exception as e:
         print(f'[!] DLC or fiberpho file error for {mouse}: {e}')
 
@@ -283,11 +283,20 @@ y_list       = []
 dFF_list     = []
 dFF_560_list = []
 
+#Load excluded subjects
+excluded_subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', 
+                                     sheet_name=f'Excluded_{exp}')
+
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
     print(f"--- {mouse} {batch} {group} ---")
+
+    if int(mouse) in excluded_subjects_df['Subject'].values:
+        print(f"Mouse {mouse} excluded")
+        continue
+
     dfiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
     if not dfiberbehav_file.exists():
-        print(f"  File not found, skipping.")
+        print(f"File not found, skipping")
         continue
 
     dfiberbehav_df = pd.read_csv(dfiberbehav_file, index_col=0)
@@ -344,6 +353,7 @@ for group in included_groups:
                 dFF_list     = list(dffs_560),
                 subject_list = [subject_list[i] for i in idx_560],
                 signal_name  = '560nm',
+                vmin=-3, vmax=3,
                 **shared_kwargs,
             )
             plt.show()

@@ -599,12 +599,12 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, method_560='lowess', apply_me
             dFFdata[0] = linearfit_sklearn(
                 data_df['405 Deinterleaved'],      data_df['465 Deinterleaved'],
                 filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'],
-                fit_model_name=fit_model_name)
+                model_name=fit_model_name)
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
             dFFdata[2] = linearfit_sklearn(
                 data_df['405 Deinterleaved'],      data_df['560 Deinterleaved'],
                 filtered_data_df['405 Deinterleaved'], filtered_data_df['560 Deinterleaved'],
-                filtered_405=True, fit_model_name=fit_model_name)
+                filtered_405=True, model_name=fit_model_name)
             dFFdata[3] = data_df['560 Deinterleaved'].to_numpy()
 
         dFFdata[4] = ((dFFdata[1] - dFFdata[0]) / dFFdata[0]) * 100
@@ -682,7 +682,7 @@ def dFF_dualcolor(data_df, artifacts_df, filecode, method_560='lowess', apply_me
             dFFdata[0] = linearfit_sklearn(
                 data_df['405 Deinterleaved'],          data_df['465 Deinterleaved'],
                 filtered_data_df['405 Deinterleaved'], filtered_data_df['465 Deinterleaved'],
-                fit_model_name=fit_model_name)
+                model_name=fit_model_name)
             dFFdata[1] = data_df['465 Deinterleaved'].to_numpy()
             # 560: lowess normalization
             dFFdata[2], dFFdata[3] = dff_lowess_560(data_df, '560 Deinterleaved', lowess_frac=0.05)
