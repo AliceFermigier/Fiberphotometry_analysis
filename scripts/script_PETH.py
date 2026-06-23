@@ -42,7 +42,7 @@ dual_color = True
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = None #in Hz
+CUT_FREQ = 20 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
@@ -67,7 +67,7 @@ Y_LIM = [-3,5]
 Y_LIM_DUAL = [-2,2]
 
 exp = 'EPM'
-behaviors_of_interest = ['Open arm','Closed arm','Head dipping','Center']
+behaviors_of_interest = ['Open arm', 'Closed arm', 'Closed arm to Center', 'Open arm to Center', 'Head dipping']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']
@@ -173,9 +173,9 @@ print(f"All plots saved to {peth_path}")
 # ----------------------------- #
 # PETH parameters
 exp = 'EPM'
-BOI = 'Head dipping'
+BOI = 'Open arm'
 baseline = False
-MAXBOUTSNUMBER = 20
+MAXBOUTSNUMBER = 40
 event = 'onset'
 
 # Plot parameters
@@ -188,7 +188,7 @@ Y_LIM_DUAL = [-2,2]
 # ── PETH by bout number
 MIN_MICE_PER_BOUT = 3   # hide bout positions covered by fewer mice
 MAX_BOUTS_TO_SHOW = None
-STEP = 2
+STEP = 5
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"

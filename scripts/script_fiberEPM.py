@@ -59,7 +59,7 @@ bonsai_setup = True
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = None #in Hz
+CUT_FREQ = 20 #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 0
@@ -224,7 +224,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
 
     if 'EPM' in exp and coordinates_df is not None:
         print(f'Analyzing mouse position for {mouse}')
-        list_BOI = ['Open arm', 'Closed arm', 'Center', 'Head dipping']
+        list_BOI = ['Open arm', 'Closed arm', 'Closed arm to Center', 'Open arm to Center', 'Head dipping']
 
         behav_df = epm.analyze_mouse_position(coordinates_df, arena_coordinates, arena_scale, bodypart='nose')
 

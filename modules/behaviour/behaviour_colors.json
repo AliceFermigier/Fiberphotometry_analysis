@@ -67,9 +67,13 @@
         "mediumvioletred",
         0.3
     ],
-    "Center": [
-        "yellow",
-        0.3
+    "Open arm to Center": [
+        "yellowgreen",
+        0.4
+    ],
+    "Closed arm to Center": [
+        "gold",
+        0.4
     ],
     "Open arm": [
         "cornflowerblue",
@@ -120,8 +124,8 @@
         0.3
     ],
     "Head dipping": [
-        "cornflowerblue",
-        0.7
+        "royalblue",
+        0.5
     ],
     "Licks": [
         "blue",

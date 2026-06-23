@@ -95,6 +95,7 @@ def analyze_mouse_position(coords, epm_coordinates, arena_scale, bodypart='cente
     coords_x = coords_clean[f'{bodypart}_x']
     coords_y = coords_clean[f'{bodypart}_y']
     coords_byzone_df = classify_position(coords_x, coords_y, epm_coordinates)
+    coords_byzone_df = split_center_by_origin(coords_byzone_df)
 
     # Step 3: speed on cleaned coordinates
     speed_df = mp.compute_speed(coords_clean, video_fps, dist_scale)
@@ -122,6 +123,49 @@ def is_in_zone(x, y, zone_box):
     y_min, y_max = min(zone_box['yBot'], zone_box['yTop']), max(zone_box['yBot'], zone_box['yTop'])
     
     return (x_min <= x <= x_max) and (y_min <= y <= y_max)
+
+def split_center_by_origin(coords_byzone_df):
+    """
+    Split 'Center' frames into 'Closed arm -> Center' and 'Open arm -> Center'
+    based on the last non-center zone the mouse was in before entering center.
+
+    Frames where the mouse enters center with no prior zone history default
+    to 'Closed arm -> Center'.
+
+    Parameters
+    ----------
+    coords_byzone_df : pd.DataFrame
+        Output of classify_position(), must contain 'Center', 'Open arm', 'Closed arm'.
+
+    Returns
+    -------
+    pd.DataFrame with 'Center' replaced by two columns:
+        'Closed arm -> Center' and 'Open arm -> Center'
+    """
+    n = len(coords_byzone_df)
+    closed_to_center = np.zeros(n, dtype=int)
+    open_to_center   = np.zeros(n, dtype=int)
+
+    # Track the last zone seen before center (default: closed arm)
+    last_zone = 'Closed arm'
+
+    for i in range(n):
+        if coords_byzone_df.at[i, 'Open arm'] == 1:
+            last_zone = 'Open arm'
+        elif coords_byzone_df.at[i, 'Closed arm'] == 1:
+            last_zone = 'Closed arm'
+        elif coords_byzone_df.at[i, 'Center'] == 1:
+            if last_zone == 'Open arm':
+                open_to_center[i] = 1
+            else:
+                closed_to_center[i] = 1
+        # Head dipping and undefined frames don't update last_zone
+
+    result = coords_byzone_df.drop(columns=['Center']).copy()
+    result['Closed arm to Center'] = closed_to_center
+    result['Open arm to Center']   = open_to_center
+
+    return result
 
 def classify_position(coords_x, coords_y, epm_coordinates):
     """
