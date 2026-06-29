@@ -58,11 +58,11 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 3
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Reward_Hab2'
+exp = 'RewardExtinction'
 list_BOI = ['Licks_filtered', 'Licks', 'Nose_in_any_airport']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
@@ -121,7 +121,7 @@ print(f'EXPERIMENT : {exp}')
 print('###################')
 
 dlc_data = True
-dual_color = False
+dual_color = True
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
@@ -213,6 +213,29 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
             # Scoring nose-in-airport time. Radius in cm.
             fiberbehav_df = ld.detect_airpuff_entry(fiberbehav_df, ports, scale_and_coords, radius_cm=3.0)
+
+            # Detect approach to ports, head orientation, stretching, rearing and grooming
+            print('Detect approach')
+            fiberbehav_df = ld.detect_approach(fiberbehav_df, ports, scale_and_coords)
+            print('Detect head orientation')
+            fiberbehav_df = ld.detect_head_orientation(fiberbehav_df, ports, scale_and_coords)
+            print('Detect stretch')
+            fiberbehav_df = ld.detect_stretch(fiberbehav_df, ports, scale_and_coords)
+
+            if airpuff_path.exists():
+                print("Categorizing airpuffs")
+                airpuff_events_df = ld.categorize_airpuff_events(
+                    fiberbehav_df, ports, scale_and_coords,
+                    airpuff_col          = 'Airpuffs',
+                    pre_window_s         = 1.0,
+                    post_window_s        = 1.0,
+                    escape_distance_threshold_cm = 4.0,
+                    nose_angle_threshold_deg     = 45.0,
+                    side_angle_threshold_deg     = 90.0,
+                )
+                # Save event table alongside the main file
+                airpuff_events_df.to_csv(
+                    repo_path / f'{batch}_{mouse}_airpuff_events.csv', index=False)
 
         # Post-process data (fuse behaviours that are too close and delete the ones that are too short)
         fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)

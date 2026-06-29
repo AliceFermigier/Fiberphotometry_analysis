@@ -21,7 +21,7 @@ import modules.common.nomenclature as nom
 #LOADER#
 ########
 
-experiment_path = Path(r'F:\202603_FiberGRABACh-FlexRGECO')
+experiment_path = Path(r'F:\202601_FiberGCaMP')
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)

@@ -276,6 +276,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
 def PETH(behavprocess_df, BOI, event, timewindow,
          maxboutsnumber=None, baselinewindow=False,
          dFF_column='dFF', exclude_corrupted=True,
+         baseline_col=None,
          baseline_start_stop_s=[2.0,0.0],     
          baseline_method='mean',      
          baseline_percentile=10):     
