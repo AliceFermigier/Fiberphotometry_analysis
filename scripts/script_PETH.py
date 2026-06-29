@@ -113,6 +113,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
                     # Generate the PETH data for the current behavior, event, and time window
                     print(f"Getting PETH data for {behavior} {event} 465nm")
                     peth_data = bp.PETH(dfiberbehav_clean, behavior, event, time_window, 
+                                        behav_cols=behaviors_of_interest,
                                         maxboutsnumber=MAXBOUTSNUMBER,
                                         baselinewindow = baseline, 
                                         baseline_start_stop_s=BASELINE_WINDOW, 
@@ -140,6 +141,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
                         print(f"Getting PETH data for {behavior} {event} 560nm")
                         peth_data = bp.PETH(dfiberbehav_clean, behavior, event, time_window, 
                                             baselinewindow = baseline, 
+                                            behav_cols=behaviors_of_interest,
                                             maxboutsnumber=MAXBOUTSNUMBER, 
                                             dFF_column = '560 dFF',
                                             baseline_start_stop_s=BASELINE_WINDOW, 
@@ -177,6 +179,7 @@ BOI = 'Open arm'
 baseline = False
 MAXBOUTSNUMBER = 40
 event = 'onset'
+behaviors_to_exclude_baseline=['Open arm']
 
 # Plot parameters
 TIME_WINDOW = [5, 10]
@@ -262,6 +265,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         # --- 465 channel ---
         PETH_mouse = bp.PETH(
             dfiberbehav_clean, BOI, event, TIME_WINDOW,
+            behav_cols=behaviors_to_exclude_baseline,
             baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER,
             baseline_start_stop_s=BASELINE_WINDOW, 
             baseline_method='median',      
@@ -283,6 +287,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
 
             PETH_mouse_560 = bp.PETH(
                 dfiberbehav_clean, BOI, event, TIME_WINDOW,
+                behav_cols=behaviors_to_exclude_baseline,
                 baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER, 
                 dFF_column='560 dFF',
                 baseline_start_stop_s=BASELINE_WINDOW, 

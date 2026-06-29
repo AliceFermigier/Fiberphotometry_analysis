@@ -274,125 +274,166 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     return fig
 
 def PETH(behavprocess_df, BOI, event, timewindow,
-         maxboutsnumber=None, baselinewindow=False,
+         behav_cols,                           
+         maxboutsnumber=None,
+         baselinewindow=False,
          dFF_column='dFF', exclude_corrupted=True,
          baseline_col=None,
-         baseline_start_stop_s=[2.0,0.0],     
-         baseline_method='mean',      
-         baseline_percentile=10):     
+         baseline_start_stop_s=[2.0, 0.0],
+         baseline_method='mean',
+         baseline_percentile=10):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI.
-    
-    Parameters
-    - behavprocess_df : pd.DataFrame 
-            Aligned fiberpho and behavioral data for one mouse.
-    - BOI : str 
-            Behavior of interest (must match the column name in behavprocess_df).
-    - event : str 
-            'onset' or 'withdrawal' (event type to center on).
-    - timewindow : list 
-            Time before and after the event, [PRE_TIME, POST_TIME].
-    - maxboutsnumber : int or None 
-            Maximum number of bouts to include.
-    - baselinewindow : Bool 
-        Tells if standard deviation for z-score calculation is on a timewindow before behavior onset (True) or on whole trace (False)
-    - dFF_column : str
-        Name of the column to use
-    - exclude_corrupted : Bool
-        Say wether corrupted regions can be used in the PETH or not
-    - baseline_start_stop_s : list of floats
-        What window take to calculate F0 (default is minus 2sec before event to event)
-    - baseline_method : str
-        Which method is used to calculate F0 : 'mean' | 'median' | 'percentile'
-    - baseline_percentile : int
-        Used when baseline_method='percentile'
-    Returns
-    - PETH_array : np.ndarray 
-            Z-scored fiberpho data centered on event with shape (num_bouts, timepoints).
-    """
-    # Set time window relative to event
-    PRE_TIME, POST_TIME = timewindow
 
-    # Ensure sampling rate is an integer
+    Parameters
+    - behavprocess_df : pd.DataFrame
+            Aligned fiberpho and behavioral data for one mouse.
+    - BOI : str
+            Behavior of interest (must match the column name in behavprocess_df).
+    - event : str
+            'onset' or 'withdrawal' (event type to center on).
+    - timewindow : list
+            Time before and after the event, [PRE_TIME, POST_TIME].
+    - behav_cols : list of str
+            Columns representing scored behaviours; frames where any of these
+            is active are excluded from the std0 baseline.
+    - maxboutsnumber : int or None
+            Maximum number of bouts to include.
+    - baselinewindow : bool
+            If True, std0 is computed from the pre-event window (minus scored
+            behaviour frames). If False, std0 uses the whole valid trace.
+    - dFF_column : str
+            Name of the column to use.
+    - exclude_corrupted : bool
+            Whether corrupted regions can be used in the PETH or not.
+    - baseline_col : str or None
+            Optional explicit baseline column. If None, baseline frames are
+            those where none of the behav_cols are active.
+    - baseline_start_stop_s : list of floats
+            Window (in seconds before event) used to compute F0.
+    - baseline_method : str
+            Method to compute F0: 'mean' | 'median' | 'percentile'.
+    - baseline_percentile : int
+            Percentile used when baseline_method='percentile'.
+
+    Returns
+    - PETH_array : np.ndarray
+            Z-scored fiberpho data centred on event, shape (n_bouts, timepoints).
+    """
+
+    # ── Signal preparation ────────────────────────────────────────────────────
+    if dFF_column not in behavprocess_df.columns:
+        raise ValueError(f"Column '{dFF_column}' not found in dataframe.")
+
+    PRE_TIME, POST_TIME = timewindow
     sr = round(pp.samplerate(behavprocess_df))
 
-    # Remove events whose window overlaps excluded regions
-    clean_events = []
-
-    # Identify onset and withdrawal indices for the behavior of interest (BOI)
+    # ── Identify event indices ────────────────────────────────────────────────
     list_ind_event_o = np.where(behavprocess_df[BOI] == 1)[0].tolist()
     list_ind_event_w = np.where(behavprocess_df[BOI] == -1)[0].tolist()
 
-    # Limit to maximum number of bouts if maxboutsnumber is set
     if maxboutsnumber is not None:
         list_ind_event_o = list_ind_event_o[:maxboutsnumber]
         list_ind_event_w = list_ind_event_w[:maxboutsnumber]
 
-    # Remove bouts that are too short
-    #min_event_duration = EVENT_TIME_THRESHOLD * sr
-    #valid_bouts = [(start, end) for start, end in zip(list_ind_event_o, list_ind_event_w) if 1 < end - start >= min_event_duration]
-    #list_ind_event_o, list_ind_event_w = zip(*valid_bouts) if valid_bouts else ([], [])
-
-    # Choose the relevant event indices to align on (either onset or withdrawal)
     list_ind_event = list_ind_event_o if event == 'onset' else list_ind_event_w
+    list_ind_event = [idx for idx in list_ind_event
+                      if idx + POST_TIME * sr < len(behavprocess_df)]
 
-    # Check if the event happens too late in the dataframe to process
-    list_ind_event = [idx for idx in list_ind_event if idx + POST_TIME * sr < len(behavprocess_df)]
-
-    # Check if the window does not overlap with a corrupted region stored in exclusions excel
+    # ── Remove events overlapping corrupted regions ───────────────────────────
+    clean_events = []
     for ind_event in list_ind_event:
-
         if exclude_corrupted and 'dFF ExclusionMask' in behavprocess_df.columns:
             start_idx = int(ind_event - PRE_TIME * sr)
             end_idx   = int(ind_event + POST_TIME * sr)
 
-            # skip incomplete windows
             if start_idx < 0 or end_idx >= len(behavprocess_df):
                 continue
 
-            exclusion_window = behavprocess_df.loc[start_idx:end_idx,'dFF ExclusionMask'].astype(bool)
+            exclusion_window = behavprocess_df.loc[
+                start_idx:end_idx, 'dFF ExclusionMask'
+            ].astype(bool)
             if exclusion_window.any():
                 continue
 
         clean_events.append(ind_event)
 
-    # Preallocate the PETH array to store the z-scored traces
-    n_bouts = len(clean_events)
-    n_timepoints = int(round((POST_TIME + PRE_TIME) * sr)) + 1
-    PETH_array = np.full((n_bouts, n_timepoints), np.nan)
-
-    # Initialize mean and std on whole trace, excluding corrupted regions
+    # ── Build global baseline mask (no corruption + no scored behaviour) ──────
     if exclude_corrupted and 'dFF ExclusionMask' in behavprocess_df.columns:
-        mask = behavprocess_df['dFF ExclusionMask'].astype(bool)
-        valid_signal = behavprocess_df.loc[~mask,dFF_column]
+        corruption_mask = behavprocess_df['dFF ExclusionMask'].astype(bool)
+        valid_frames = ~corruption_mask
     else:
-        valid_signal = behavprocess_df[dFF_column]
+        valid_frames = np.ones(len(behavprocess_df), dtype=bool)
 
-    std0 = valid_signal.std()
+    if baseline_col is not None:
+        if baseline_col not in behavprocess_df.columns:
+            raise ValueError(f"Baseline column '{baseline_col}' not found.")
+        behav_free_mask = behavprocess_df[baseline_col].values.astype(bool)
+    else:
+        # Exclude frames where any scored behaviour is active
+        behav_free_mask = np.ones(len(behavprocess_df), dtype=bool)
+        for col in behav_cols:
+            if col in behavprocess_df.columns:
+                behav_free_mask &= ~behavprocess_df[col].values.astype(bool)
+            else:
+                print(f"  Warning: behaviour column '{col}' not found, skipping.")
 
-    # Loop through each event and extract the fiberpho trace centered on the event
+    global_baseline_mask = valid_frames & behav_free_mask          # ← key fix
+    baseline_signal = behavprocess_df.loc[global_baseline_mask, dFF_column]
+
+    if baseline_signal.size < 2:
+        raise ValueError(
+            "Not enough baseline samples to compute z-score baseline "
+            "(need at least 2)."
+        )
+
+    # Global std0 (used when baselinewindow=False)
+    std0_global = baseline_signal.std()
+
+    # ── Preallocate PETH array ────────────────────────────────────────────────
+    n_bouts      = len(clean_events)
+    n_timepoints = int(round((POST_TIME + PRE_TIME) * sr)) + 1
+    PETH_array   = np.full((n_bouts, n_timepoints), np.nan)
+
+    # ── Fill PETH array ───────────────────────────────────────────────────────
     for i, ind_event in enumerate(clean_events):
-        try: 
-            dFF_baseline = behavprocess_df.loc[ind_event - baseline_start_stop_s[0] * sr : ind_event - baseline_start_stop_s[1] * sr, dFF_column]
+        try:
+            bl_start = int(ind_event - baseline_start_stop_s[0] * sr)
+            bl_end   = int(ind_event - baseline_start_stop_s[1] * sr)
+
+            dFF_baseline_raw = behavprocess_df.loc[bl_start:bl_end, dFF_column]
+
             if baselinewindow:
-                # Calculate baseline standard deviation (std0) for the time window before the event
-                std0 = dFF_baseline.std()
+                # Exclude scored behaviour frames from the pre-event window too
+                window_behav_free = behav_free_mask[bl_start:bl_end + 1]
+                dFF_baseline_clean = dFF_baseline_raw.values[window_behav_free]
 
-            # Calculate baseline mean, median or percentile for correct alignment
+                if len(dFF_baseline_clean) < 2:
+                    print(f"  Warning: not enough clean baseline frames at "
+                          f"event {ind_event}; falling back to global std0.")
+                    std0 = std0_global
+                else:
+                    std0 = dFF_baseline_clean.std()
+            else:
+                std0 = std0_global                                
+
+            # Compute F0 from the (raw) pre-event window
             if baseline_method == 'median':
-                F0 = float(dFF_baseline.median())
+                F0 = float(dFF_baseline_raw.median())
             elif baseline_method == 'percentile':
-                F0 = float(np.nanpercentile(dFF_baseline.values, baseline_percentile))
-            else:                                          
-                F0 = float(dFF_baseline.mean())
+                F0 = float(np.nanpercentile(dFF_baseline_raw.values,
+                                            baseline_percentile))
+            else:
+                F0 = float(dFF_baseline_raw.mean())
 
-            # Extract the fiberpho trace for the time window around the event
-            event_window = behavprocess_df.loc[ind_event - PRE_TIME * sr : ind_event + POST_TIME * sr, dFF_column]
-            
-            # Ensure the event window has the correct length to avoid shape mismatch
+            event_window = behavprocess_df.loc[
+                ind_event - PRE_TIME * sr : ind_event + POST_TIME * sr,
+                dFF_column
+            ]
+
             if len(event_window) == n_timepoints:
-                PETH_array[i] = (event_window - F0) / std0
-                
+                PETH_array[i] = (event_window.values - F0) / std0
+
         except Exception as e:
             print(f"Error processing event at index {ind_event}: {e}")
 

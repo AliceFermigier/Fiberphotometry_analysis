@@ -64,7 +64,7 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'FCRetrieval'
+exp = 'Fear_Habituation'
 if 'Cond' in exp:
     list_BOI = ['Freezing','Shock','CS+','CS-']
     dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_110_filtered'
@@ -73,10 +73,10 @@ else:
     list_BOI = ['Freezing','CS+','CS-']
     if 'Hab' in exp:
         sheet = 'Habituation'
-        dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_090_filtered'
+        dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_best-90_filtered'
     else:
         sheet = 'Retrieval'
-        dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_090_filtered'
+        dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_best-90_filtered'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
@@ -109,7 +109,7 @@ print(f'EXPERIMENT : {exp}')
 print('###################')
 
 dlc_data = True
-dual_color = True
+dual_color = False
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
