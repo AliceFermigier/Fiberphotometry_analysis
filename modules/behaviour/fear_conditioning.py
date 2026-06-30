@@ -180,37 +180,83 @@ def rms_sliding_window(speed, window_frames):
     rms = np.sqrt(mean_sq)
     return rms 
 
-def detect_freezing_rms(speeds, fps=20, window_sec=1.0, threshold=1.0):
+def filter_outside_arena(coordinates_df, arena_scale, bodyparts=['center','tail_base'],
+                          margin_px=0, interpolate=True, max_interp_gap=10):
     """
-    speeds: dict with speeds from different keypoints
-            e.g. {"nose": s_nose, "center": s_center, "tail": s_tail}
-    fps: sampling rate
-    window_sec: RMS window length
-    threshold: RMS threshold in cm/s
+
+    max_interp_gap: max consecutive NaN frames to interpolate across; longer gaps
+                     are left as NaN rather than interpolated across blindly
     """
-    window_frames = int(window_sec * fps)
+def filter_outside_arena(coordinates_df, arena_scale, bodyparts=None,
+                          margin_px=0, interpolate=True, flag_gap_threshold=10):
+    """
+    NaNs-out x/y coordinates for selected bodyparts, in any frame, where the point
+    falls outside the arena rectangle (catches reflections, which can have high DLC
+    likelihood despite being spatially impossible). Optionally interpolates across
+    short resulting gaps.
 
-    # Compute RMS for each keypoint
-    rms_dict = {}
-    for key, v in speeds.items():
-        rms_dict[key] = rms_sliding_window(v, window_frames)
+    coordinates_df: output of get_dlc_data (flat bodypart_x / bodypart_y columns)
+    arena_scale: dict from get_scale_and_arena_rect, with 'Arena_rectangle_px'
+                 as {'x1','y1','x2','y2'} corners
+    bodyparts: list of bodypart names to filter (e.g. ['center', 'tail_base']).
+               If None, filters all bodyparts found in coordinates_df.
+               Exclude bodyparts here that can legitimately leave the arena
+               footprint (e.g. 'nose' during rearing).
+    margin_px: shrink (+) or grow (-) the valid region in pixels
+    interpolate: if True, linearly interpolate across NaN gaps created by filtering
+    additionally returns a per-bodypart boolean mask
+    marking frames that came from a gap longer than flag_gap_threshold — these
+    are 'low confidence' interpolations you may want to exclude from freezing
+    bouts rather than trust as real movement/stillness.
+    """
+    df = coordinates_df.copy()
 
-    # Combine speeds: use max or mean
-    # max = stricter, mean = smoother
-    combined_rms = np.maximum.reduce(list(rms_dict.values()))
+    rect = arena_scale["Arena_rectangle_px"]
+    x_min = min(rect["x1"], rect["x2"]) + margin_px
+    x_max = max(rect["x1"], rect["x2"]) - margin_px
+    y_min = min(rect["y1"], rect["y2"]) + margin_px
+    y_max = max(rect["y1"], rect["y2"]) - margin_px
 
-    # Freeze if RMS < threshold
-    freezing = (combined_rms < threshold).astype(int)
+    all_bodyparts = [c[:-2] for c in df.columns if c.endswith('_x')]
+    if bodyparts is None:
+        bodyparts = all_bodyparts
 
-    return freezing, combined_rms, rms_dict
+    long_gap_mask = pd.DataFrame(False, index=df.index, columns=bodyparts)
+    n_flagged_total = 0
 
-def detect_freezing(dlc_df, arena_scale, threshold=None):
+    for bp in bodyparts:
+        x_col, y_col = f'{bp}_x', f'{bp}_y'
+        x, y = df[x_col], df[y_col]
+        outside = (x < x_min) | (x > x_max) | (y < y_min) | (y > y_max)
+        n_flagged_total += outside.sum()
+        df.loc[outside, [x_col, y_col]] = np.nan
+
+        # mark which of the flagged frames sit in a run longer than flag_gap_threshold
+        run_id = (outside != outside.shift()).cumsum()
+        run_lengths = outside.groupby(run_id).transform('sum')
+        long_gap_mask[bp] = outside & (run_lengths > flag_gap_threshold)
+
+        if interpolate:
+            # no limit: always fill, so downstream never sees NaN
+            df[x_col] = df[x_col].interpolate(method='linear', limit_direction='both')
+            df[y_col] = df[y_col].interpolate(method='linear', limit_direction='both')
+
+    print(f'[filter_outside_arena] flagged {n_flagged_total} bodypart-frames outside '
+          f'arena bounds across {len(bodyparts)} bodypart(s): {bodyparts}')
+    return df, long_gap_mask
+
+def detect_freezing(dlc_df, arena_scale, threshold=None,
+                     rms_window_sec=0.4, min_bout_sec=1.0, max_gap_sec=0.1):
     """
     df: DLC dataframe with coordinate columns.
-    video_scale in px/cm
+    arena_scale: dict with 'Scale_cm_per_px' and 'Video_fps'
+    threshold: speed threshold in cm/s (interactive prompt if None)
+    rms_window_sec: window for RMS-smoothing speed before thresholding (jitter robustness)
+    min_bout_sec: minimum continuous freezing duration to count as a bout
+    max_gap_sec: brief above-threshold gaps within a bout shorter than this are
+                 tolerated (bridged) rather than splitting the bout — this is what
+                 makes the duration check robust to single noisy frames
     """
-
-    # Get scale and frame rate data from json file
     dist_scaling = arena_scale["Scale_cm_per_px"]
     fps = arena_scale['Video_fps']
 
@@ -219,43 +265,82 @@ def detect_freezing(dlc_df, arena_scale, threshold=None):
     s_center = mp.compute_speed(dlc_df, dist_scale=dist_scaling, frame_rate=fps, bodypart='center')
     s_tail = mp.compute_speed(dlc_df, dist_scale=dist_scaling, frame_rate=fps, bodypart='tail_base')
 
-    if threshold == None:
-        # --- Load or set speed threshold ---
-        plt.plot(s_nose["Speed"], label="nose")
-        plt.plot(s_center["Speed"], label="center")
-        plt.plot(s_tail["Speed"], label="tail")
+    # --- Smooth speeds with sliding-window RMS to absorb tracking jitter ---
+    window_frames = max(1, int(round(rms_window_sec * fps)))
+    rms_nose = rms_sliding_window(s_nose["Speed"].to_numpy(), window_frames)
+    rms_center = rms_sliding_window(s_center["Speed"].to_numpy(), window_frames)
+    rms_tail = rms_sliding_window(s_tail["Speed"].to_numpy(), window_frames)
+
+    if threshold is None:
+        plt.plot(rms_nose, label="nose (RMS)")
+        plt.plot(rms_center, label="center (RMS)")
+        plt.plot(rms_tail, label="tail (RMS)")
         plt.legend()
         plt.show()
         threshold = float(input("Enter speed threshold (cm/s): "))
         plt.close()
 
-    # --- Freeze = sustained low movement ---
+    # --- Freeze = sustained low movement, on smoothed speed ---
     freeze = (
-        (s_center["Speed"] <= threshold) &
-        (s_nose["Speed"]   <= threshold*2) &
-        (s_tail["Speed"]   <= threshold)
+        (rms_center <= threshold) &
+        (rms_nose   <= threshold * 2) &
+        (rms_tail   <= threshold)
     ).astype(int)
 
-    # --- Detect freezing bouts ---
-    diff_f = np.diff(freeze)
-    freeze_bouts = np.zeros_like(freeze)
+    # --- Bout detection: find runs of freeze==1, bridge short gaps, keep long-enough runs ---
+    samples_1s = int(round(min_bout_sec * fps))
+    max_gap_frames = int(round(max_gap_sec * fps))
 
-    # Require >= 1 sec continuous freezing
-    samples_1s = int(round(fps))
+    freeze_bouts = _bridge_and_filter_runs(freeze, min_run=samples_1s, max_gap=max_gap_frames)
 
-    for i in range(samples_1s, len(freeze) - 2 * samples_1s):
-        if diff_f[i] == 1 and np.mean(diff_f[i+1:i+samples_1s]) == 0:
-            # find end of freezing
-            end = np.where(diff_f[i:] < 0)[0]
-            if len(end) > 0:
-                end = end[0] + i
-            else:
-                end = len(freeze) - 1
-            freeze_bouts[i:end] = 1
-    freezing_df = pd.DataFrame({'Freezing':freeze_bouts})
+    freezing_df = pd.DataFrame({'Freezing': freeze_bouts})
     total_speed = s_nose["Speed"] + s_center["Speed"] + s_tail["Speed"]
     total_speed_df = pd.DataFrame({'Speed': total_speed})
-    behav_df = pd.concat([dlc_df, freezing_df, total_speed_df], axis=1)
+    rms_df = pd.DataFrame({'Speed_RMS_nose': rms_nose,
+                            'Speed_RMS_center': rms_center,
+                            'Speed_RMS_tail': rms_tail})
 
+    behav_df = pd.concat([dlc_df, freezing_df, total_speed_df, rms_df], axis=1)
     return behav_df
+
+def _bridge_and_filter_runs(binary_arr, min_run, max_gap):
+    """
+    Given a 0/1 array:
+    1. Bridge (fill in) gaps of 0s shorter than max_gap that sit between two 1-runs,
+       so a single noisy frame doesn't split one long bout into two short ones.
+    2. Discard remaining runs of 1s shorter than min_run.
+    Returns a 0/1 array of the same length.
+    """
+    arr = binary_arr.copy().astype(int)
+    n = len(arr)
+
+    # --- Step 1: bridge short gaps ---
+    i = 0
+    while i < n:
+        if arr[i] == 0:
+            start = i
+            while i < n and arr[i] == 0:
+                i += 1
+            gap_len = i - start
+            # bridge only if gap has a 1-run on both sides (not at the very edges)
+            if gap_len <= max_gap and start > 0 and i < n:
+                arr[start:i] = 1
+        else:
+            i += 1
+
+    # --- Step 2: remove runs shorter than min_run ---
+    out = np.zeros(n, dtype=int)
+    i = 0
+    while i < n:
+        if arr[i] == 1:
+            start = i
+            while i < n and arr[i] == 1:
+                i += 1
+            run_len = i - start
+            if run_len >= min_run:
+                out[start:i] = 1
+        else:
+            i += 1
+
+    return out
 

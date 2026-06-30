@@ -64,10 +64,10 @@ THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Fear_Habituation'
+exp = 'Fear_Conditioning'
 if 'Cond' in exp:
     list_BOI = ['Freezing','Shock','CS+','CS-']
-    dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_110_filtered'
+    dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_best-110_filtered'
     sheet = 'Conditioning'
 else:
     list_BOI = ['Freezing','CS+','CS-']
@@ -124,6 +124,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     data_path_exp = datapath_exp_dict[batch]
     pp_path = data_path_exp / 'Preprocessing'
     behav_path_exp = data_path_exp / 'Behaviour'
+    save_dir_QC = repo_path / 'Camera_alignment_QC'
 
     # Define paths for raw, behavioral, and fiberphotometry data
     raw_doric_path = data_path_exp / f'{mouse}_0000.doric'
@@ -135,6 +136,10 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     fiberpho_path = pp_path / f'{mouse}_dFF_corrected_final.csv'
     dlc_path = behav_path_exp / f'{mouse}{dlc_suffix}.csv'
     scale_json = behav_path_exp / f"{mouse}_arena_coordinates.json"
+
+    if not os.path.isfile(fiberpho_path):
+        print(f"Fiberphotometry data {fiberpho_path} does not exist. Skipping.")
+        continue
 
     fiberpho_df = pd.read_csv(fiberpho_path)
     if CUT_FREQ != None:
@@ -196,12 +201,21 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         arena_scale = {}
 
     if dlc_data:
-        try:
-            print('Getting DLC data')
-            coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.6)
-            coordinates_df = cp.align_camera_flashes(coordinates_df, frame_times_df)
-        except Exception as e:
-            print(f'[!] DLC file error for {mouse}: {e}')
+
+        print('Getting DLC data')
+        coordinates_df = mp.get_dlc_data(dlc_path, threshold=0.6)
+        coordinates_df = cp.align_camera_flashes(coordinates_df, 
+                                                    frame_times_df, 
+                                                    mouse=mouse,  
+                                                    batch=batch, 
+                                                    save_dir_QC=save_dir_QC, 
+                                                    expected_fps=arena_scale["Video_fps"])
+        coordinates_df, _ = fc.filter_outside_arena(coordinates_df,
+                                                arena_scale, 
+                                                bodyparts=['center','tail_base'], 
+                                                margin_px=0)
+
+
         # Compute freezing bouts using DLC data
         print('Computing freezing bouts')
         behav_df = fc.detect_freezing(coordinates_df, arena_scale, threshold=0.5)
@@ -225,13 +239,13 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     fig = bp.plot_fiberpho_behav(
         dfiberbehav_df, list_BOI, exp, mouse,
         THRESH_S, EVENT_TIME_THRESHOLD, batch,
-        scaled = False
+        scaled = False, speed_ylim = [-1, 80]
     )
     fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.pdf')
     fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
     plt.close()
 
-  #%% 2.3 - Plot behavioural metrics
+#%% 2.3 - Plot behavioural metrics
 
 print('###################')
 print(f'EXPERIMENT : {exp}')
@@ -255,6 +269,11 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print("-----------------------------")
 
     fiberbehav_notderived_path = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+
+    if not os.path.isfile(fiberbehav_notderived_path):
+        print(f"Fiber behav file {fiberbehav_notderived_path} not found. Skipping.")
+        continue
+
     fiberbehav_notderived_df = pd.read_csv(fiberbehav_notderived_path)
 
     metrics = bm.compute_behavior_metrics_FC(fiberbehav_notderived_df)

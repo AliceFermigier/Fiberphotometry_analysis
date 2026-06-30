@@ -18,6 +18,7 @@ import h5py
 import matplotlib.pyplot as plt
 import warnings
 import scipy
+from pathlib import Path
 
 import modules.common.genplot as gp
 
@@ -270,7 +271,7 @@ def align_behav_timestamps(fiberpho_df, behaviour_timestamps_df, behavior_col, t
 
     return fiberpho_df
 
-def align_camera_flashes(coordinates_df, frame_times_df):
+def align_camera_flashes(coordinates_df, frame_times_df, mouse=None, batch=None, save_dir_QC=None, expected_fps=20, method='tail'):
     """
     Adds a real timestamp to each DLC / Boris frame.
     
@@ -284,13 +285,15 @@ def align_camera_flashes(coordinates_df, frame_times_df):
     diff = n_cam-n_dlc
 
     if diff>1:
-        diff_1=int(round(diff/2))
-        diff_2=diff-diff_1
-        print(f"[!] DLC has {n_dlc}, camera flashes {n_cam}")
-        print(f"[!] Camera flashes has {diff} extra values. Truncating extra frames, leading and ending.")
-        frame_times = frame_times[diff_1:n_cam-diff_2]
-        print(f"[!] Check QC:")
-        plot_camera_instantaneous_frequency(frame_times_df)
+        if method == 'even':
+            print(f"[!] DLC has {n_dlc}, camera flashes {n_cam} "
+                f"({diff} extra flashes). Resampling evenly across recording ")
+            idx = np.linspace(0, n_cam - 1, n_dlc).round().astype(int)
+            frame_times = frame_times[idx]
+        elif method == 'tail':
+            print(f"[!] DLC has {n_dlc}, camera flashes {n_cam} ({diff} extra). "
+            f"Trimming from the end — video recording likely stopped before flash logger.")
+            frame_times = frame_times[:n_dlc]
 
     elif diff!=0:
         print(f"[!] Truncating tail: DLC has {n_dlc}, camera flashes {n_cam}")
@@ -299,7 +302,11 @@ def align_camera_flashes(coordinates_df, frame_times_df):
         coordinates_df = coordinates_df.iloc[:min_len].copy()
         frame_times = frame_times[:min_len]
 
+    camera_alignment_QC(frame_times_df, coordinates_df=coordinates_df, mouse=mouse, batch=batch,
+                    expected_fps=expected_fps, figsize=(14, 8), save_dir=save_dir_QC, show=True)
+
     coordinates_df["Time(s)"] = frame_times
+
     return coordinates_df
 
 ## For Julien's setup
@@ -401,46 +408,110 @@ def get_camera_flashes(file_path):
 
     return pd.DataFrame({'Time(s)': timestamps})
 
-def plot_camera_instantaneous_frequency(frame_times_df, expected_fps=20, figsize=(14, 4)):
+def camera_alignment_QC(frame_times_df, coordinates_df=None, mouse=None, batch=None,
+                         expected_fps=20, figsize=(14, 8), save_dir=None, show=True):
     """
-    Plots instantaneous frequency of camera TTL pulses.
-    Useful for diagnosing frame drop, gaps, or extra leading/trailing pulses.
+    Diagnoses camera TTL frame drops / gaps / extra pulses, and (optionally)
+    compares against DLC frame count to flag systematic camera-vs-DLC mismatches.
+
+    Parameters
+    ----------
+    frame_times_df : pd.DataFrame or Series
+        Timestamps of camera TTL flashes.
+    coordinates_df : pd.DataFrame, optional
+        DLC/Boris coordinates df, used to report n_dlc vs n_cam mismatch.
+    mouse, batch : str, optional
+        Used for figure titles/filenames if saving.
+    expected_fps : float
+        Expected camera frame rate, used to flag deviation from nominal IFI.
+    figsize : tuple
+        Figure size.
+    save_dir : str or Path, optional
+        If provided, saves the figure as PNG to this directory.
+    show : bool
+        If False, closes the figure after saving instead of displaying it
+        (useful for batch QC over many mice without popping up dozens of plots).
+
+    Returns
+    -------
+    dict
+        Summary stats, useful for logging/aggregating QC across mice.
     """
-    flash_times = frame_times_df.values.flatten()
-    diffs = np.diff(flash_times)          # inter-frame intervals in seconds
-    inst_freq = 1.0 / diffs               # instantaneous frequency in Hz
-    midpoints = (flash_times[:-1] + flash_times[1:]) / 2  # time axis
+    flash_times = np.asarray(frame_times_df).flatten()
+    diffs = np.diff(flash_times)
+    expected_ifi = 1 / expected_fps
 
-    fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=False)
+    n_cam = len(flash_times)
+    n_dlc = len(coordinates_df) if coordinates_df is not None else None
+    diff_n = (n_cam - n_dlc) if n_dlc is not None else None
 
-    # --- Full recording ---
-    axes[0].plot(midpoints, inst_freq, lw=0.5, color='steelblue')
-    axes[0].axhline(expected_fps, color='red', lw=1, linestyle='--', label=f'Expected {expected_fps} fps')
-    axes[0].set_ylabel('Frequency (Hz)')
-    axes[0].set_xlabel('Time (s)')
-    axes[0].set_title('Instantaneous camera frequency — full recording')
-    axes[0].legend()
+    drop_mask = diffs > 2 * expected_ifi
+    n_drops = drop_mask.sum()
 
-    # --- Zoom on edges (first and last 100 frames) ---
-    n_edge = 100
-    edge_times = np.concatenate([midpoints[:n_edge], midpoints[-n_edge:]])
-    edge_freq  = np.concatenate([inst_freq[:n_edge],  inst_freq[-n_edge:]])
-    colors     = ['steelblue'] * n_edge + ['darkorange'] * n_edge
+    # ── Figure: 2 panels ─────────────────────────────────────────────────
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize, sharex=True)
 
-    axes[1].scatter(edge_times, edge_freq, c=colors, s=8, zorder=3)
-    axes[1].axhline(expected_fps, color='red', lw=1, linestyle='--', label=f'Expected {expected_fps} fps')
-    axes[1].set_ylabel('Frequency (Hz)')
-    axes[1].set_xlabel('Time (s)')
-    axes[1].set_title('Edges zoom — blue: first 100 frames | orange: last 100 frames')
-    axes[1].legend()
+    ax1.plot(diffs, color='black', linewidth=0.8)
+    ax1.axhline(expected_ifi, color='grey', ls='--', linewidth=1, label=f'Expected IFI ({expected_ifi*1000:.1f} ms)')
+    if n_drops > 0:
+        drop_idx = np.where(drop_mask)[0]
+        ax1.scatter(drop_idx, diffs[drop_idx], color='red', s=15, zorder=5, label=f'Drops (n={n_drops})')
+    ax1.set_ylabel('Inter-frame interval (s)')
+    ax1.legend(loc='upper right', fontsize=9)
+    title = 'Camera alignment QC'
+    if mouse is not None:
+        title += f' — {batch} {mouse}' if batch is not None else f' — {mouse}'
+    ax1.set_title(title)
+
+    # Cumulative dropped-frame count over the recording — shows WHERE drops
+    # concentrate (flat = uniform drops, steepening = drops increasing over time)
+    cumulative_drops = np.cumsum(drop_mask)
+    ax2.plot(cumulative_drops, color='darkred', linewidth=1.2)
+    ax2.set_xlabel('Frame index')
+    ax2.set_ylabel('Cumulative dropped frames')
 
     plt.tight_layout()
-    plt.show()
 
-    # Summary stats
-    print(f"Total flashes   : {len(flash_times)}")
-    print(f"Mean IFI        : {diffs.mean()*1000:.2f} ms  ({1/diffs.mean():.2f} Hz)")
-    print(f"Std IFI         : {diffs.std()*1000:.2f} ms")
-    print(f"Max IFI         : {diffs.max()*1000:.2f} ms  ← potential gap")
-    print(f"Min IFI         : {diffs.min()*1000:.2f} ms  ← potential burst")
-    print(f"Frames > 2× IFI : {(diffs > 2*diffs.mean()).sum()}  ← dropped frames")
+    # ── Summary stats ────────────────────────────────────────────────────
+    stats = {
+        'mouse': mouse,
+        'batch': batch,
+        'n_flashes': n_cam,
+        'n_dlc': n_dlc,
+        'diff_n_cam_dlc': diff_n,
+        'mean_ifi_ms': diffs.mean() * 1000,
+        'std_ifi_ms': diffs.std() * 1000,
+        'max_ifi_ms': diffs.max() * 1000,
+        'min_ifi_ms': diffs.min() * 1000,
+        'n_drops': int(n_drops),
+        'pct_drops_first_half': float(drop_mask[:len(drop_mask)//2].mean() * 100),
+        'pct_drops_second_half': float(drop_mask[len(drop_mask)//2:].mean() * 100),
+    }
+
+    print(f"Total flashes   : {stats['n_flashes']}")
+    if n_dlc is not None:
+        print(f"DLC frames      : {stats['n_dlc']}  (diff = {stats['diff_n_cam_dlc']})")
+    print(f"Mean IFI        : {stats['mean_ifi_ms']:.2f} ms  ({1000/stats['mean_ifi_ms']:.2f} Hz)")
+    print(f"Std IFI         : {stats['std_ifi_ms']:.2f} ms")
+    print(f"Max IFI         : {stats['max_ifi_ms']:.2f} ms  ← potential gap")
+    print(f"Min IFI         : {stats['min_ifi_ms']:.2f} ms  ← potential burst")
+    print(f"Frames > 2x IFI : {stats['n_drops']}  ← dropped frames")
+    print(f"Drops 1st half  : {stats['pct_drops_first_half']:.2f}%   "
+          f"Drops 2nd half : {stats['pct_drops_second_half']:.2f}%  "
+          f"{'⚠️  drops concentrated later' if stats['pct_drops_second_half'] > 2*stats['pct_drops_first_half'] else ''}")
+
+    # ── Saving ───────────────────────────────────────────────────────────
+    if save_dir is not None:
+        save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        fname = f"camera_QC_{batch}_{mouse}.png" if mouse is not None else "camera_QC.png"
+        fig_path = save_dir / fname
+        fig.savefig(fig_path, dpi=150, bbox_inches='tight')
+        print(f"Saved QC figure to {fig_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return stats

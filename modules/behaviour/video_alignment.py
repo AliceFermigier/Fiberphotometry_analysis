@@ -152,8 +152,9 @@ def create_overlay_frame(index, fiberbehav_df, behavior_cols, window):
     gc.collect()
     return img, size
 
-def get_video_time(video_path, file_path, csv_path=None, automated_alignment=False, 
-                   bonsai_setup=True, slope=1.0, intercept=0.0):
+def get_video_time(video_path, file_path, csv_path, automated_alignment=False, 
+                   bonsai_setup=True, slope=1.0, intercept=0.0,
+                   trim_from='end'):  # 'end' or 'start', matches align_camera_flashes direction
     print("🔍 Checking video path:", video_path)
     if not os.path.exists(video_path):
         print(f"❌ Video path does not exist: {video_path}")
@@ -180,10 +181,24 @@ def get_video_time(video_path, file_path, csv_path=None, automated_alignment=Fal
 
     camera_times_doric = (camera_times - intercept) / slope
 
-    if len(camera_times_doric) != n_frames:
-        video_time = np.linspace(camera_times_doric[0], camera_times_doric[-1], n_frames)
-    else:
+    n_cam = len(camera_times_doric)
+    diff = n_cam - n_frames
+
+    if diff == 0:
         video_time = camera_times_doric
+    elif diff > 0:
+        print(f"[!] Camera flashes ({n_cam}) > video frames ({n_frames}), "
+              f"{diff} extra flashes — trimming from {trim_from} to match align_camera_flashes.")
+        if trim_from == 'end':
+            video_time = camera_times_doric[:n_frames]
+        else:
+            video_time = camera_times_doric[diff:]
+    else:
+        # video has more frames than flashes — shouldn't normally happen,
+        # but fall back to linspace only in this edge case
+        print(f"[!] Video frames ({n_frames}) > camera flashes ({n_cam}); "
+              f"falling back to linspace interpolation.")
+        video_time = np.linspace(camera_times_doric[0], camera_times_doric[-1], n_frames)
 
     return video_time
 
@@ -201,7 +216,8 @@ def make_combined_video(video_path,
                         verbose=True, 
                         test=False,
                         start_frame=0,
-                        end_frame=None):
+                        end_frame=None,
+                        behaviors_to_plot=None):
     """
     Combines video with fiberphotometry signal and behavior plots, side by side:
 
@@ -226,10 +242,19 @@ def make_combined_video(video_path,
     if verbose:
         print("All input validations passed. Proceeding with video generation...")
 
-    behavior_cols = [
+    auto_behavior_cols = [
         col for col in fiberbehav_df.columns
         if set(fiberbehav_df[col].dropna().unique()).issubset({0, 1})
     ]
+
+    if behaviors_to_plot is not None:
+        missing = [b for b in behaviors_to_plot if b not in auto_behavior_cols]
+        if missing:
+            print(f"[WARNING] Requested behaviors not found or not binary, skipping: {missing}")
+        behavior_cols = [b for b in behaviors_to_plot if b in auto_behavior_cols]
+    else:
+        behavior_cols = auto_behavior_cols
+
     if verbose:
         print(f"Behaviors : {behavior_cols}")
 
@@ -305,7 +330,8 @@ def export_behavior_videos(
     window=10,
     pre_time=5,
     post_time=5,
-    verbose=True
+    verbose=True,
+    behaviors_to_plot=None
 ):
     """
     Export short behavioral clips centered on each behavioral event.
@@ -387,7 +413,8 @@ def export_behavior_videos(
             window=window,
             start_frame=int(video_start),
             end_frame=int(video_end),
-            verbose=False
+            verbose=False,
+            behaviors_to_plot=behaviors_to_plot
         )
 
     print("Done exporting all behavioral bout videos.")
@@ -443,11 +470,12 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 if __name__ == "__main__":
         ##### TO BE CHANGED #####
     batch = 1
-    for mouse in ['914']:    
-        exp='Reward_Hab2'
-        behavior = "Licks_filtered"
-        data_path = Path(r'F:\202601_FiberGCaMP\Data\20260122_RewardHab2')
-        analysis_path = Path(r'F:\202601_FiberGCaMP\Analysis\Reward_Hab2\length0_interbout3_o4fNone')
+    for mouse in ['898','925','927']:    
+        exp='Fear_Conditioning'
+        behavior = "Shock"
+        data_path = Path(r'F:\202601_FiberGCaMP\Data\20260506_FearCond')
+        analysis_path = Path(r'F:\202601_FiberGCaMP\Analysis\Fear_Conditioning\length0_interbout2_o4f20')
+        behaviors_to_plot = ['Shock', 'CS+', 'Freezing']
         #########################
 
         video_name = f'{mouse}.avi'
@@ -492,7 +520,8 @@ if __name__ == "__main__":
             output_dir = analysis_path / f'Videos_{behavior}/{batch}_{mouse}',
             window = 10,
             pre_time = 5,
-            post_time = 10
+            post_time = 10,
+            behaviors_to_plot=behaviors_to_plot
         )
         '''
 

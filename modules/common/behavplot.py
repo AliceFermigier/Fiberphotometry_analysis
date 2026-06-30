@@ -177,10 +177,25 @@ def highlight_behavior_areas(ax, df, behavior_name, facecolor='grey', alpha=0.3,
             i += 1
     print(f"  → {i} spans drawn") 
 
-def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_TIME_THRESHOLD, batch, scaled=True):
-    behavprocesssnip_df = behavprocess_df.dropna()
-    has_speed = 'Speed' in behavprocesssnip_df.columns
-    has_560   = '560 dFF' in behavprocesssnip_df.columns
+def plot_fiberpho_behav(behavprocess_df, list_BOI, 
+                        exp, mouse, 
+                        THRESH_S, EVENT_TIME_THRESHOLD, 
+                        batch, 
+                        scaled=True,
+                        speed_ylim = [-1, 40],
+                        dFF465_ylim = [-0.27, 0.75],
+                        dFF560_ylim = [-0.27, 0.75]):
+    
+    has_speed = 'Speed' in behavprocess_df.columns
+    has_560   = '560 dFF' in behavprocess_df.columns
+
+    essential_cols = ['Time(s)', 'dFF', 'center_x', 'center_y', 'nose_x', 'nose_y']
+    if has_560:
+        essential_cols.append('560 dFF')
+    if has_speed:
+        essential_cols.append('Speed')
+
+    behavprocesssnip_df = behavprocess_df.dropna(subset=essential_cols)
 
     # ── 1. Create ALL axes upfront ───────────────────────────────────────────
     if has_speed and has_560:
@@ -251,7 +266,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
     ax1.legend(loc='upper right', fontsize=4 * fs_mult)
     ax1.margins(0, 0.2)
     if scaled:
-        ax1.set_ylim([-0.27, 0.75])
+        ax1.set_ylim(dFF465_ylim)
 
     if has_560 and ax2 is not None:
         ax2.set_ylabel(r'$\Delta$F/F', fontsize=5 * fs_mult)
@@ -260,7 +275,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         ax2.legend(loc='upper right', fontsize=4 * fs_mult)
         ax2.margins(0, 0.2)
         if scaled:
-            ax2.set_ylim([-0.27, 0.75])
+            ax2.set_ylim(dFF560_ylim)
 
     if speed_ax is not None:
         speed_ax.set_ylabel('Speed (cm/s)', fontsize=5 * fs_mult)
@@ -268,7 +283,7 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI, exp, mouse, THRESH_S, EVENT_T
         speed_ax.tick_params(axis='both', labelsize=4 * fs_mult)
         speed_ax.legend(loc='upper right', fontsize=4 * fs_mult)
         speed_ax.margins(0, 0.2)
-        speed_ax.set_ylim([-1, 40])
+        speed_ax.set_ylim(speed_ylim)
 
     plt.tight_layout()
     return fig
