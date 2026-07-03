@@ -44,7 +44,7 @@ dual_color = False
 ORDER = 4
 CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -174,18 +174,18 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'EPM'
-BOI = 'Closed arm to Center'
+exp = 'Fear_Conditioning'
+BOI = 'Freezing'
 baseline = False
 MAXBOUTSNUMBER = None
 event = 'onset'
-behaviors_to_exclude_baseline=['Open arm','Head dipping','Open arm to Center','Closed arm to Center']
+behaviors_to_exclude_baseline=['CS+','CS-','Shock','Freezing']
 
 # Plot parameters
-TIME_WINDOW = [2, 5]
-BASELINE_WINDOW = [TIME_WINDOW[0],0]
+TIME_WINDOW = [10, 10]
+BASELINE_WINDOW = [TIME_WINDOW[0],2.0]
 
-Y_LIM = [-1,2]
+Y_LIM = [-2,2]
 Y_LIM_DUAL = [-2,2]
 
 # ── PETH by bout number
