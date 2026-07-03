@@ -59,12 +59,12 @@ bonsai_setup = True
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = 20 #in Hz
+CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 0
+EVENT_TIME_THRESHOLD = 0.2
 
 exp = 'EPM'
 exp_path = analysis_path / exp
@@ -362,9 +362,13 @@ for group in included_groups:
             )
             plt.show()
 
- # %% 2.4 - Quantify dFF in open arm, closed arm and center. Plotting and getting behavioural data.
+# %% 2.4 - Quantify dFF in open arm, closed arm and center. Plotting and getting behavioural data.
 
 subjects_df['Group'] = subjects_df['Group'].fillna('') # if group = Nan, replaces it with an empty string
+
+#Load excluded subjects
+excluded_subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', 
+                                     sheet_name=f'Excluded_{exp}')
 
 behavioural_analysis_path = repo_path / 'Behavioural_analysis'
 
@@ -403,7 +407,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         batch      = batch,
         group      = group,
         fps        = arena_scale['Video_fps'],
-        behav_cols = ['Closed arm', 'Open arm', 'Center','Head dipping'],
+        behav_cols = ['Closed arm', 'Open arm', 'Closed arm to Center','Open arm to Center','Head dipping'],
         speed_col  = 'Speed',
         immobility_threshold=0.1
     )
@@ -423,7 +427,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             mouse         = mouse,
             batch         = batch,
             group         = group,
-            zone_cols     = ['Closed arm', 'Open arm', 'Center'],
+            zone_cols     = ['Closed arm', 'Open arm', 'Closed arm to Center', 'Open arm to Center'],
             behav_cols    = ['Head dipping'],
             baseline_col  = 'Closed arm',
             # Head dipping also counts as Open arm
@@ -441,8 +445,9 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
                 mouse         = mouse,
                 batch         = batch,
                 group         = group,
-                zone_cols     = ['Closed arm', 'Open arm', 'Center'],
+                zone_cols     = ['Closed arm', 'Open arm', 'Closed arm to Center', 'Open arm to Center'],
                 behav_cols    = ['Head dipping'],
+                baseline_col  = 'Closed arm',
                 # Head dipping also counts as Open arm
                 merge_into    = {'Head dipping': 'Open arm'},
                 dff_col       = '560 dFF',

@@ -42,11 +42,11 @@ dual_color = False
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = 20 #in Hz
+CUT_FREQ = None #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 2
+EVENT_TIME_THRESHOLD = 0
 
 #%% Plot PETH for each mouse
 
@@ -59,19 +59,19 @@ else:
     tag = f"wholetrace_maxbouts{MAXBOUTSNUMBER}"
 
 # Plot parameters
-EVENT_LIST = ['onset']
-TIME_WINDOWS = [[5, 10]]  # Time window for PETH calculation (pre, post), for each event
+EVENT_LIST = ['onset','withdrawal']
+TIME_WINDOWS = [[5, 10],[5, 10]]  # Time window for PETH calculation (pre, post), for each event
 BASELINE_WINDOW = [5.0,1.0]
 
 Y_LIM = [-3,8]
 Y_LIM_DUAL = [-2,2]
 
 exp = 'Fear_Conditioning'
-behaviors_of_interest = ['Freezing']
+behaviors_of_interest = ['CS+','CS-','Freezing','Shock']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']
-#['Open arm','Closed arm','Head dipping','Center']
+#['Open arm','Closed arm','Head dipping','Open arm to Center','Closed arm to Center']
 #['CS+','CS-','Freezing']
 #['Shock','CS+','CS-','Freezing']
 
@@ -174,18 +174,18 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'Fear_Conditioning'
-BOI = 'Freezing'
+exp = 'EPM'
+BOI = 'Closed arm to Center'
 baseline = False
 MAXBOUTSNUMBER = None
 event = 'onset'
-behaviors_to_exclude_baseline=['CS+','CS-','Freezing','Shock']
+behaviors_to_exclude_baseline=['Open arm','Head dipping','Open arm to Center','Closed arm to Center']
 
 # Plot parameters
-TIME_WINDOW = [5, 10]
-BASELINE_WINDOW = [TIME_WINDOW[0],1.0]
+TIME_WINDOW = [2, 5]
+BASELINE_WINDOW = [TIME_WINDOW[0],0]
 
-Y_LIM = [-2,11]
+Y_LIM = [-1,2]
 Y_LIM_DUAL = [-2,2]
 
 # ── PETH by bout number
@@ -426,7 +426,7 @@ if dual_color and PETH_list_560:
 else:
     bybout_metrics = bybout_metrics_465
 
-bybout_excel_path = peth_path / f'{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_step{STEP}_PETHbybout_metrics.xlsx'
+bybout_excel_path = peth_path / f'{BOI}_{event}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_step{STEP}_PETHbybout_metrics.xlsx'
 bybout_metrics.to_excel(bybout_excel_path, index=False)
 print(f"✔ By-bout metrics exported to:\n    {bybout_excel_path}")
 
@@ -443,8 +443,8 @@ for group in included_groups:
     print(f"Group {group} 465 PETH data size: {PETH_array_group.shape}")
 
     fig_PETHpooled = bp.plot_PETH_pooled(PETH_array_group, BOI, event, TIME_WINDOW, exp, group, ylim=Y_LIM)
-    fig_PETHpooled.savefig(peth_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETH.pdf')
-    fig_PETHpooled.savefig(peth_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETH.png')
+    fig_PETHpooled.savefig(peth_path / f'{group}_{BOI}_{event}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETH.pdf')
+    fig_PETHpooled.savefig(peth_path / f'{group}_{BOI}_{event}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_PETH.png')
     plt.close(fig_PETHpooled)
 
     # Mean PETH accross mice, per bout
@@ -457,8 +457,8 @@ for group in included_groups:
         max_bouts_to_show=MAX_BOUTS_TO_SHOW,
         min_mice=MIN_MICE_PER_BOUT, step=STEP, ylim=Y_LIM
     )
-    fig_bybout.savefig(peth_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_step{STEP}_PETH_bybout.pdf')
-    fig_bybout.savefig(peth_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_step{STEP}_PETH_bybout.png')
+    fig_bybout.savefig(peth_path / f'{group}_{BOI}_{event}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_step{STEP}_PETH_bybout.pdf')
+    fig_bybout.savefig(peth_path / f'{group}_{BOI}_{event}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_step{STEP}_PETH_bybout.png')
     plt.close(fig_bybout)
 
     # --- 560 channel ---
@@ -469,8 +469,8 @@ for group in included_groups:
 
         fig_PETHpooled_560 = bp.plot_PETH_pooled(PETH_array_group_560, BOI, event, TIME_WINDOW, exp, group,
                                                   ylim=Y_LIM_DUAL, dff_column='560')
-        fig_PETHpooled_560.savefig(peth_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_560_PETH.pdf')
-        fig_PETHpooled_560.savefig(peth_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_560_PETH.png')
+        fig_PETHpooled_560.savefig(peth_path / f'{group}_{BOI}_{event}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_560_PETH.pdf')
+        fig_PETHpooled_560.savefig(peth_path / f'{group}_{BOI}_{event}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_560_PETH.png')
         plt.close(fig_PETHpooled_560)
 
         # Mean PETH accross mice, per bout
@@ -485,7 +485,7 @@ for group in included_groups:
             min_mice=MIN_MICE_PER_BOUT, ylim=Y_LIM_DUAL, 
             step=STEP, dff_column='560'
         )
-        fig_bybout_560.savefig(peth_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_step{STEP}_560_PETH_bybout.pdf')
-        fig_bybout_560.savefig(peth_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_step{STEP}_560_PETH_bybout.png')
+        fig_bybout_560.savefig(peth_path / f'{group}_{BOI}_{event}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_step{STEP}_560_PETH_bybout.pdf')
+        fig_bybout_560.savefig(peth_path / f'{group}_{BOI}_{event}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_step{STEP}_560_PETH_bybout.png')
         plt.close(fig_bybout_560)
 # %%

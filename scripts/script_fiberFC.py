@@ -49,6 +49,8 @@ import modules.behaviour.behaviour_metrics as bm
 importlib.reload(bm)
 import modules.behaviour.fear_conditioning as fc
 importlib.reload(fc)
+import modules.common.quantification as quantif
+importlib.reload(quantif)
 
 from scripts.loader import analysis_path, experiment_path, data_path, proto_df, subjects_df, batches
 
@@ -60,7 +62,7 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -310,4 +312,74 @@ try:
 except Exception as e:
     print(f"[!] Error while exporting behavioral metrics: {e}")
 
- #%% 
+# %% 2.3 - Quantify dFF during behaviours.
+
+subjects_df['Group'] = subjects_df['Group'].fillna('') # if group = Nan, replaces it with an empty string
+
+#Load excluded subjects
+excluded_subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', 
+                                     sheet_name=f'Excluded_{exp}')
+
+dFF_records_raw = []
+dFF_records_zscored = []
+dFF_records_raw_560 = []
+dFF_records_zscored_560 = []
+
+for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
+    print(f"--- {mouse} {batch} {group} ---")
+    fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+
+    if int(mouse) in excluded_subjects_df['Subject'].values:
+        print(f"Mouse {mouse} excluded")
+        continue
+
+    # Getting mean and AUC of dFF during behaviours
+    if not fiberbehav_file.exists():
+        print(f"  File not found, skipping.")
+        continue
+
+    fiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
+
+    for records, use_zscore in [(dFF_records_raw, False), (dFF_records_zscored, True)]:
+
+        record = quantif.extract_dff_summary(
+            fiberbehav_df = fiberbehav_df,
+            mouse         = mouse,
+            batch         = batch,
+            group         = group,
+            zone_cols     = [],
+            behav_cols    = list_BOI,
+            dff_col       = 'dFF',
+            fps           = arena_scale['Video_fps'],
+            use_zscore    = use_zscore,
+        )
+        records.append(record)
+
+    if '560 dFF' in fiberbehav_df.columns:
+        for records, use_zscore in [(dFF_records_raw_560, False), (dFF_records_zscored_560, True)]:
+            record = quantif.extract_dff_summary(
+                fiberbehav_df = fiberbehav_df,
+                mouse         = mouse,
+                batch         = batch,
+                group         = group,
+                zone_cols     = [],
+                behav_cols    = list_BOI,
+                dff_col       = '560 dFF',
+                fps           = arena_scale['Video_fps'],
+                use_zscore    = use_zscore,
+            )
+            records.append(record)
+
+
+# ── Save to Excel ─────────────────────────────────────────────────────────────
+pd.DataFrame(dFF_records_raw).to_excel(
+    repo_path / 'dFF_summary_raw.xlsx', index=False)
+pd.DataFrame(dFF_records_zscored).to_excel(
+    repo_path / 'dFF_summary_zscored.xlsx', index=False)
+if '560 dFF' in fiberbehav_df.columns:
+    pd.DataFrame(dFF_records_raw_560).to_excel(
+        repo_path / 'dFF_summary_raw_560.xlsx', index=False)
+    pd.DataFrame(dFF_records_zscored_560).to_excel(
+        repo_path / 'dFF_summary_zscored_560.xlsx', index=False)
+print(f"Saved {len(dFF_records_raw)} mice to dFF_summary.xlsx and dFF_summary_zscored.xlsx")
+# %%

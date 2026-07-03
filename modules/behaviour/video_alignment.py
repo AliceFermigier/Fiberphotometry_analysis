@@ -470,12 +470,12 @@ def concatenate_videos(video_parts_dir: Path, base_name: str, output_path: Path,
 if __name__ == "__main__":
         ##### TO BE CHANGED #####
     batch = 1
-    for mouse in ['898','925','927']:    
-        exp='Fear_Conditioning'
-        behavior = "Shock"
-        data_path = Path(r'F:\202601_FiberGCaMP\Data\20260506_FearCond')
-        analysis_path = Path(r'F:\202601_FiberGCaMP\Analysis\Fear_Conditioning\length0_interbout2_o4f20')
-        behaviors_to_plot = ['Shock', 'CS+', 'Freezing']
+    for mouse in ['898','925','927','921','914','913','909','904']:    
+        exp='Fear_Habituation'
+        behavior = "Freezing"
+        data_path = Path(r'F:\202601_FiberGCaMP\Data\20260506_FearHab')
+        analysis_path = Path(r'F:\202601_FiberGCaMP\Analysis\Fear_Habituation\length0_interbout0_o4fNone')
+        behaviors_to_plot = ['CS+', 'CS-', 'Freezing']
         #########################
 
         video_name = f'{mouse}.avi'

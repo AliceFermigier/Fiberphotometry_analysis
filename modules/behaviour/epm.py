@@ -235,71 +235,44 @@ def classify_position(coords_x, coords_y, epm_coordinates):
     
     return coords_byzone_df
 
-def plot_epm_behavior(behav_df, epm_coordinates, mouse, batch, bodypart='nose', 
+def plot_epm_behavior(behav_df, epm_coordinates, mouse, batch, bodypart='nose',
                       n_bins=1, bins=(50, 50), save_dir=None, figsize=None):
-    """
-    Create behavioral plots for EPM test: pie chart and heatmap(s).
-    
-    Parameters:
-    -----------
-    behav_df : pd.DataFrame
-        Behavioral dataframe from analyze_mouse_position() with columns:
-        'head_x', 'head_y', 'Closed arm', 'Open arm', 'Center', 'Speed (cm/s)'
-    epm_coordinates : dict
-        Dictionary with zone coordinates (open_xL, open_xR, etc.)
-    bodypart : str
-        Body part used for analysis ('head', 'center', 'tailbase')
-    n_bins : int
-        Number of time bins to split the session (default: 1)
-    bins : tuple
-        Number of bins for heatmap (nrows, ncols)
-    save_dir : str or Path
-        Directory to save figures (optional)
-    figsize : tuple
-        Figure size for the heatmap plot
-    
-    Returns:
-    --------
-    fig_pie : matplotlib figure
-        Pie chart figure
-    fig_heatmap : matplotlib figure
-        Heatmap figure(s)
-    """
-    
+
     # =====================================================
     # Plot 1: Pie chart of time spent in each zone
     # =====================================================
     fig_pie, ax_pie = plt.subplots(figsize=(8, 6))
-    
-    closed_time = behav_df['Closed arm'].sum()
-    open_time = behav_df['Open arm'].sum() + behav_df['Head dipping'].sum()
-    center_time = behav_df['Center'].sum()
-    
-    # Handle cases where mouse doesn't visit all zones
-    total_time = closed_time + open_time + center_time
+
+    closed_time        = behav_df['Closed arm'].sum()
+    open_time          = behav_df['Open arm'].sum() + behav_df['Head dipping'].sum()
+    closed_to_center = behav_df['Closed arm to Center'].sum()
+    open_to_center   = behav_df['Open arm to Center'].sum()
+
+    total_time = closed_time + open_time + closed_to_center + open_to_center
     if total_time == 0:
         print("Warning: No position data classified into zones")
         return fig_pie, None
-    
-    sizes = [closed_time, open_time, center_time]
+
+    sizes  = [closed_time, open_time, closed_to_center, open_to_center]
     labels = [
         f'Closed Arm\n{closed_time/total_time*100:.1f}%',
         f'Open Arm\n{open_time/total_time*100:.1f}%',
-        f'Center\n{center_time/total_time*100:.1f}%'
+        f'Closed → Center\n{closed_to_center/total_time*100:.1f}%',
+        f'Open → Center\n{open_to_center/total_time*100:.1f}%',
     ]
-    colors = ['#FF6B6B', '#4ECDC4', '#FFE66D']
-    explode = (0.05, 0.05, 0.05)
-    
+    colors  = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#90EE90']
+    explode = (0.05, 0.05, 0.05, 0.05)
+
     ax_pie.pie(sizes, labels=labels, colors=colors, explode=explode,
                autopct='', startangle=90, textprops={'fontsize': 12})
     ax_pie.set_title('Time Distribution in EPM Zones', fontsize=14, fontweight='bold')
-    
+
     if save_dir is not None:
         save_dir = pathlib.Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
         fig_pie.savefig(save_dir / f'{batch}_{mouse}_epm_pie_chart.png', dpi=300, bbox_inches='tight')
         fig_pie.savefig(save_dir / f'{batch}_{mouse}_epm_pie_chart.pdf', bbox_inches='tight')
-    
+
     # =====================================================
     # Plot 2: Heatmap(s) of trajectory and occupancy
     # =====================================================
@@ -307,7 +280,7 @@ def plot_epm_behavior(behav_df, epm_coordinates, mouse, batch, bodypart='nose',
         behav_df, epm_coordinates, mouse, batch, bodypart=bodypart,
         n_bins=n_bins, bins=bins, save_dir=save_dir, figsize=figsize
     )
-    
+
     return fig_pie, fig_heatmap
 
 def plot_epm_heatmap(behav_df, epm_coordinates, mouse, batch, bodypart='nose',
@@ -1005,51 +978,45 @@ def plot_group_epm_heatmap(aligned_positions_list, ref_epm_coordinates,
     return fig
 
 def plot_group_epm_pie(all_behav_dfs, all_groups, label='Group', save_dir=None):
-    """
-    Plot mean zone occupancy as a pie chart for each group, with per-mouse
-    values shown as scatter dots on a companion bar chart.
 
-    Parameters
-    ----------
-    all_behav_dfs : list of pd.DataFrame
-        One behav_df per mouse (output of analyze_mouse_position).
-    all_groups : list of str/int
-        Group label for each mouse (same order as all_behav_dfs).
-    label : str
-    save_dir : Path or None
-    """
-    groups = sorted(set(all_groups))
-    colors = ['#FF6B6B', '#4ECDC4', '#FFE66D']
-    zone_labels = ['Closed Arm', 'Open Arm', 'Center']
+    groups     = sorted(set(all_groups))
+    colors     = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#90EE90']
+    zone_labels = ['Closed Arm', 'Open Arm', 'Closed arm to Center', 'Open arm to Center']
 
     fig, axes = plt.subplots(1, len(groups), figsize=(5 * len(groups), 5))
     if len(groups) == 1:
         axes = [axes]
 
     for ax, group in zip(axes, groups):
-        indices = [i for i, g in enumerate(all_groups) if g == group]
-        fractions = []  # shape: (n_mice, 3)
+        indices   = [i for i, g in enumerate(all_groups) if g == group]
+        fractions = []  # shape: (n_mice, 4)
 
         for i in indices:
-            df = all_behav_dfs[i]
-            closed = df['Closed arm'].sum()
-            open_  = df['Open arm'].sum() + df['Head dipping'].sum()
-            center = df['Center'].sum()
-            total  = closed + open_ + center
+            df     = all_behav_dfs[i]
+            closed          = df['Closed arm'].sum()
+            open_           = df['Open arm'].sum() + df['Head dipping'].sum()
+            closed_to_center = df['Closed arm to Center'].sum()
+            open_to_center   = df['Open arm to Center'].sum()
+            total = closed + open_ + closed_to_center + open_to_center
             if total > 0:
-                fractions.append([closed / total, open_ / total, center / total])
+                fractions.append([
+                    closed / total,
+                    open_  / total,
+                    closed_to_center / total,
+                    open_to_center   / total,
+                ])
 
-        fractions = np.array(fractions)  # (n_mice, 3)
+        fractions  = np.array(fractions)   # (n_mice, 4)
         mean_fracs = fractions.mean(axis=0)
 
         wedges, _ = ax.pie(
             mean_fracs,
             colors=colors,
             startangle=90,
-            wedgeprops=dict(width=0.6),   # donut style — cleaner for group plots
+            wedgeprops=dict(width=0.6),
         )
-        # Annotate wedges with mean %
-        for wedge, frac, zlabel in zip(wedges, mean_fracs, zone_labels):
+
+        for wedge, frac in zip(wedges, mean_fracs):
             angle = (wedge.theta1 + wedge.theta2) / 2
             x = 0.75 * np.cos(np.radians(angle))
             y = 0.75 * np.sin(np.radians(angle))
@@ -1057,6 +1024,7 @@ def plot_group_epm_pie(all_behav_dfs, all_groups, label='Group', save_dir=None):
 
         ax.legend(wedges, zone_labels, loc='lower center',
                   bbox_to_anchor=(0.5, -0.15), fontsize=9, frameon=False)
+
         n = len(fractions)
         ax.set_title(f'Group {group}\n(n={n})', fontsize=12, fontweight='bold')
 
@@ -1068,5 +1036,6 @@ def plot_group_epm_pie(all_behav_dfs, all_groups, label='Group', save_dir=None):
         save_dir.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_dir / 'group_epm_pie.png', dpi=300, bbox_inches='tight')
         fig.savefig(save_dir / 'group_epm_pie.pdf', bbox_inches='tight')
+
     plt.show()
     return fig

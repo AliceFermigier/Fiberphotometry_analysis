@@ -393,7 +393,7 @@ def PETH(behavprocess_df, BOI, event, timewindow,
             else:
                 print(f"  Warning: behaviour column '{col}' not found, skipping.")
 
-    global_baseline_mask = valid_frames & behav_free_mask          # ← key fix
+    global_baseline_mask = valid_frames & behav_free_mask         
     baseline_signal = behavprocess_df.loc[global_baseline_mask, dFF_column]
 
     if baseline_signal.size < 2:
