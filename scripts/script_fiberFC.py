@@ -62,11 +62,11 @@ ORDER = 4
 CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Fear_Conditioning'
+exp = 'Fear_Retrieval'
 if 'Cond' in exp:
     list_BOI = ['Freezing','Shock','CS+','CS-']
     dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_best-110_filtered'
@@ -181,7 +181,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     if 'Shock' in list_BOI:
         shock_abs    = fc.convert_to_absolute(proto["Shock"], protocol_start, effective_slope)
 
-    # Add interval columns to your fiberphotometry data
+    # Add interval columns to fiberphotometry data
     fiberbehav_df = fc.add_interval_column(fiberpho_df, cs_plus_abs, "CS+")
     fiberbehav_df = fc.add_interval_column(fiberbehav_df, cs_minus_abs, "CS-")
     fiberbehav_df = fc.add_interval_column(fiberbehav_df, led3_abs, "Protocol_start")
@@ -350,7 +350,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             zone_cols     = [],
             behav_cols    = list_BOI,
             dff_col       = 'dFF',
-            fps           = arena_scale['Video_fps'],
+            fps           = arena_scale['Video_fps'], 
             use_zscore    = use_zscore,
         )
         records.append(record)
