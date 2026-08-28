@@ -270,7 +270,7 @@ print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 # %% 2.3 - Averaged heatmaps on all mice, grouped according to specified groups in subject file
 
 ###### TO SET ######
-bodypart = 'nose'
+bodypart = 'center'
 use_zscore = True
 
 # ── Data collection ───────────────────────────────────────────────────────────

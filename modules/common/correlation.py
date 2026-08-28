@@ -612,9 +612,11 @@ def compute_shuffle_jpsth(dfiberbehav_df, peth_465_real,
         df_shuf[sig_to_shuffle] = sig_shifted
 
         peth_560_shuf = bp.PETH(
-            df_shuf, BOI, event, timewindow, event_time_threshold,
+            df_shuf, BOI, event, timewindow,
             baselinewindow=baseline, maxboutsnumber=maxboutsnumber,
-            dFF_column=sig_to_shuffle
+            dFF_column=sig_to_shuffle,
+            baseline_start_stop_s=[2.0,1.0],
+            baseline_method='median'
         )
 
         # Keep only as many bouts as the real PETH has

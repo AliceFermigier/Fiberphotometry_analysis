@@ -53,8 +53,8 @@ EVENT_TIME_THRESHOLD = 0
 #%% Compute and plot joint PETHs
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuff'
-BOI = 'Airpuffs'
+exp = 'RewardAirpuffs2'
+BOI = 'Licks_filtered'
 baseline = False
 MAXBOUTSNUMBER = 40
 event = 'onset'
@@ -63,13 +63,14 @@ event = 'onset'
 TIME_WINDOW = [2, 2]
 HEATMAP_MINMAX = [-0.5,0.5]
 Y_LIM_COINCIDENCE = [-0.2,0.5]
+BASELINE_STARTSTOP = [TIME_WINDOW[0],1.0]
  
 # PETH by bout number
 MIN_MICE_PER_BOUT = 2
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
 
 # Behaviours to exclude from baseline
-behaviours_excluded_baseline_list = ['Airpuffs','Licks_filtered']
+behaviours_excluded_baseline_list = ['Licks_filtered']
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
@@ -135,16 +136,20 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         ## Get PETHs
         # --- 465 channel ---
         PETH_mouse = bp.PETH(
-            dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
-            baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER
+            dfiberbehav_clean, BOI, event, TIME_WINDOW,
+            baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER,
+            baseline_start_stop_s=BASELINE_STARTSTOP,
+            baseline_method='median'
         )
         print(f"PETH shape : {PETH_mouse.shape}")
         PETH_list.append(PETH_mouse)
 
         # --- 560 channel ---
         PETH_mouse_560 = bp.PETH(
-            dfiberbehav_clean, BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD,
-            baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER, dFF_column='560 dFF'
+            dfiberbehav_clean, BOI, event, TIME_WINDOW,
+            baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER, dFF_column='560 dFF',
+            baseline_start_stop_s=BASELINE_STARTSTOP,
+            baseline_method='median'
         )
         PETH_list_560.append(PETH_mouse_560)
 
@@ -416,3 +421,4 @@ pd.DataFrame(all_coinc_records).to_excel(
     corr_path / f'{BOI}_coincidence_metrics.xlsx', index=False
 )
 print(f"✔ Coincidence metrics exported to: {corr_path}")
+ # %%
