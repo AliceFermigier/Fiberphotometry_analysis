@@ -571,6 +571,7 @@ def stationary_bootstrap(signal, average_block_size=120):
 
 def compute_shuffle_jpsth(dfiberbehav_df, peth_465_real,
                            BOI, event, timewindow,
+                           behav_cols,
                            event_time_threshold, sr,
                            n_shuffles=100, baseline=False,
                            sig_to_shuffle = '560 dFF',
@@ -613,9 +614,10 @@ def compute_shuffle_jpsth(dfiberbehav_df, peth_465_real,
 
         peth_560_shuf = bp.PETH(
             df_shuf, BOI, event, timewindow,
+            behav_cols,
             baselinewindow=baseline, maxboutsnumber=maxboutsnumber,
             dFF_column=sig_to_shuffle,
-            baseline_start_stop_s=[2.0,1.0],
+            baseline_start_stop_s=[timewindow[0],1.0],
             baseline_method='median'
         )
 

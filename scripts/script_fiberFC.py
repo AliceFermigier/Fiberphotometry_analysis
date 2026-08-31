@@ -59,23 +59,23 @@ from scripts.loader import analysis_path, experiment_path, data_path, proto_df, 
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = None #in Hz
+CUT_FREQ = 20 #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'Fear_Retrieval'
+exp = 'FearConditioning'
 if 'Cond' in exp:
     list_BOI = ['Freezing','Shock','CS+','CS-']
-    dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_best-110_filtered'
+    dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_110_filtered'
     sheet = 'Conditioning'
 else:
     list_BOI = ['Freezing','CS+','CS-']
     if 'Hab' in exp:
         sheet = 'Habituation'
-        dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_best-90_filtered'
+        dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_090_filtered'
     else:
         sheet = 'Retrieval'
         dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_best-90_filtered'
@@ -111,7 +111,7 @@ print(f'EXPERIMENT : {exp}')
 print('###################')
 
 dlc_data = True
-dual_color = False
+dual_color = True
 
 # Create repository path where fiberbehav data will be stored
 repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
@@ -246,6 +246,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.pdf')
     fig.savefig(repo_path / f'{batch}_{mouse}_fiberbehav.png')
     plt.close()
+
 
 #%% 2.3 - Plot behavioural metrics
 

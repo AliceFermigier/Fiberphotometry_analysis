@@ -38,13 +38,14 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 
 #%%
 
-dual_color = False
+dual_color = True
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = None #in Hz
+CUT_FREQ = 20 #in Hz
+
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -63,11 +64,11 @@ EVENT_LIST = ['onset','withdrawal']
 TIME_WINDOWS = [[5, 10],[5, 10]]  # Time window for PETH calculation (pre, post), for each event
 BASELINE_WINDOW = [5.0,1.0]
 
-Y_LIM = [-3,8]
-Y_LIM_DUAL = [-2,2]
+Y_LIM = [-3,10]
+Y_LIM_DUAL = [-3,10]
 
-exp = 'Fear_Retrieval'
-behaviors_of_interest = ['CS+','CS-','Freezing']
+exp = 'FearConditioning'
+behaviors_of_interest = ['CS+','CS-','Shock','Freezing']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']
@@ -174,19 +175,19 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'Fear_Retrieval'
+exp = 'FearConditioning'
 BOI = 'CS-'
 baseline = False
 MAXBOUTSNUMBER = None
 event = 'onset'
-behaviors_to_exclude_baseline=['CS+','CS-','Freezing']
+behaviors_to_exclude_baseline=['CS+','CS-','Shock']
 
 # Plot parameters
 TIME_WINDOW = [2, 2]
 BASELINE_WINDOW = [TIME_WINDOW[0],2.0]
 
-Y_LIM = [-2,8]
-Y_LIM_DUAL = [-2,2]
+Y_LIM = [-3,10]
+Y_LIM_DUAL = [-3,10]
 
 # ── PETH by bout number
 MIN_MICE_PER_BOUT = 3   # hide bout positions covered by fewer mice

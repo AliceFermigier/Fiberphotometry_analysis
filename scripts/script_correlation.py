@@ -46,15 +46,15 @@ dual_color = True
 ORDER = 4
 CUT_FREQ = 20 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 3
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
 #%% Compute and plot cross-correlation 
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuffs'
-BOI = 'Licks_filtered'
+exp = 'FearHabituation'
+BOI = 'Freezing'
 baseline = False
 MAXBOUTSNUMBER = 40
 event = 'onset'
@@ -69,7 +69,7 @@ Y_LIM_DUAL = [-2,2.5]
 BASELINE_STARTSTOP = [TIME_WINDOW[0],1.0]
 
 # Behaviours to exclude from baseline
-behaviours_excluded_baseline_list = ['Licks_filtered','Airpuffs'] 
+behaviours_excluded_baseline_list = ['CS-','CS+'] 
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
@@ -115,11 +115,11 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         print(f"Mouse {mouse} excluded")
         continue
 
-    dfiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
+    dfiberbehav_df = pd.read_csv(fiberbehav_file)
     if BOI == 'Airpuffs':
         dfiberbehav_clean = bp.remove_first_bout(dfiberbehav_df.reset_index(drop=True), BOI)
     else:
-        dfiberbehav_clean = dfiberbehav_df.reset_index(drop=True)
+        dfiberbehav_clean = dfiberbehav_df#.reset_index(drop=True)
 
     sr = pp.samplerate(dfiberbehav_clean)
     dfiberbehav_dict[mouse] = dfiberbehav_clean
@@ -133,6 +133,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         # --- 465 channel ---
         PETH_mouse = bp.PETH(
             dfiberbehav_clean, BOI, event, TIME_WINDOW,
+            behaviours_excluded_baseline_list,
             baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER,
             baseline_start_stop_s=BASELINE_STARTSTOP,
             baseline_method='median'
@@ -144,6 +145,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         # --- 560 channel ---
         PETH_mouse_560 = bp.PETH(
             dfiberbehav_clean, BOI, event, TIME_WINDOW,
+            behaviours_excluded_baseline_list,
             baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER, dFF_column='560 dFF',
             baseline_start_stop_s=BASELINE_STARTSTOP,
             baseline_method='median'

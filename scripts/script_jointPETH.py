@@ -46,21 +46,21 @@ dual_color = True
 ORDER = 4
 CUT_FREQ = 20 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 3
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
 #%% Compute and plot joint PETHs
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuffs2'
-BOI = 'Licks_filtered'
+exp = 'FearHabituation'
+BOI = 'Freezing'
 baseline = False
-MAXBOUTSNUMBER = 40
+MAXBOUTSNUMBER = None
 event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [2, 2]
+TIME_WINDOW = [3, 3]
 HEATMAP_MINMAX = [-0.5,0.5]
 Y_LIM_COINCIDENCE = [-0.2,0.5]
 BASELINE_STARTSTOP = [TIME_WINDOW[0],1.0]
@@ -70,7 +70,7 @@ MIN_MICE_PER_BOUT = 2
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
 
 # Behaviours to exclude from baseline
-behaviours_excluded_baseline_list = ['Licks_filtered']
+behaviours_excluded_baseline_list = ['CS+','CS-']
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
@@ -119,11 +119,11 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         print(f"Mouse {mouse} excluded")
         continue
 
-    dfiberbehav_df = pd.read_csv(fiberbehav_file, index_col=0)
+    dfiberbehav_df = pd.read_csv(fiberbehav_file)
     if BOI == 'Airpuffs':
         dfiberbehav_clean = bp.remove_first_bout(dfiberbehav_df.reset_index(drop=True), BOI)
     else:
-        dfiberbehav_clean = dfiberbehav_df.reset_index(drop=True)
+        dfiberbehav_clean = dfiberbehav_df#.reset_index(drop=True)
 
     sr = pp.samplerate(dfiberbehav_clean)
     dfiberbehav_dict[mouse] = dfiberbehav_clean
@@ -137,6 +137,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         # --- 465 channel ---
         PETH_mouse = bp.PETH(
             dfiberbehav_clean, BOI, event, TIME_WINDOW,
+            behav_cols=behaviours_excluded_baseline_list,
             baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER,
             baseline_start_stop_s=BASELINE_STARTSTOP,
             baseline_method='median'
@@ -147,6 +148,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         # --- 560 channel ---
         PETH_mouse_560 = bp.PETH(
             dfiberbehav_clean, BOI, event, TIME_WINDOW,
+            behav_cols=behaviours_excluded_baseline_list,
             baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER, dFF_column='560 dFF',
             baseline_start_stop_s=BASELINE_STARTSTOP,
             baseline_method='median'
@@ -253,7 +255,8 @@ for group in included_groups:
         jpsth_shuf_mean_560, jpsth_shuf_std_560 = corr.compute_shuffle_jpsth(
             dfiberbehav_dict[mouse],         
             peth_465_mouse,
-            BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD, sr,
+            BOI, event, TIME_WINDOW, behaviours_excluded_baseline_list,
+            EVENT_TIME_THRESHOLD, sr,
             n_shuffles=100,
             baseline=baseline,
             sig_to_shuffle = '560 dFF',
@@ -264,7 +267,8 @@ for group in included_groups:
         jpsth_shuf_mean_465, jpsth_shuf_std_465 = corr.compute_shuffle_jpsth(
             dfiberbehav_dict[mouse],         
             peth_465_mouse,
-            BOI, event, TIME_WINDOW, EVENT_TIME_THRESHOLD, sr,
+            BOI, event, TIME_WINDOW, behaviours_excluded_baseline_list,
+            EVENT_TIME_THRESHOLD, sr,
             n_shuffles=100,
             baseline=baseline,
             sig_to_shuffle = 'dFF',
@@ -400,7 +404,7 @@ for group in included_groups:
 
     fig_g_z = corr.plot_joint_psth(
         jpsth_group_z, coinc_group_z, TIME_WINDOW, BOI, event, exp, group,
-        n_bouts=n_bouts_group, vmin=-4, vmax=4,
+        n_bouts=n_bouts_group, vmin=-2, vmax=2,
         coincidence_sem=coinc_sem_z
     )
     fig_g_z.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_zscore.pdf')
