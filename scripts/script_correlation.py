@@ -46,17 +46,17 @@ dual_color = True
 ORDER = 4
 CUT_FREQ = 20 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
 #%% Compute and plot cross-correlation 
 # ----------------------------- #
 # PETH parameters
-exp = 'FearHabituation'
-BOI = 'Freezing'
+exp = 'FearRetrieval'
+BOI = 'CS+'
 baseline = False
-MAXBOUTSNUMBER = 40
+MAXBOUTSNUMBER = None
 event = 'onset'
 
 # MAX LAG

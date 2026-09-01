@@ -53,7 +53,7 @@ EVENT_TIME_THRESHOLD = 0
 #%% Compute and plot joint PETHs
 # ----------------------------- #
 # PETH parameters
-exp = 'FearHabituation'
+exp = 'FearRetrieval'
 BOI = 'Freezing'
 baseline = False
 MAXBOUTSNUMBER = None

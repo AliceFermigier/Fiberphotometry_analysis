@@ -45,7 +45,7 @@ ORDER = 4
 CUT_FREQ = 20 #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -175,24 +175,24 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'FearConditioning'
-BOI = 'CS-'
+exp = 'FearRetrieval'
+BOI = 'Freezing'
 baseline = False
 MAXBOUTSNUMBER = None
 event = 'onset'
-behaviors_to_exclude_baseline=['CS+','CS-','Shock']
+behaviors_to_exclude_baseline=['CS+','CS-']
 
 # Plot parameters
-TIME_WINDOW = [2, 2]
+TIME_WINDOW = [10, 10]
 BASELINE_WINDOW = [TIME_WINDOW[0],2.0]
 
-Y_LIM = [-3,10]
-Y_LIM_DUAL = [-3,10]
+Y_LIM = [-1,2]
+Y_LIM_DUAL = [-1,2]
 
 # ── PETH by bout number
 MIN_MICE_PER_BOUT = 3   # hide bout positions covered by fewer mice
 MAX_BOUTS_TO_SHOW = None
-STEP = 1
+STEP = 10
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"

@@ -64,9 +64,9 @@ CUT_FREQ = 20 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 0
+EVENT_TIME_THRESHOLD = 3
 
-exp = 'FearConditioning'
+exp = 'FearRetrieval'
 if 'Cond' in exp:
     list_BOI = ['Freezing','Shock','CS+','CS-']
     dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_110_filtered'
@@ -78,7 +78,7 @@ else:
         dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_090_filtered'
     else:
         sheet = 'Retrieval'
-        dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_best-90_filtered'
+        dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_090_filtered'
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
