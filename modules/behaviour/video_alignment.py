@@ -476,11 +476,13 @@ if __name__ == "__main__":
         data_path = Path(r'F:\202601_FiberGCaMP\Data\20260506_FearHab')
         analysis_path = Path(r'F:\202601_FiberGCaMP\Analysis\Fear_Habituation\length0_interbout0_o4fNone')
         behaviors_to_plot = ['CS+', 'CS-', 'Freezing']
+        dlc_suffix = 'DLC_Resnet50_20260220_Fear_hab_and_retFeb20shuffle1_snapshot_best-90_filtered'
         #########################
 
         video_name = f'{mouse}.avi'
         pp_path = data_path / 'Preprocessing'
-        video_path = data_path / 'Behaviour' / f'{video_name}'
+        video_path = data_path / 'Behaviour' / f'{mouse}.avi'
+        dlc_path = data_path / 'Behaviour' / f'{mouse}{dlc_suffix}.csv'
         raw_doric_path = data_path / f'{mouse}_0000.doric'
         fiberbehav_df = pd.read_csv(analysis_path / f'{batch}_{mouse}_fiberbehavnotderived.csv')
         output_path = analysis_path / f'Videos_{behavior}/{batch}_{mouse}' / f'{video_name[:-4]}_combined'
