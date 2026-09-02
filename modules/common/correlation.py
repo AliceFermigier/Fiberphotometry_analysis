@@ -36,15 +36,17 @@ def compute_peth_crosscorr(peth_465_list, peth_560_list, sr,
     sem_xcorr   : np.ndarray  — SEM across bouts
     peak_lag_s  : float       — lag at peak correlation
     xcorr_matrix: np.ndarray  — all individual bout cross-correlations (n_bouts_total, lags)
+    valid_mouse_idx : list of int — indices into the input lists that were kept
     """
-    
+
     n_tp      = peth_465_list[0].shape[1]
     lags_s    = correlation_lags(n_tp, n_tp, mode='full') / sr
     mask      = np.abs(lags_s) <= max_lag_s
     lags_trim = lags_s[mask]
 
     per_mouse = []
-    for peth_465, peth_560 in zip(peth_465_list, peth_560_list):
+    valid_mouse_idx = []
+    for idx, (peth_465, peth_560) in enumerate(zip(peth_465_list, peth_560_list)):
         n_bouts = min(len(peth_465), len(peth_560))
         if n_bouts < min_bouts:
             continue
@@ -56,17 +58,19 @@ def compute_peth_crosscorr(peth_465_list, peth_560_list, sr,
                 continue
             bout_xcorrs.append(correlate(s2, s1, mode='full')[mask] / norm)
         if bout_xcorrs:
-            per_mouse.append(np.mean(bout_xcorrs, axis=0))   # one curve per mouse
+            per_mouse.append(np.mean(bout_xcorrs, axis=0))
+            valid_mouse_idx.append(idx)
 
     if not per_mouse:
         raise ValueError("No valid mice found.")
 
-    per_mouse_arr = np.array(per_mouse)                      # (n_mice, n_lags)
+    per_mouse_arr = np.array(per_mouse)
     mean_xcorr    = per_mouse_arr.mean(axis=0)
     sem_xcorr     = per_mouse_arr.std(axis=0) / np.sqrt(len(per_mouse_arr))
     peak_lag_s    = float(lags_trim[np.argmax(mean_xcorr)])
 
-    return lags_trim, mean_xcorr, sem_xcorr, peak_lag_s, per_mouse_arr
+    return lags_trim, mean_xcorr, sem_xcorr, peak_lag_s, per_mouse_arr, valid_mouse_idx
+
 
 def compute_crosscorr_significance(per_mouse_arr, lags_s,
                                     peth_465_list, peth_560_list, sr,

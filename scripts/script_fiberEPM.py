@@ -59,10 +59,10 @@ bonsai_setup = True
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = None #in Hz
+CUT_FREQ = 20 #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -271,7 +271,7 @@ print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 
 ###### TO SET ######
 bodypart = 'center'
-use_zscore = True
+use_zscore = False
 
 # ── Data collection ───────────────────────────────────────────────────────────
 subjects_df['Group'] = subjects_df['Group'].fillna('')
@@ -340,7 +340,7 @@ for group in included_groups:
         closed_arm_list = [closed_arm_list[i] for i in group_indices],
         subject_list    = [subject_list[i] for i in group_indices],
         signal_name     = '465nm',
-        vmin=-3, vmax=3,
+        vmin=-2, vmax=2,
         **shared_kwargs,
     )
     plt.show()
@@ -357,7 +357,7 @@ for group in included_groups:
                 closed_arm_list = [closed_arm_list[i] for i in group_indices],
                 subject_list = [subject_list[i] for i in idx_560],
                 signal_name  = '560nm',
-                vmin=-3, vmax=3,
+                vmin=-0.1, vmax=0.1,
                 **shared_kwargs,
             )
             plt.show()

@@ -45,8 +45,8 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'Fear_Retrieval'
-dual_color = False
+exp = 'EPM'
+dual_color = True
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
@@ -123,8 +123,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = '927'
-batch = 1
+mouse = '1001'
+batch = 4
 filecode = f'{exp}_{mouse}'
 #------------------# 
 
@@ -137,7 +137,7 @@ downsampled_df = pp.downsample(deinterleaved_df, target_frequency=40)
 app = Dash(__name__)
 
 # Create the figure
-fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='405 Deinterleaved')
+fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='560 Deinterleaved')
 
 # App layout
 app.layout = html.Div([
@@ -288,8 +288,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.5 - Manually remove corrupted data if some are left
 
 #------------------#
-mouse = '914'
-batch = 1
+mouse = '1001'
+batch = 4
 filecode = f'{exp}_{mouse}'
 #------------------# 
 

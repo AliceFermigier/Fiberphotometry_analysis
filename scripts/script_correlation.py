@@ -46,17 +46,17 @@ dual_color = True
 ORDER = 4
 CUT_FREQ = 20 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
 #%% Compute and plot cross-correlation 
 # ----------------------------- #
 # PETH parameters
-exp = 'FearRetrieval'
-BOI = 'CS+'
+exp = 'EPM'
+BOI = 'Closed arm to Center'
 baseline = False
-MAXBOUTSNUMBER = None
+MAXBOUTSNUMBER = 40
 event = 'onset'
 
 # MAX LAG
@@ -66,10 +66,10 @@ MAX_LAG_XCORR_S = 1
 TIME_WINDOW = [2, 2]
 Y_LIM = [-2,2.5]
 Y_LIM_DUAL = [-2,2.5]
-BASELINE_STARTSTOP = [TIME_WINDOW[0],1.0]
+BASELINE_STARTSTOP = [TIME_WINDOW[0],0.5]
 
 # Behaviours to exclude from baseline
-behaviours_excluded_baseline_list = ['CS-','CS+'] 
+behaviours_excluded_baseline_list = ['Open arm','Head dipping','Open arm to Center','Closed arm to Center']
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
@@ -153,18 +153,29 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
         PETH_list_560.append(PETH_mouse_560)
 
 ## Compute correlation metrics per group
+export_rows = []
 for group in included_groups:
     group_indices = [i for i, g in enumerate(group_list) if g == group]
     PETH_list_group   = [PETH_list[i] for i in group_indices]
     PETH_list_560_group = [PETH_list_560[i] for i in group_indices]
 
     ## Compute cross-correlation
-    lags_s, mean_xcorr, sem_xcorr, peak_lag_s, per_mouse_arr = corr.compute_peth_crosscorr(
+    lags_s, mean_xcorr, sem_xcorr, peak_lag_s, per_mouse_arr, valid_idx = corr.compute_peth_crosscorr(
         PETH_list_group, PETH_list_560_group, sr, max_lag_s=MAX_LAG_XCORR_S
     )
+    # --- per-mouse behavior-relative peak & lag, correctly aligned via valid_idx ---
+    behavior_peak_by_mouse = {}
+    for row_i, orig_i in enumerate(valid_idx):
+        mouse = subject_list[group_indices[orig_i]]
+        curve = per_mouse_arr[row_i]
+        behavior_peak_by_mouse[mouse] = {
+            'Behavior_Peak_Xcorr': float(curve.max()),
+            'Behavior_Peak_Lag_s': float(lags_s[np.argmax(curve)]),
+        }
 
     # Compute baseline cross-correlation
     baseline_xcorrs = []
+    baseline_mice   = []
     lags_bl = None
     for i in group_indices:
         mouse  = subject_list[i]
@@ -177,10 +188,29 @@ for group in included_groups:
         if result[0] is not None:
             lags_bl, xcorr_bl, _ = result
             baseline_xcorrs.append(xcorr_bl)
+            baseline_mice.append(mouse)
+            
+    baseline_peak_by_mouse = {
+        mouse: {
+            'Baseline_Peak_Xcorr': float(curve.max()),
+            'Baseline_Peak_Lag_s': float(lags_bl[np.argmax(curve)]),
+        }
+        for mouse, curve in zip(baseline_mice, baseline_xcorrs)
+    }
 
     mean_xcorr_bl = np.mean(baseline_xcorrs, axis=0) if baseline_xcorrs else None
     sem_xcorr_bl  = (np.std(baseline_xcorrs, axis=0) / np.sqrt(len(baseline_xcorrs))
                      if baseline_xcorrs else None)
+
+    # --- merge behavior + baseline peaks per mouse into export_rows ---
+    all_mice_in_group = set(behavior_peak_by_mouse) | set(baseline_peak_by_mouse)
+    for mouse in all_mice_in_group:
+        row = {'Mouse': mouse, 'Group': group}
+        row.update(behavior_peak_by_mouse.get(mouse, {
+            'Behavior_Peak_Xcorr': np.nan, 'Behavior_Peak_Lag_s': np.nan}))
+        row.update(baseline_peak_by_mouse.get(mouse, {
+            'Baseline_Peak_Xcorr': np.nan, 'Baseline_Peak_Lag_s': np.nan}))
+        export_rows.append(row)
 
     for method_corrsig in ['phase_randomization','trial_permutation']:
         ## Compute cross-correlation significance
@@ -204,7 +234,16 @@ for group in included_groups:
         fig_corr_sig.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[0]}_{method_corrsig}_crosscorrelation_sig.png')
         plt.close(fig_corr_sig)
 
-    print(f"✔ Cross-correlation results and plots exported to:{corr_path}")
+print(f"✔ Cross-correlation plots exported to:{corr_path}")
+
+summary_df = pd.DataFrame(export_rows)[
+    ['Mouse', 'Group', 'Behavior_Peak_Xcorr', 'Behavior_Peak_Lag_s',
+     'Baseline_Peak_Xcorr', 'Baseline_Peak_Lag_s']
+].sort_values(['Group', 'Mouse'])
+
+out_file = corr_path / f'{BOI}_peak_xcorr_summary.xlsx'
+summary_df.to_excel(out_file, index=False)
+print(f"✔ Peak cross-correlation summary exported to: {out_file}")
 
  #%% Compute and plot Granger causality test results
 
