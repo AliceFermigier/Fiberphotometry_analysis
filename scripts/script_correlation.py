@@ -54,7 +54,7 @@ EVENT_TIME_THRESHOLD = 0
 # ----------------------------- #
 # PETH parameters
 exp = 'EPM'
-BOI = 'Closed arm to Center'
+BOI = 'Open arm'
 baseline = False
 MAXBOUTSNUMBER = 40
 event = 'onset'
