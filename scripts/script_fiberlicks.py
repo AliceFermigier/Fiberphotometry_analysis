@@ -55,15 +55,15 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = None #in Hz
+CUT_FREQ = 20 #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'RewardExtinction'
-list_BOI = ['Licks_filtered', 'Licks', 'Nose_in_any_airport']
+exp = 'RewardAirpuff'
+list_BOI = ['Licks_filtered', 'Licks', 'Nose_in_any_airport', 'Airpuffs']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
 datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
@@ -267,7 +267,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
 print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
 
- #%% 2.2.1 - Plot sample traces
+  #%% 2.2.1 - Plot sample traces
 
 TIME_WINDOW = [8000, 13000]
 for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
@@ -290,7 +290,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
 #%% 2.3 - Plot behavioural metrics
 
-exp = 'Reward_Hab2'
+exp = 'RewardAirpuff'
 
 print('###################')
 print(f'EXPERIMENT : {exp}')
@@ -301,7 +301,7 @@ N_TIME_BINS_HEATMAP = 1
 HEATMAP_BINS = (50, 50)  # x, y bins
 
 behaviors_to_plot = [
-    "Licks_filtered"
+    "Licks_filtered","Airpuffs"
 ]
 
 # Create repository path where data will be stored

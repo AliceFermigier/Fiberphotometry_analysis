@@ -46,15 +46,15 @@ dual_color = True
 ORDER = 4
 CUT_FREQ = 20 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 3
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
 #%% Compute and plot cross-correlation 
 # ----------------------------- #
 # PETH parameters
-exp = 'EPM'
-BOI = 'Open arm'
+exp = 'RewardAirpuff'
+BOI = 'Airpuffs'
 baseline = False
 MAXBOUTSNUMBER = 40
 event = 'onset'
@@ -69,7 +69,7 @@ Y_LIM_DUAL = [-2,2.5]
 BASELINE_STARTSTOP = [TIME_WINDOW[0],0.5]
 
 # Behaviours to exclude from baseline
-behaviours_excluded_baseline_list = ['Open arm','Head dipping','Open arm to Center','Closed arm to Center']
+behaviours_excluded_baseline_list = ['Licks_filtered']
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
