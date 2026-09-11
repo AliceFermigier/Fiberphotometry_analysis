@@ -477,7 +477,8 @@ def compute_baseline_jpsth(fiberbehav_df, behaviours_excluded_list,
     from itertools import islice
 
     PRE_TIME, POST_TIME = float(timewindow[0]), float(timewindow[1])
-    win_samples = int((PRE_TIME + POST_TIME) * sr) + 1
+    sr = round(sr)
+    win_samples = int(round(PRE_TIME + POST_TIME) * sr) + 1
     pad_samples = int(pad_s * sr)
     if min_segment_s is None:
         min_segment_s = PRE_TIME + POST_TIME + 2 * pad_s

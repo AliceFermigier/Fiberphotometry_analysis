@@ -46,22 +46,23 @@ dual_color = True
 ORDER = 4
 CUT_FREQ = 20 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 3
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
 #%% Compute and plot joint PETHs
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuff'
-BOI = 'Licks_filtered'
+exp = 'FCConditioning'
+BOI = 'Shock'
 baseline = False
-MAXBOUTSNUMBER = 40
+MAXBOUTSNUMBER = None
 event = 'onset'
 
 # Plot parameters
-TIME_WINDOW = [3, 3]
+TIME_WINDOW = [4, 4]
 HEATMAP_MINMAX = [-0.5,0.5]
+HEATMAP_MINMAX_ZSCORE = [-4,4]
 Y_LIM_COINCIDENCE = [-0.2,0.5]
 BASELINE_STARTSTOP = [TIME_WINDOW[0],1.0]
  
@@ -70,7 +71,7 @@ MIN_MICE_PER_BOUT = 2
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
 
 # Behaviours to exclude from baseline
-behaviours_excluded_baseline_list = ['Licks_filtered','Airpuffs']
+behaviours_excluded_baseline_list = ['CS+','CS-','Freezing','Shock']
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
@@ -123,7 +124,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     if BOI == 'Airpuffs':
         dfiberbehav_clean = bp.remove_first_bout(dfiberbehav_df.reset_index(drop=True), BOI)
     else:
-        dfiberbehav_clean = dfiberbehav_df#.reset_index(drop=True)
+        dfiberbehav_clean = dfiberbehav_df.reset_index(drop=True)
 
     sr = pp.samplerate(dfiberbehav_clean)
     dfiberbehav_dict[mouse] = dfiberbehav_clean
@@ -404,7 +405,7 @@ for group in included_groups:
 
     fig_g_z = corr.plot_joint_psth(
         jpsth_group_z, coinc_group_z, TIME_WINDOW, BOI, event, exp, group,
-        n_bouts=n_bouts_group, vmin=-2, vmax=2,
+        n_bouts=n_bouts_group, vmin=HEATMAP_MINMAX_ZSCORE[0], vmax=HEATMAP_MINMAX_ZSCORE[1],
         coincidence_sem=coinc_sem_z
     )
     fig_g_z.savefig(corr_path / f'{group}_{BOI}_-{TIME_WINDOW[0]}_{TIME_WINDOW[1]}_JPETH_zscore.pdf')

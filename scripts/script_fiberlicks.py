@@ -55,14 +55,14 @@ from scripts.loader import analysis_path, data_path, proto_df, subjects_df, batc
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = 20 #in Hz
+CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 3
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'RewardAirpuff'
+exp = 'RewardAirpuff2'
 list_BOI = ['Licks_filtered', 'Licks', 'Nose_in_any_airport', 'Airpuffs']
 #['Licks', 'Airpuffs']
 exp_path = analysis_path / exp
@@ -290,7 +290,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 
 #%% 2.3 - Plot behavioural metrics
 
-exp = 'RewardAirpuff'
+exp = 'RewardAirpuff2'
 
 print('###################')
 print(f'EXPERIMENT : {exp}')
@@ -330,7 +330,7 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
 
         # Compute behavioral metrics
         metrics = bm.compute_behavior_metrics(fiberbehav_notderived_df, BIN_SIZE)
-        all_metrics[mouse] = metrics
+        all_metrics[mouse] = (metrics, group)
 
         # Plot behavioral metrics
         mouse_fig_dir = behavioural_analysis_path / 'Figures' / f'batch {batch} mouse {mouse}'
@@ -359,7 +359,7 @@ print("\nExporting all behavioral metrics to Excel...")
 try:
     # Concatenate all metrics into a single DataFrame
     metrics_list = []
-    for mouse, df in all_metrics.items():
+    for mouse, (df, group) in all_metrics.items():
         df = df.copy()
         df["Mouse"] = mouse
         df["Group"] = group

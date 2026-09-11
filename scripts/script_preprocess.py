@@ -45,7 +45,7 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'RewardAirpuff2'
+exp = 'FCHab'
 dual_color = True
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
@@ -288,8 +288,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.5 - Manually remove corrupted data if some are left
 
 #------------------#
-mouse = '1001'
-batch = 4
+mouse = '1000'
+batch = 1
 filecode = f'{exp}_{mouse}'
 #------------------# 
 

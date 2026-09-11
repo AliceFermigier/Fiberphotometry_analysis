@@ -64,9 +64,9 @@ CUT_FREQ = 20 #in Hz
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 3
+EVENT_TIME_THRESHOLD = 0
 
-exp = 'FearRetrieval'
+exp = 'FCConditioning'
 if 'Cond' in exp:
     list_BOI = ['Freezing','Shock','CS+','CS-']
     dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_110_filtered'
@@ -353,6 +353,8 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             dff_col       = 'dFF',
             fps           = arena_scale['Video_fps'], 
             use_zscore    = use_zscore,
+            shock_col='Shock',
+            shock_exclude_cols=['CS+']
         )
         records.append(record)
 
@@ -368,6 +370,8 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
                 dff_col       = '560 dFF',
                 fps           = arena_scale['Video_fps'],
                 use_zscore    = use_zscore,
+                shock_col='Shock',
+                shock_exclude_cols=['CS+']
             )
             records.append(record)
 

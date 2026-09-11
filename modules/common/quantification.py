@@ -14,49 +14,60 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
                          merge_into=None,
                          dff_col='dFF',
                          fps=20,
-                         use_zscore=False):
+                         use_zscore=False,
+                         shock_col=None,
+                         shock_exclude_cols=None,
+                         shock_exclude_seconds=2):
     """
     Extract mean dFF and AUC dFF during each zone/behaviour for one animal.
 
-    Parameters
-    ----------
     fiberbehav_df : pd.DataFrame
-        Combined fiber + behavior dataframe (fiberbehavnotderived.csv).
+            Combined fiber + behavior dataframe (fiberbehavnotderived.csv).
     mouse, batch, group : str
-        Animal identifiers.
+            Animal identifiers.
     zone_cols : list of str
-        Binary zone columns. Time spent in each → mean dFF + AUC dFF.
-        E.g. ['Closed arm', 'Open arm', 'Center'].
+            Binary zone columns. Time spent in each → mean dFF + AUC dFF.
+            E.g. ['Closed arm', 'Open arm', 'Center'].
     behav_cols : list of str
-        Binary behaviour columns. Same metrics computed independently.
-        E.g. ['Head dipping'].
+            Binary behaviour columns. Same metrics computed independently.
+            E.g. ['Head dipping'].
     baseline_col : str, optional
-        Binary column in fiberbehav_df used as the z-score baseline mask
-        (1 = baseline period) when use_zscore=True. E.g. 'Closed arm'.
-        If None, the baseline is instead defined as the frames where none
-        of the behav_cols are 1 (i.e. animal not engaged in any listed
-        behaviour).
+            Binary column in fiberbehav_df used as the z-score baseline mask
+            (1 = baseline period) when use_zscore=True. E.g. 'Closed arm'.
+            If None, the baseline is instead defined as the frames where none
+            of the behav_cols are 1 (i.e. animal not engaged in any listed
+            behaviour).
     merge_into : dict, optional
-        {behaviour: zone} pairs where frames of a behaviour should ALSO be
-        included in the zone's signal. 
-        E.g. {'Head dipping': 'Open arm'} ensures head dipping frames
-        are counted in Open arm dFF in addition to their own column.
+            {behaviour: zone} pairs where frames of a behaviour should ALSO be
+            included in the zone's signal. 
+            E.g. {'Head dipping': 'Open arm'} ensures head dipping frames
+            are counted in Open arm dFF in addition to their own column.
     dff_col : str
-        Column name for raw dFF signal.
+            Column name for raw dFF signal.
     fps : float
-        Frame rate, used to convert frame count to seconds for AUC 
-        (AUC = sum(dFF) / fps, i.e. dFF integrated over time in seconds).
+            Frame rate, used to convert frame count to seconds for AUC 
+            (AUC = sum(dFF) / fps, i.e. dFF integrated over time in seconds).
     use_zscore : bool
-        If True, z-score the dFF trace using the median/std computed only
-        from the baseline mask (see baseline_col), then apply that baseline
-        to the entire trace.
-
-    Returns
-    -------
-    record : dict
-        Flat dictionary with mean dFF and AUC dFF per zone/behaviour.
+            If True, z-score the dFF trace using the median/std computed only
+            from the baseline mask (see baseline_col), then apply that baseline
+            to the entire trace.
+    shock_col : str, optional
+        Binary column marking shock delivery (1 = shock frame). If provided
+        together with `shock_exclude_cols`, any bout of a column listed in
+        `shock_exclude_cols` that contains a shock will have its last
+        `shock_exclude_seconds` seconds excluded from the dFF metrics, so
+        shock-evoked dFF doesn't artificially inflate that column's signal
+        (e.g. CS+ trials that end in a shock vs CS- trials that never do).
+    shock_exclude_cols : list of str, optional
+        Columns (usually a subset of zone_cols/behav_cols, e.g. ['CS+'])
+        for which shock-containing bouts get trimmed as described above.
+        Bouts of these columns that do NOT contain a shock are left intact.
+    shock_exclude_seconds : float
+        Duration (in seconds) to trim from the end of shock-containing
+        bouts. Default 2s.
     """
     merge_into = merge_into or {}
+    shock_exclude_cols = shock_exclude_cols or []
 
     # ── Signal preparation ────────────────────────────────────────────────────
     if dff_col not in fiberbehav_df.columns:
@@ -70,7 +81,6 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
                 raise ValueError(f"Baseline column '{baseline_col}' not found in dataframe.")
             baseline_mask = fiberbehav_df[baseline_col].values.astype(bool)
         else:
-            # Baseline = frames where none of the behav_cols are 1
             baseline_mask = np.ones(len(fiberbehav_df), dtype=bool)
             for col in behav_cols:
                 if col in fiberbehav_df.columns:
@@ -93,6 +103,42 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
         'Group' : group,
     }
 
+    # ── Helper: find contiguous True runs (bouts) in a boolean mask ───────────
+    def _get_bouts(mask):
+        bouts = []
+        in_bout = False
+        start = None
+        for i, v in enumerate(mask):
+            if v and not in_bout:
+                start = i
+                in_bout = True
+            elif not v and in_bout:
+                bouts.append((start, i - 1))
+                in_bout = False
+        if in_bout:
+            bouts.append((start, len(mask) - 1))
+        return bouts
+
+    # ── Helper: trim last N seconds off shock-containing bouts ────────────────
+    def _exclude_shock_tail(mask, col_label):
+        if shock_col is None or col_label not in shock_exclude_cols:
+            return mask
+        if shock_col not in fiberbehav_df.columns:
+            print(f"  Warning: shock column '{shock_col}' not found, "
+                  f"skipping shock exclusion for '{col_label}'.")
+            return mask
+
+        shock_mask = fiberbehav_df[shock_col].values.astype(bool)
+        n_trim = int(round(shock_exclude_seconds * fps))
+        mask = mask.copy()
+
+        for start, end in _get_bouts(mask):
+            if shock_mask[start:end + 1].any():
+                trim_start = max(start, end + 1 - n_trim)
+                mask[trim_start:end + 1] = False
+
+        return mask
+
     # ── Helper: compute metrics for a boolean mask ────────────────────────────
     def _metrics(mask, label):
         if mask.sum() == 0:
@@ -102,11 +148,9 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
             return
         sig_masked             = signal[mask]
         record[f'{label} mean dFF'] = round(float(np.mean(sig_masked)), 6)
-        # AUC: integral over time = sum(dFF * dt) where dt = 1/fps
         record[f'{label} AUC dFF']  = round(float(np.sum(sig_masked) / fps), 6)
 
     # ── Zone metrics ──────────────────────────────────────────────────────────
-    # Build zone masks, expanding with merged behaviours where specified
     for col in zone_cols:
         if col not in fiberbehav_df.columns:
             print(f"  Warning: zone column '{col}' not found, filling with NaN.")
@@ -116,12 +160,12 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
 
         mask = fiberbehav_df[col].values.astype(bool)
 
-        # Merge any behaviours that should count toward this zone
-        # e.g. head dipping frames → also included in Open arm
         for behav, target_zone in merge_into.items():
             if target_zone == col and behav in fiberbehav_df.columns:
                 behav_mask = fiberbehav_df[behav].values.astype(bool)
-                mask = mask | behav_mask  # union
+                mask = mask | behav_mask
+
+        mask = _exclude_shock_tail(mask, col)
 
         _metrics(mask, col)
 
@@ -134,6 +178,7 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
             continue
 
         mask = fiberbehav_df[col].values.astype(bool)
+        mask = _exclude_shock_tail(mask, col)
         _metrics(mask, col)
 
     return record

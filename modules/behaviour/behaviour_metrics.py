@@ -101,6 +101,7 @@ def plot_behavior_raster(df, mouse, batch, behaviors, save_dir=None):
         print(f"Saved raster plot for {mouse} to:\n  {png_path}\n  {pdf_path}")
 
     plt.show()
+    plt.close()
 
 def plot_behavior_metrics(metrics_df, mouse, batch, bin_size, save_dir=None):
     """
@@ -137,6 +138,7 @@ def plot_behavior_metrics(metrics_df, mouse, batch, bin_size, save_dir=None):
         print(f"Saved behavioral metrics plot for {mouse} to:\n  {png_path}\n  {pdf_path}")
 
     plt.show()
+    plt.close()
 
 def compute_and_plot_heatmap(df, mouse, batch, ports_json, arena_json,
                              n_bins=1, bins=(50, 50), save_dir=None):
@@ -180,7 +182,8 @@ def compute_and_plot_heatmap(df, mouse, batch, ports_json, arena_json,
     fig, axes = plt.subplots(
         2, n_bins,
         figsize=(4*n_bins, 8),
-        gridspec_kw={"height_ratios": [1, 4]}
+        gridspec_kw={"height_ratios": [1, 4]},
+        squeeze=False
     )
 
     for i, subdf in enumerate(dfs):
@@ -264,7 +267,7 @@ def compute_and_plot_heatmap(df, mouse, batch, ports_json, arena_json,
         fig.savefig(save_dir / f"{batch}_{mouse}_heatmaps_{n_bins}bins.png", dpi=300)
         fig.savefig(save_dir / f"{batch}_{mouse}_heatmaps_{n_bins}bins.pdf")
 
-    plt.show()
+    plt.close(fig)
 
 def extract_behav_summary(behav_df, mouse, batch, group,
                            fps,

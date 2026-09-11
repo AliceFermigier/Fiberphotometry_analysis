@@ -45,7 +45,7 @@ ORDER = 4
 CUT_FREQ = 20 #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 3
+THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -53,7 +53,7 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = 40
+MAXBOUTSNUMBER = None
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
 else:
@@ -64,11 +64,11 @@ EVENT_LIST = ['onset','withdrawal']
 TIME_WINDOWS = [[4, 4],[4, 4]]  # Time window for PETH calculation (pre, post), for each event
 BASELINE_WINDOW = [4.0,1.0]
 
-Y_LIM = [-1,3]
-Y_LIM_DUAL = [-1,3]
+Y_LIM = [-2,3]
+Y_LIM_DUAL = [-2,3]
 
-exp = 'RewardAirpuff'
-behaviors_of_interest = ['Licks_filtered','Airpuffs']
+exp = 'FCHab'
+behaviors_of_interest = ['CS+','CS-','Freezing']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']
@@ -175,24 +175,24 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'RewardAirpuff'
-BOI = 'Airpuffs'
+exp = 'FCConditioning'
+BOI = 'CS+'
 baseline = False
-MAXBOUTSNUMBER = 10
+MAXBOUTSNUMBER = 40
 event = 'onset'
-behaviors_to_exclude_baseline=['Licks_filtered','Airpuffs']
+behaviors_to_exclude_baseline=['CS+','CS-','Freezing','Shock']
 
 # Plot parameters
-TIME_WINDOW = [3, 3]
+TIME_WINDOW = [5, 10]
 BASELINE_WINDOW = [TIME_WINDOW[0],1.0]
 
-Y_LIM = [-1,4]
-Y_LIM_DUAL = [-1,4]
+Y_LIM = [-2,3]
+Y_LIM_DUAL = [-2,3]
 
 # ── PETH by bout number
 MIN_MICE_PER_BOUT = 2   # hide bout positions covered by fewer mice
 MAX_BOUTS_TO_SHOW = None
-STEP = 2
+STEP = 1
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
