@@ -66,7 +66,7 @@ THRESH_S = 2
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
-exp = 'FCConditioning'
+exp = 'TestMEC'
 if 'Cond' in exp:
     list_BOI = ['Freezing','Shock','CS+','CS-']
     dlc_suffix = 'DLC_Resnet50_Fear_conditioningMar2shuffle1_snapshot_110_filtered'

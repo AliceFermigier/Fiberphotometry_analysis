@@ -54,7 +54,7 @@ EVENT_TIME_THRESHOLD = 0
 # ----------------------------- #
 # PETH parameters
 exp = 'FCConditioning'
-BOI = 'Shock'
+BOI = 'Freezing'
 baseline = False
 MAXBOUTSNUMBER = None
 event = 'onset'
@@ -71,7 +71,7 @@ MIN_MICE_PER_BOUT = 2
 MAX_BOUTS_TO_SHOW = MAXBOUTSNUMBER
 
 # Behaviours to exclude from baseline
-behaviours_excluded_baseline_list = ['CS+','CS-','Freezing','Shock']
+behaviours_excluded_baseline_list = ['CS+','CS-','Freezing']
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"

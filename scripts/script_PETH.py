@@ -53,7 +53,7 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = None
+MAXBOUTSNUMBER = 40
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
 else:
@@ -61,13 +61,13 @@ else:
 
 # Plot parameters
 EVENT_LIST = ['onset','withdrawal']
-TIME_WINDOWS = [[4, 4],[4, 4]]  # Time window for PETH calculation (pre, post), for each event
-BASELINE_WINDOW = [4.0,1.0]
+TIME_WINDOWS = [[5, 10],[5, 10]]  # Time window for PETH calculation (pre, post), for each event
+BASELINE_WINDOW = [5.0,1.0]
 
 Y_LIM = [-2,3]
 Y_LIM_DUAL = [-2,3]
 
-exp = 'FCHab'
+exp = 'TestMEC'
 behaviors_of_interest = ['CS+','CS-','Freezing']
 
 #['Licks_filtered','Airpuffs']

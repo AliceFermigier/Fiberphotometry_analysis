@@ -53,7 +53,7 @@ EVENT_TIME_THRESHOLD = 0
 #%% Compute and plot cross-correlation 
 # ----------------------------- #
 # PETH parameters
-exp = 'FCConditioning'
+exp = 'TestMEC'
 BOI = 'Freezing'
 baseline = False
 MAXBOUTSNUMBER = 40
@@ -69,7 +69,7 @@ Y_LIM_DUAL = [-2,2.5]
 BASELINE_STARTSTOP = [TIME_WINDOW[0],0.5]
 
 # Behaviours to exclude from baseline
-behaviours_excluded_baseline_list = ['CS+','CS-','Freezing','Shock']
+behaviours_excluded_baseline_list = ['CS+','CS-','Freezing']
 
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
@@ -111,9 +111,9 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     if not fiberbehav_file.exists():
         print(f"File not found: {fiberbehav_file}")
         continue
-    if int(mouse) in excluded_subjects_df['Subject'].values:
-        print(f"Mouse {mouse} excluded")
-        continue
+    #if int(mouse) in excluded_subjects_df['Subject'].values:
+        #print(f"Mouse {mouse} excluded")
+        #continue
 
     dfiberbehav_df = pd.read_csv(fiberbehav_file)
     if BOI == 'Airpuffs':
