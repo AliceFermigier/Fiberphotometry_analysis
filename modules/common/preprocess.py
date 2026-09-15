@@ -30,7 +30,7 @@ import modules.common.median_filtering as mf
 #DEFINED FUNCTIONS#
 ###################
 
-def deinterleave(rawdata_df):
+def deinterleave(rawdata_path):
     """
     Deinterleaves photometry signals from raw data.
     
@@ -49,6 +49,8 @@ def deinterleave(rawdata_df):
             - '405 Deinterleaved' : Deinterleaved signal for 405nm
             - '470 Deinterleaved' : Deinterleaved signal for 470nm
     """
+
+    rawdata_df=pd.read_csv(rawdata_path)
     
     # Calculate the rising edges of DI/O-1 and DI/O-2
     derivative405 = rawdata_df['DI/O-1'].diff()

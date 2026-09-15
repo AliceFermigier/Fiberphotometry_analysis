@@ -103,15 +103,19 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             plt.close(fig_cleaned)
         
         else:
-            #1 Load deinterleaved raw data and clean data
-            deinterleaved_df = pp.load_deinterleaved_doric(raw_data_path)
+            # Load deinterleaved raw data and clean data
+            try:
+                deinterleaved_df = pp.load_deinterleaved_doric(raw_data_path)
+            except:
+                print('Data not in .doric, deinterleaving...')
+                deinterleaved_df = pp.deinterleave(raw_data_path)
+
             cleaned_df = cs.remove_high_artifacts(deinterleaved_df)
-            
-            #2 Save to CSV
+            # Save to CSV
             deinterleaved_df.to_csv(deinterleaved_path, index=False)
             cleaned_df.to_csv(cleaned_path, index=False)
             
-            #3 Plot raw data and cleaned data and save as PNG
+            # Plot raw data and cleaned data and save as PNG
             fig_raw = gp.plot_rawdata(deinterleaved_df, exp, mouse)
             fig_cleaned = gp.plot_rawdata(cleaned_df, exp, mouse)
             fig_raw.savefig(raw_plot_path)
