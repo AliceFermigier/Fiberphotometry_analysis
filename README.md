@@ -599,5 +599,7 @@ The repository uses several data formats.
 
 Alice Fermigier
 
+Written within NutriNeuro Lab - UMR INRAE 1286 (2020-2024) and Neurocentre Magendie's INSERM U1215 SNaP Lab (2024-2026)
+
 Repository:
 https://github.com/AliceFermigier/Fiberphotometry_analysis
