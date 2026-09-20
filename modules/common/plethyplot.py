@@ -17,6 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from ast import literal_eval
+import re
 
 import modules.common.nomenclature as nom
 # citing pyabf : 
@@ -85,10 +86,10 @@ def align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse):
     # Filter sniffs data for the specific mouse
     sniffmouse_df = sniffs_df.loc[sniffs_df['Subject'] == mouse]
     
-    # Create a base DataFrame with fiberpho 'Time(s)' and 'Denoised dFF' columns
+    # Create a base DataFrame with fiberpho 'Time(s)' and 'dFF' columns
     fibersniff_df = pd.DataFrame({
         'Time(s)': fiberpho_df['Time(s)'], 
-        'Denoised dFF': fiberpho_df['Denoised dFF']
+        'dFF': fiberpho_df['dFF']
     })
     
     # Downsample plethysmography data to match the length of fiberpho data
@@ -217,13 +218,14 @@ def derive(fibersniff_df):
 
 def plethyfiber_plot_raw(fiberpho_df, plethys_df, mouse, batch):
     """
+    Deprecated
     Plots raw whole-body plethysmography (WBP) and fiberphotometry (GCaMP and ISOS) data.
 
     --> Parameters:
         fiberpho_df : pd.DataFrame 
             DataFrame containing the fiberphotometry data with the following columns:
             - 'Time(s)' : Time vector
-            - 'Denoised dFF' : Denoised delta F/F
+            - 'dFF' : Denoised delta F/F
             - '470 dFF' : GCaMP signal
             - '405 dFF' : Isosbestic control signal
             
@@ -280,7 +282,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df, sniffs_df, mouse, batch):
             DataFrame containing fiberphotometry and plethysmography data with the following columns:
             - 'Time(s)' : Time vector
             - 'Plethysmograph' : Plethysmograph signal (e.g., breathing)
-            - 'Denoised dFF' : Denoised delta F/F
+            - 'dFF' : Denoised delta F/F
         
         sniffs_df : pd.DataFrame 
             DataFrame containing sniff event data with columns:
@@ -311,7 +313,7 @@ def plethyfiber_plot_sniffs(dfibersniff_df, sniffs_df, mouse, batch):
     
     ### PLOT 2: Denoised Fiberphotometry Data ###
     ax9 = fig.add_subplot(212, sharex=ax8)
-    p2, = ax9.plot('Time(s)', 'Denoised dFF', linewidth=0.6, color='black', label='Denoised GCaMP-ISOS')
+    p2, = ax9.plot('Time(s)', 'dFF', linewidth=0.6, color='black', data=dfibersniff_df, label='dFF')
     ax9.set_ylabel(r'$\Delta$F/F')
     ax9.set_xlabel('Time (s)')
     ax9.margins(0, 0.1)
@@ -354,6 +356,29 @@ def plethyfiber_plot_sniffs(dfibersniff_df, sniffs_df, mouse, batch):
     
     # Return the figure object
     return fig
+
+def concat_fibersniff_columns(fibersniff_df):
+    """
+    Collapse columns like 'Stim Novel 0', 'Stim Novel 1' into a single
+    'Stim Novel' column by summing them. Columns with no trailing number
+    (e.g. 'Time(s)', 'dFF', 'Plethysmograph') are kept as-is.
+    """
+    # Map each column to its "base name" (strip a trailing space + number)
+    base_names = {}
+    for col in fibersniff_df.columns:
+        match = re.match(r'^(.*) \d+$', col)
+        base = match.group(1) if match else col
+        base_names.setdefault(base, []).append(col)
+
+    # Build the new dataframe by summing columns sharing a base name
+    fibersniffconcat_df = pd.DataFrame(index=fibersniff_df.index)
+    for base, cols in base_names.items():
+        if len(cols) == 1:
+            fibersniffconcat_df[base] = fibersniff_df[cols[0]]
+        else:
+            fibersniffconcat_df[base] = fibersniff_df[cols].sum(axis=1)
+
+    return fibersniffconcat_df
 
 def PETH_sniff(dfibersniff_df, odor, event, timewindow, mouse, sr, PRE_EVENT_TIME=0, count=0, baselinewindow=False):
     """

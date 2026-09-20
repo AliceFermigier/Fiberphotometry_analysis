@@ -49,8 +49,10 @@ def deinterleave(rawdata_path):
             - '405 Deinterleaved' : Deinterleaved signal for 405nm
             - '470 Deinterleaved' : Deinterleaved signal for 470nm
     """
-
-    rawdata_df=pd.read_csv(rawdata_path)
+    if 'A3f' in str(rawdata_path):
+        rawdata_df=pd.read_csv(rawdata_path)
+    else:
+        rawdata_df=pd.read_csv(rawdata_path,header=1)
     
     # Calculate the rising edges of DI/O-1 and DI/O-2
     derivative405 = rawdata_df['DI/O-1'].diff()
@@ -81,7 +83,7 @@ def deinterleave(rawdata_path):
     deinterleaved_df = pd.DataFrame({
         'Time(s)': timevector,
         '405 Deinterleaved': list_405,
-        '470 Deinterleaved': list_470
+        '465 Deinterleaved': list_470
     })
     
     # Replace zeros with NaN (if necessary) to handle empty or missing signal values
@@ -417,7 +419,11 @@ def dFF(data_df, artifacts_df, filecode, method='fit', apply_median_filter = Tru
     elif method == 'fit':
         if apply_median_filter == True:
             # find best window from 465 nm and filter
-            result_df, best_win_s, _ = mf.iterative_median_filter(data_df, '465 Deinterleaved',verbose=True)
+            result_df, best_win_s, _ = mf.iterative_median_filter(data_df, 
+                                                                  '465 Deinterleaved',
+                                                                  step_size = 2.0,
+                                                                  max_window = 40.0,
+                                                                  verbose=True)
             filtered_465 = result_df['465 Deinterleaved']
             # filter 405 nm with the same window
             filtered_405 = mf.median_filter_dff(data_df, '405 Deinterleaved', best_win_s)['405 Deinterleaved']
@@ -830,3 +836,4 @@ def apply_excluded_regions(df,signal_col,exclusion_df,filecode):
         exclusion_mask.astype(int)
     )
     return df
+# %%

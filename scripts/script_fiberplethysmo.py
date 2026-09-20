@@ -19,44 +19,53 @@ import matplotlib.pyplot as plt
 import os
 from dash import Dash, dcc, html, Input, Output, State
 import plotly.express as px
+import importlib
 
 #import functions
 import modules.common.preprocess as pp
+importlib.reload(pp)
 import modules.common.genplot as gp
+importlib.reload(gp)
 import modules.common.behavplot as bp
+importlib.reload(bp)
 import modules.common.plethyplot as plp
+importlib.reload(plp)
 import modules.common.statcalc as sc
+importlib.reload(sc)
 import modules.common.transients as tr
+importlib.reload(tr)
 import modules.common.nomenclature as nom
+importlib.reload(nom)
 
-from scripts.loader import experiment_path, exp, ORDER, CUT_FREQ
+from scripts.loader import experiment_path, analysis_path, data_path, proto_df, subjects_df, batches
 
 #%%LOADER
 ##########
 
-analysis_path = experiment_path / 'Analysis' 
-data_path = experiment_path / 'Data'
-os.chdir(experiment_path)
-os.getcwd() 
-
-#import ID and groups of all mice
-subjects_df = pd.read_excel(experiment_path / 'subjects.xlsx', sheet_name='Included')
-#import tasks in protocol
-proto_df = pd.read_excel(experiment_path / 'protocol.xlsx')
+exp = 'Plethysmo'
 
 exp_path = analysis_path / exp
 data_path_exp = data_path / proto_df.loc[proto_df['Task']==exp, 'Data_path'].values[0]
 pp_path = data_path_exp / 'Preprocessing'
 
-
 ############
 #PARAMETERS#
 ############
 
+#filter characteristics
+ORDER = 4
+CUT_FREQ = None #in Hz
+
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 1
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
-EVENT_TIME_THRESHOLD = 1
+EVENT_TIME_THRESHOLD = 0
+
+exp = 'Plethysmo'
+#list_BOI = ['Stim Clean','Stim HC','Stim Novel','Sniff Clean','Sniff HC','Sniff Novel']
+
+exp_path = analysis_path / exp
+datapath_exp_dict = nom.get_experiment_data_path(batches, proto_df, data_path, exp)
 
 #%% 3 - ANALYSIS - PLETHYSMOGRAPH
 #################################
@@ -64,20 +73,21 @@ EVENT_TIME_THRESHOLD = 1
 # 3.1 - Visualize and score manually sniffs and stims in excel file
 
 #------------------#
-session = 'Test'
 mouse = 'B1f'
+batch = 5
 group = subjects_df.loc[subjects_df['Subject'] == mouse, 'Group'].values[0]
 #------------------#
 
-code = gp.session_code(session,exp)
-rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
+data_path_exp = datapath_exp_dict[batch]
+behav_path_exp = data_path_exp / 'Behaviour'
+rawdata_path = data_path_exp / f'{mouse}_1.csv'
 plethys_df = pd.read_csv(rawdata_path, skiprows=1, usecols=['Time(s)','AIn-4'])
 
 # Dropdown options for odors
 odors = ['Clean 1', 'Clean 2', 'Clean 3', 'HC 1', 'HC 2', 'Novel 1', 'Novel 2']
 
 # Paths and file setup
-sniffs_stims_file = data_path_exp / 'Stims_Sniffs.xlsx'
+sniffs_stims_file = behav_path_exp / 'Stims_Sniffs.xlsx'
 nom.create_or_load_sniffs_file(sniffs_stims_file)
 
 app = Dash(__name__)
@@ -86,7 +96,7 @@ fig = px.line(data_df, x='Time(s)', y='AIn-4')
 
 # App layout
 app.layout = html.Div([
-    html.H4(f'{exp} {session} {mouse}'),
+    html.H4(f'{exp} {mouse}'),
     dcc.Dropdown(id='odor-dropdown', options=[{'label': odor, 'value': odor} for odor in odors],
                  placeholder='Select Odor'),
     dcc.Dropdown(id='stim_sniff-dropdown', options=[{'label': stim_sniffs, 'value': stim_sniffs} for stim_sniffs in ['Stim', 'Sniffs']],
@@ -190,45 +200,41 @@ if __name__ == '__main__':
     
 # Dash is running on http://127.0.0.1:8050/
 # You can change port if 8050 already taken (8051, etc)
+
 #%% 3.2 - Align with sniffs, create corresponding csv, plot fiberpho data with sniffs and stims
 
-#import sniffs file 
-sniffs_df = pd.read_excel(data_path_exp / 'Stims_Sniffs.xlsx')
-session_path = exp_path / 'Test'
-session = str(session_path).split('\\')[-1]
-
 # Print session details
-print('##########################################')
-print(f'EXPERIMENT : {exp} - SESSION : {session}')
-print('##########################################')
-
-# Generate session code
-code = gp.session_code(session, exp)
+print('#####################')
+print(f'EXPERIMENT : {exp}')
+print('#####################')
 
 # Define and create necessary directories
-repo_path = session_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
-raw_path = repo_path / 'Raw'
-
-# Create directories if they do not exist
-os.makedirs(repo_path, exist_ok=True)
-os.makedirs(raw_path, exist_ok=True)
+repo_path = exp_path / f'length{EVENT_TIME_THRESHOLD}_interbout{THRESH_S}_o{ORDER}f{CUT_FREQ}'
+repo_path.mkdir(exist_ok=True)
 
 # Loop over each mouse in the subject list
 for mouse in subjects_df['Subject']:
     print("--------------")
     print(f'MOUSE : {mouse}')
     print("--------------")
+
+    #import sniffs file 
+    behav_path_exp = data_path_exp / 'Behaviour'
+    sniffs_df = pd.read_excel(behav_path_exp / 'Stims_Sniffs.xlsx')
     
     if mouse in set(sniffs_df['Subject']):
         # Load fiber photometry data
-        fiberpho_file = pp_path / f'{mouse}_{code}_dFFfilt.csv'
-        fiberpho_df = pd.read_csv(fiberpho_file, index_col=0)
+        print('Loading fiberphotometry data')
+        fiberpho_file = pp_path / f'{mouse}_dFF_corrected_final.csv'
+        fiberpho_df = pd.read_csv(fiberpho_file)
         
         # Check if fibersniff file already exists, skip processing if it does
-        fibersniff_file = repo_path / f'{mouse}_{code}_fibersniff.csv'
+        fibersniff_file = repo_path / f'{mouse}_fibersniff.csv'
+
         if not fibersniff_file.is_file():
             # Load plethysmograph data
-            rawdata_path = data_path_exp / f'{mouse}_{code}.csv'
+            print('Loading plethysmography data')
+            rawdata_path = data_path_exp / f'{mouse}_1.csv'
             sr = pp.samplerate(fiberpho_df)
             
             try:
@@ -239,29 +245,34 @@ for mouse in subjects_df['Subject']:
                 continue
  
             # Align sniffs and process fibersniff data
+            print('Aligning stims and sniffs with fiberphotometry data')
             fibersniff_df = plp.align_sniffs(fiberpho_df, plethys_df, sniffs_df, sr, mouse)
             fibersniff_df = plp.process_fibersniff(fibersniff_df, EVENT_TIME_THRESHOLD, THRESH_S, sr)
             dfibersniff_df = plp.derive(fibersniff_df)
             
             # Save fibersniff files
-            fibersniff_not_derived_file = repo_path / f'{mouse}_{code}_fibersniffnotderived.csv'
-            fibersniff_derived_file = repo_path / f'{mouse}_{code}_fibersniff.csv'
+            fibersniff_not_derived_file = repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+            fibersniff_derived_file = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
             
             fibersniff_df.to_csv(fibersniff_not_derived_file)
             dfibersniff_df.to_csv(fibersniff_derived_file)
+
+            # Save fibersniff files concatenated
+            fibersniffconcat_df = plp.concat_fibersniff_columns(fibersniff_df)
+            dfibersniffconcat_df = plp.derive(fibersniffconcat_df)
+            
+            fibersniffconcat_not_derived_file = repo_path / f'{batch}_{mouse}_fiberbehavconcatnotderived.csv'
+            fibersniffconcat_derived_file = repo_path / f'{batch}_{mouse}_fiberbehavconcat.csv'
+            
+            fibersniffconcat_df.to_csv(fibersniff_not_derived_file)
+            dfibersniffconcat_df.to_csv(fibersniff_derived_file)
         
-        # Plot and save raw plethysmograph and fiber photometry signal
-        raw_plot_file = raw_path / f'{mouse}_WBPfiberpho_raw.png'
-        if not raw_plot_file.is_file(): 
-            fig_raw = plp.plethyfiber_plot_raw(fiberpho_df, plethys_df, mouse)
-            fig_raw.savefig(raw_plot_file)
-        
-        # Plot and save sniff-aligned signals (if not already saved)
-        sniff_plot_pdf = repo_path / f'{mouse}_WBPfiberpho_sniffs.pdf'
-        sniff_plot_png = repo_path / f'{mouse}_WBPfiberpho_sniffs.png'
-        
+        # Plot and save sniff-aligned signals
+        print('Plotting')
+        sniff_plot_pdf = repo_path / f'{batch}_{mouse}_WBPfiberpho_sniffs.pdf'
+        sniff_plot_png = repo_path / f'{batch}_{mouse}_WBPfiberpho_sniffs.png'
         if not sniff_plot_pdf.is_file() or not sniff_plot_png.is_file():
-            fig_sniffs = plp.plethyfiber_plot_sniffs(dfibersniff_df, sniffs_df, mouse)
+            fig_sniffs = plp.plethyfiber_plot_sniffs(dfibersniff_df, sniffs_df, mouse, batch)
             fig_sniffs.savefig(sniff_plot_png)
             fig_sniffs.savefig(sniff_plot_pdf)
         else:
@@ -269,6 +280,8 @@ for mouse in subjects_df['Subject']:
             
     # Close all open plot figures to free up memory
     plt.close('all')
+
+print(f'\n✅ Analysis for {exp} complete.\nData saved in: {repo_path}')
                 
 #%% 3.3 - Plot PETH for each mouse, sniffs, and stim   
 

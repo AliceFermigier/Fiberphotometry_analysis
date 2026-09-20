@@ -75,6 +75,7 @@ behaviors_of_interest = ['CS+','CS-','Freezing']
 #['Open arm','Closed arm','Head dipping','Open arm to Center','Closed arm to Center']
 #['CS+','CS-','Freezing']
 #['Shock','CS+','CS-','Freezing']
+#['Stim Novel 0', 'Stim Novel 1','Sniff Novel 0', 'Sniff Novel 1', 'Stim HC 0', 'Stim HC 1','Sniff HC 0', 'Sniff HC 1', 'Stim Clean 0', 'Stim Clean 1','Stim Clean 2', 'Sniff Clean 0', 'Sniff Clean 1', 'Sniff Clean 2']
 
 exp_path = analysis_path / exp
 

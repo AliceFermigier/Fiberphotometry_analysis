@@ -45,8 +45,9 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'TestMEC'
-dual_color = True
+exp = 'Plethysmo'
+dual_color = False
+file_format = 'csv_doric'
 # Step 1: Create main experiment folder and session subfolders
 exp_path = nom.setup_experiment_directory(analysis_path, exp)
 print(f"Experiment directory created at: {exp_path}")
@@ -74,13 +75,16 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     pp_path = nom.setup_preprocessing_directory(data_path_exp)
 
     # Find raw data
-    raw_data_path = data_path_exp / f'{mouse}_0000.doric'
-    
+    if file_format == 'doric':
+        raw_data_path = data_path_exp / f'{mouse}_0000.doric'
+    elif file_format == 'csv_doric':
+        raw_data_path = data_path_exp / f'{mouse}_1.csv'
+
     # Paths for output deinterleaved and plot files
     deinterleaved_path = pp_path / f'{mouse}_deinterleaved.csv'
     cleaned_path = pp_path / f'{mouse}_deinterleaved_cleaned.csv'
     raw_plot_path = pp_path / f'{mouse}_rawdata.png'
-    cleaned_plot_path = pp_path / f'{mouse}_cleaned.png'
+    cleaned_plot_path = pp_path / f'{mouse}_cleaned.png' 
     
     # Check if raw data exists and deinterleaved data does not exist
     if raw_data_path.exists() and not deinterleaved_path.exists():
@@ -104,10 +108,9 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
         
         else:
             # Load deinterleaved raw data and clean data
-            try:
+            if file_format == 'doric':
                 deinterleaved_df = pp.load_deinterleaved_doric(raw_data_path)
-            except:
-                print('Data not in .doric, deinterleaving...')
+            elif file_format == 'csv_doric':
                 deinterleaved_df = pp.deinterleave(raw_data_path)
 
             cleaned_df = cs.remove_high_artifacts(deinterleaved_df)
@@ -127,7 +130,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = '1009MEC'
+mouse = 'A7f'
 batch = 5
 filecode = f'{exp}_{mouse}'
 #------------------# 
@@ -135,13 +138,13 @@ filecode = f'{exp}_{mouse}'
 # in excel 'Filecode', put '{exp}_{mouse}'
 pp_path = datapath_exp_dict[batch] / 'Preprocessing'
 deinterleaved_df = pd.read_csv(pp_path/f'{mouse}_deinterleaved.csv')
-downsampled_df = pp.downsample(deinterleaved_df, target_frequency=40)
+downsampled_df = deinterleaved_df#pp.downsample(deinterleaved_df, target_frequency=40)
 
 # Create the Dash app
 app = Dash(__name__)
 
 # Create the figure
-fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='560 Deinterleaved')
+fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='465 Deinterleaved')
 
 # App layout
 app.layout = html.Div([
@@ -234,7 +237,7 @@ if __name__ == '__main__':
 #import artifacts boundaries
 artifacts_df = pd.read_excel(experiment_path / 'artifacts.xlsx')
 method = 'fit'
-correct_photobleach_method = 'highpass'
+correct_photobleach_method = 'exponential'
 
 print('#####################')
 print(f'EXPERIMENT : {exp}')
@@ -256,10 +259,10 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
                                 artifacts_df,
                                 filecode,
                                 method,
-                                apply_median_filter=True,
+                                apply_median_filter=False,
                                 fit_model_name='huber')
-            #_, _, median_fig = mf.iterative_median_filter(cleaned_df, '465 Deinterleaved')
-            #median_fig.savefig(pp_path/f'{mouse}_median_filtering.png')
+            _, _, median_fig = mf.iterative_median_filter(cleaned_df, '465 Deinterleaved')
+            median_fig.savefig(pp_path/f'{mouse}_median_filtering.png')
 
         # interpolate missing data
         interpdFFdata_df = pp.interpolate_dFFdata(dFFdata_df, method='linear')
@@ -292,7 +295,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.5 - Manually remove corrupted data if some are left
 
 #------------------#
-mouse = '1009NaCl'
+mouse = 'B4f'
 batch = 5
 filecode = f'{exp}_{mouse}'
 #------------------# 

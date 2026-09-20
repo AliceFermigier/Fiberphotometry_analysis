@@ -87,7 +87,7 @@ def median_filter_dff(fiberpho_df, column_name, window_s, sample_rate = None) ->
         f"{column_name}" : filtered_signal,
     })
 
-def iterative_median_filter(fiberpho_df, column_name, step_size = 1.0, verbose=False) -> pd.DataFrame:
+def iterative_median_filter(fiberpho_df, column_name, step_size = 1.0, max_window = 20.0, verbose=False) -> pd.DataFrame:
     """
     Sweep median-filter window sizes to find the optimal baseline, then
     return a hybrid-fit baseline as a DataFrame.
@@ -128,7 +128,7 @@ def iterative_median_filter(fiberpho_df, column_name, step_size = 1.0, verbose=F
  
     # Number of windows tested: e.g. step_size=1 → 20 windows (1 s … 20 s)
     #                                step_size=0.5 → 40 windows (0.5 s … 20 s)
-    n_windows   = round(20.0 / step_size)
+    n_windows   = round(max_window / step_size)
 
     # Skip the first 10 s (recording artefacts / LED stabilisation)
     warmup_idx  = round(sample_rate * 10)
