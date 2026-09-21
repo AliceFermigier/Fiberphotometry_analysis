@@ -290,7 +290,7 @@ sniffs_df = pd.read_excel(data_path_exp / 'Sniffs.xlsx')
 
 # Set up session path and details
 session_path = exp_path / 'Test'
-session = str(session_path).split('\\')[-1]   
+session = str(session_path).split('\\')[-1]    
 EVENT_LIST = ['onset']  # Event triggers, e.g., onset, withdrawal
 TIME_WINDOWS = [[5, 30]]  # Time window for PETH calculation (pre, post)        
 
