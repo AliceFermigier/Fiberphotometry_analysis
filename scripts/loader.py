@@ -21,7 +21,7 @@ import modules.common.nomenclature as nom
 #LOADER#
 ########
 
-experiment_path = Path(r'E:\Alice\Fiber\FiberCA2')
+experiment_path = Path(r'I:\Alice\Fiber\FiberCA2')
 analysis_path = experiment_path / 'Analysis'
 data_path = experiment_path / 'Data'
 os.chdir(experiment_path)

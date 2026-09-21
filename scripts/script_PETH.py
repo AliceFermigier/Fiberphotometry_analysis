@@ -38,14 +38,14 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 
 #%%
 
-dual_color = True
+dual_color = False
 
 #filter characteristics
 ORDER = 4
-CUT_FREQ = 20 #in Hz
+CUT_FREQ = None #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 2
+THRESH_S = 0
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -53,22 +53,24 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-MAXBOUTSNUMBER = 40
+concatenate = True
+MAXBOUTSNUMBER = None
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
 else:
     tag = f"wholetrace_maxbouts{MAXBOUTSNUMBER}"
 
 # Plot parameters
-EVENT_LIST = ['onset','withdrawal']
-TIME_WINDOWS = [[5, 10],[5, 10]]  # Time window for PETH calculation (pre, post), for each event
-BASELINE_WINDOW = [5.0,1.0]
+EVENT_LIST = ['onset']
+TIME_WINDOWS = [[10, 20]]  # Time window for PETH calculation (pre, post), for each event
+BASELINE_WINDOW = [10.0,1.0]
 
 Y_LIM = [-2,3]
 Y_LIM_DUAL = [-2,3]
 
-exp = 'TestMEC'
-behaviors_of_interest = ['CS+','CS-','Freezing']
+
+exp = 'Plethysmo'
+behaviors_of_interest = ['Stim Novel 0', 'Stim Novel 1','Sniff Novel 0', 'Sniff Novel 1', 'Stim HC 0', 'Stim HC 1','Sniff HC 0', 'Sniff HC 1', 'Stim Clean 0', 'Stim Clean 1','Stim Clean 2', 'Sniff Clean 0', 'Sniff Clean 1', 'Sniff Clean 2']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']
@@ -76,6 +78,7 @@ behaviors_of_interest = ['CS+','CS-','Freezing']
 #['CS+','CS-','Freezing']
 #['Shock','CS+','CS-','Freezing']
 #['Stim Novel 0', 'Stim Novel 1','Sniff Novel 0', 'Sniff Novel 1', 'Stim HC 0', 'Stim HC 1','Sniff HC 0', 'Sniff HC 1', 'Stim Clean 0', 'Stim Clean 1','Stim Clean 2', 'Sniff Clean 0', 'Sniff Clean 1', 'Sniff Clean 2']
+#['Stim Novel', 'Sniff Novel', 'Stim HC', 'Sniff HC', 'Stim Clean', 'Sniff Clean']
 
 exp_path = analysis_path / exp
 
@@ -90,7 +93,10 @@ peth_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't e
 
 # Loop over each mouse in the subjects DataFrame
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
-    fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+    if concatenate:
+        fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+    else:
+        fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
     # Check if fiber behavior file exists for this mouse and if mouse not excluded
     if fiberbehav_path.exists():  
         print("--------------")

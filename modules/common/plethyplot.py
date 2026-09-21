@@ -192,12 +192,12 @@ def process_fibersniff(fibersniff_df, EVENT_TIME_THRESHOLD, THRESH_S, sr):
 
 def derive(fibersniff_df):
     """
-    Calculate the derivative of behaviors of interest (like Sniffs) and put the result in a new DataFrame.
+    Calculate the derivative of behaviors of interest (like Sniffs and Stims) and put the result in a new DataFrame.
     This highlights when a behavior starts (1) and when it stops (-1).
     
     --> Parameters:
         fibersniff_df : pd.DataFrame 
-            DataFrame containing binary behavior columns (0/1) for Sniffs and other behaviors.
+            DataFrame containing binary behavior columns (0/1) for Sniffs, Stims and other behaviors.
     
     --> Returns:
         derived_df : pd.DataFrame 
@@ -207,8 +207,8 @@ def derive(fibersniff_df):
     # Create a copy to avoid modifying the original DataFrame
     derived_df = fibersniff_df.copy()
     
-    # Select only the columns of interest (starting from column 3) or those with 'Sniff' in the name
-    behavior_columns = derived_df.filter(like='Sniff').columns
+    # Select columns of interest: those with 'Sniff' or 'Stim' in the name
+    behavior_columns = derived_df.filter(regex='Sniff|Stim').columns
     
     # Calculate the derivative for each behavior column
     for col in behavior_columns:
