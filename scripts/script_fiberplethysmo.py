@@ -264,8 +264,8 @@ for mouse in subjects_df['Subject']:
             fibersniffconcat_not_derived_file = repo_path / f'{batch}_{mouse}_fiberbehavconcatnotderived.csv'
             fibersniffconcat_derived_file = repo_path / f'{batch}_{mouse}_fiberbehavconcat.csv'
             
-            fibersniffconcat_df.to_csv(fibersniff_not_derived_file)
-            dfibersniffconcat_df.to_csv(fibersniff_derived_file)
+            fibersniffconcat_df.to_csv(fibersniffconcat_not_derived_file)
+            dfibersniffconcat_df.to_csv(fibersniffconcat_derived_file)
         
         # Plot and save sniff-aligned signals
         print('Plotting')
