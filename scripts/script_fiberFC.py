@@ -146,7 +146,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     fiberpho_df = pd.read_csv(fiberpho_path)
     if CUT_FREQ != None:
         print(f"Filtering dFF data : order = {ORDER}; cutting frequency = {CUT_FREQ}")
-        fiberpho_df = cs.lowpass_dFF(fiberpho_df, dual_color, order = 2, cut_freq = 6)
+        fiberpho_df = cs.lowpass_dFF(fiberpho_df, dual_color, order = ORDER, cut_freq = CUT_FREQ)
 
     # Parse protocol
     print('Aligning Imetronic data')

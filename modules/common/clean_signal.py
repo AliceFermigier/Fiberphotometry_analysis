@@ -356,6 +356,7 @@ def lowpass_dFF(dff, dual_color = False, order = 2, cut_freq = 10):
     sampling_rate = pp.samplerate(dff)
     raw_dff = dff['dFF']
 
+    print(f"order={order}, cut_freq={cut_freq}, fs={sampling_rate}, nyquist={sampling_rate/2}")
     # Lowpass filter - zero phase filtering (with filtfilt) is used to avoid distorting the signal.
     b,a = butter(order, cut_freq, btype='low', fs=sampling_rate)
     dFF_lowpass = filtfilt(b,a, raw_dff)

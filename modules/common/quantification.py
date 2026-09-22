@@ -17,7 +17,8 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
                          use_zscore=False,
                          shock_col=None,
                          shock_exclude_cols=None,
-                         shock_exclude_seconds=2):
+                         shock_exclude_seconds=2,
+                         stim_sniff_pairs=None):
     """
     Extract mean dFF and AUC dFF during each zone/behaviour for one animal.
 
@@ -65,43 +66,71 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
     shock_exclude_seconds : float
         Duration (in seconds) to trim from the end of shock-containing
         bouts. Default 2s.
+    stim_sniff_pairs : dict, optional
+        {stim_col: sniff_col} pairs, e.g. {'Stim Novel': 'Sniff Novel'}.
+        For each pair, computes mean/AUC dFF over frames where the stim
+        is active AND the corresponding sniff is NOT active (i.e. the
+        'passive' stim-exposure period, excluding active sniffing bouts).
+        Results are added to the main record as
+        '{stim_col} no sniff mean dFF' / '{stim_col} no sniff AUC dFF'.
     """
+
     merge_into = merge_into or {}
     shock_exclude_cols = shock_exclude_cols or []
+    stim_sniff_pairs = stim_sniff_pairs or {}
 
     # ── Signal preparation ────────────────────────────────────────────────────
     if dff_col not in fiberbehav_df.columns:
         raise ValueError(f"Column '{dff_col}' not found in dataframe.")
 
-    signal = fiberbehav_df[dff_col].values.copy()
+    raw_signal = fiberbehav_df[dff_col].values.copy()
+    signal = raw_signal.copy()
+
+    # ── Baseline mask (used for z-scoring if requested, and for baseline_record) ─
+    if baseline_col is not None:
+        if baseline_col not in fiberbehav_df.columns:
+            raise ValueError(f"Baseline column '{baseline_col}' not found in dataframe.")
+        baseline_mask = fiberbehav_df[baseline_col].values.astype(bool)
+    else:
+        baseline_mask = np.ones(len(fiberbehav_df), dtype=bool)
+        for col in behav_cols:
+            if col in fiberbehav_df.columns:
+                baseline_mask &= ~fiberbehav_df[col].values.astype(bool)
+            else:
+                print(f"  Warning: behaviour column '{col}' not found, "
+                      f"skipping it when building baseline mask.")
+
+    baseline_signal_raw = raw_signal[baseline_mask]
 
     if use_zscore:
-        if baseline_col is not None:
-            if baseline_col not in fiberbehav_df.columns:
-                raise ValueError(f"Baseline column '{baseline_col}' not found in dataframe.")
-            baseline_mask = fiberbehav_df[baseline_col].values.astype(bool)
-        else:
-            baseline_mask = np.ones(len(fiberbehav_df), dtype=bool)
-            for col in behav_cols:
-                if col in fiberbehav_df.columns:
-                    baseline_mask &= ~fiberbehav_df[col].values.astype(bool)
-                else:
-                    print(f"  Warning: behaviour column '{col}' not found, "
-                          f"skipping it when building baseline mask.")
-
-        baseline_signal = signal[baseline_mask]
-        if baseline_signal.size < 2:
+        if baseline_signal_raw.size < 2:
             raise ValueError(
                 "Not enough baseline samples to compute z-score baseline "
                 "(need at least 2)."
             )
-        signal = (signal - np.median(baseline_signal)) / np.std(baseline_signal, ddof=1)
+        signal = (signal - np.median(baseline_signal_raw)) / np.std(baseline_signal_raw, ddof=1)
 
     record = {
         'Mouse' : mouse,
         'Batch' : batch,
         'Group' : group,
     }
+
+    # ── Separate baseline record (always on raw dFF, regardless of use_zscore) ──
+    baseline_record = {
+        'Mouse' : mouse,
+        'Batch' : batch,
+        'Group' : group,
+    }
+    if baseline_signal_raw.size >= 2:
+        baseline_record['Baseline std dFF']  = round(float(np.std(baseline_signal_raw, ddof=1)), 6)
+        baseline_record['Baseline mean dFF'] = round(float(np.mean(baseline_signal_raw)), 6)
+        baseline_record['Baseline AUC dFF']  = round(float(np.sum(baseline_signal_raw) / fps), 6)
+    else:
+        print("  Warning: not enough baseline frames, baseline metrics set to NaN.")
+        baseline_record['Baseline std dFF']  = float('nan')
+        baseline_record['Baseline mean dFF'] = float('nan')
+        baseline_record['Baseline AUC dFF']  = float('nan')
 
     # ── Helper: find contiguous True runs (bouts) in a boolean mask ───────────
     def _get_bouts(mask):
@@ -181,7 +210,22 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
         mask = _exclude_shock_tail(mask, col)
         _metrics(mask, col)
 
-    return record
+    # ── Stim-without-sniff metrics (plethysmograph experiments) ──────────────
+    for stim_col, sniff_col in stim_sniff_pairs.items():
+        label = f'{stim_col} no sniff'
+        if stim_col not in fiberbehav_df.columns or sniff_col not in fiberbehav_df.columns:
+            print(f"  Warning: '{stim_col}' or '{sniff_col}' not found, "
+                  f"filling '{label}' with NaN.")
+            record[f'{label} mean dFF'] = float('nan')
+            record[f'{label} AUC dFF']  = float('nan')
+            continue
+
+        stim_mask  = fiberbehav_df[stim_col].values.astype(bool)
+        sniff_mask = fiberbehav_df[sniff_col].values.astype(bool)
+        mask = stim_mask & ~sniff_mask
+        _metrics(mask, label)
+
+    return record, baseline_record
 
 def variance_transients(fiberbehav_df, list_BOI, mouse, group, exp, batch, threshold):
     """

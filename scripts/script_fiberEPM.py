@@ -56,6 +56,7 @@ from scripts.loader import analysis_path, experiment_path, data_path, proto_df, 
 
 # If data was recorded via Bonsai, with a camera_flashes csv file, set to True (else camera flashes were directly recorded in the Doric console)
 bonsai_setup = True
+dual_color = False
 
 #filter characteristics
 ORDER = 4
@@ -236,13 +237,13 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     print(f'Behaviour file exported to {behav_path}')
 
     # Load fiber photometry data and filter if specified
-    fiberpho = pd.read_csv(fiberpho_path)
+    fiberpho_df = pd.read_csv(fiberpho_path)
     if CUT_FREQ is not None:
-        fiberpho = cs.lowpass_dFF(fiberpho, ORDER, CUT_FREQ)
+        fiberpho_df = cs.lowpass_dFF(fiberpho_df, dual_color, order = ORDER, cut_freq = CUT_FREQ)
 
     # Align behavior and fiber data
     print('Aligning fiberphotometry and behaviour data')
-    fiberbehav_df = bp.align_behav(behav_df, fiberpho, list_BOI)
+    fiberbehav_df = bp.align_behav(behav_df, fiberpho_df, list_BOI)
     fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
 
     # Save outputs

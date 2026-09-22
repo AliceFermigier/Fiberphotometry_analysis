@@ -191,22 +191,13 @@ These parameters have to be adapted to your task.
 
 You have to generate at least one analysis with THRESH_S = 0 and EVENT_TIME_THRESHOLD = 0 for some of the further analyses (like behavioural metrics and mean dFF extraction during behavior).
 
-#### BORIS analysis
+#### BORIS analysis (Deprecated)
 
 ```text
 scripts/script_fiberboris.py
 ```
 
 This script combines fiber photometry data with manual behavioral scoring from BORIS.
-
-The workflow includes:
-
-1. Load processed photometry data.
-2. Load behavioral data.
-3. Align behavior with photometry.
-4. Process behavioral bouts.
-5. Generate combined fiber-behavior data.
-6. Save processed data and figures.
 
 #### Elevated plus maze
 
@@ -217,13 +208,35 @@ scripts/script_fiberEPM.py
 This script combines fiber photometry with DeepLabCut tracking data.
 
 It uses manually defined maze boundaries to classify the animal's position in the maze.
+Then it aligns fiber photometry with behavioural data.
 
 The script generates:
 
-* Behavioral position data.
-* Aligned fiber photometry and behavioral data.
-* Derived behavioral variables.
-* Fiber photometry plots.
+* Aligned fiber photometry and behavioral data and plots :
+```text
+repo_path / f'{batch}_{mouse}_fiberbehavnotderived.csv'
+repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+repo_path / f'{batch}_{mouse}_fiberbehav.pdf'
+repo_path / f'{batch}_{mouse}_fiberbehav.png'
+```
+* Behavioral data : 
+    * Occupation heatmaps and pie charts:
+    ```text
+    behavioural_analysis_path / 'Grouped figures' / f'Group_{group}' / figure names
+    ```
+    * Quantification of time in zones, plotting individual pie charts and heatmaps:
+    ```text
+    behavioural_analysis_path / 'behav_summary.xlsx'
+    save_dir / f'{batch}_{mouse}_epm_pie_chart.png / pdf'
+    save_dir / f'{batch}_{mouse}_epm_heatmap_{n_bins}bins.png / pdf'
+    '''
+* Fiberphotometry data : 
+    * Mean dFF and AUC during behaviours, with z-scored and non z-scored data. Only closed arm is included in the calculation of F0 and std0 for z-scoring.
+    ```text
+    repo_path / 'dFF_summary_raw.xlsx'
+    repo_path / 'dFF_summary_zscored.xlsx'
+    '''
+
 
 #### Fear conditioning
 
@@ -233,12 +246,7 @@ scripts/script_fiberFC.py
 
 This script analyzes fear conditioning experiments.
 
-It aligns fiber photometry with behavioral data, including:
-
-* CS+ events.
-* CS− events.
-* Protocol start.
-* Shock events.
+It detects freezing events based on dlc tracking data, then aligns fiber photometry with behavioral data (CS+ events, CS− events, Shock events, Freezing).
 
 It also supports behavioral bout processing and dFF analysis.
 
@@ -274,75 +282,6 @@ It supports:
 * Aligning photometry and respiratory signals.
 * Generating plots.
 * PETH analysis around sniff events.
-
-### Modules 
-
-Behavioral analysis modules are located in:
-
-```text
-modules/behaviour/
-```
-
-#### `camera_processing.py`
-
-Processes behavioral camera data.
-
-#### `video_alignment.py`
-
-Aligns video and behavioral data with fiber photometry recordings.
-
-#### `mouse_position.py`
-
-Processes DeepLabCut tracking data.
-
-It includes:
-
-* Loading DeepLabCut CSV files.
-* Filtering tracking points according to likelihood.
-* Interpolating missing coordinates.
-* Calculating movement-related variables.
-
-#### `lick_detection.py`
-
-Processes lick and airpuff recordings.
-
-It includes:
-
-* Extracting recording intervals.
-* Detecting licking events.
-* Detecting airpuff port entry.
-* Detecting approaches to ports.
-* Detecting head orientation.
-
-#### `get_epm_coordinates.py`
-
-Allows the user to manually define elevated plus maze boundaries by clicking on a video frame.
-
-The coordinates are saved as JSON files.
-
-#### `get_lick_and_airpuff_ports_coordinates.py`
-
-Allows the user to define the locations of the licking and airpuff ports.
-
-The coordinates are saved as JSON files.
-
-#### `get_video_scale.py`
-
-Allows the user to define a spatial scale from the video.
-
-This is used to convert pixel distances into physical distances.
-
-#### `fear_conditioning.py`
-
-Contains behavioral processing functions for fear conditioning experiments.
-
-#### `epm.py`
-
-Contains functions for elevated plus maze analysis.
-
-#### `manual_shock_scorer.py`
-
-Provides an interactive Dash application for manually scoring shock-related events, if Imetronic data are corrupted (last resort solution)
 
 ## 6. PETH analysis
 
@@ -494,92 +433,6 @@ where `fps` is the sampling rate.
 
 The function can also calculate z-scored dFF values using a baseline period.
 
-### Generated quantification files
-
-The quantification script saves an Excel file:
-
-```text
-Variability_1o{ORDER}f{lowcut}_{highcut}_{threshold}.xlsx
-```
-
-This file contains the extracted variability measurements.
-
-The script also saves transient plots:
-
-```text
-{mouse}_1o{ORDER}f{lowcut}_{highcut}_{threshold}.png
-```
-
-## 9. Generated data and output locations
-
-The analysis creates directories using the functions in:
-
-```text
-modules/common/nomenclature.py
-```
-
-The main analysis output directory is based on:
-
-```text
-experiment_path / 'Analysis'
-```
-
-The exact folder structure depends on the experiment, batch, and mouse.
-
-
-
-### Fiber-behavior outputs
-
-The behavioral scripts generate:
-
-```text
-{batch}_{mouse}_fiberbehavnotderived.csv
-{batch}_{mouse}_fiberbehav.csv
-```
-
-The first file contains the aligned fiber photometry and behavioral data before derived variables are added.
-
-The second file contains the derived behavioral variables.
-
-The scripts also save:
-
-```text
-{batch}_{mouse}_fiberbehav.pdf
-{batch}_{mouse}_fiberbehav.png
-```
-
-These files contain plots of fiber photometry and behavioral data.
-
-### PETH outputs
-
-The PETH scripts create directories such as:
-
-```text
-PETH_{tag}/
-PETH_correlation_{tag}/
-```
-
-These directories contain PETH data and figures.
-
-### Plethysmography outputs
-
-The plethysmography script generates:
-
-```text
-{mouse}_{code}_dFFfilt.csv
-```
-
-It also creates files containing combined fiber photometry and sniff data, along with sniff-related plots and PETH outputs.
-
-### Quantification outputs
-
-The quantification script creates a group analysis directory containing:
-
-```text
-Variability_1o{ORDER}f{lowcut}_{highcut}_{threshold}.xlsx
-```
-
-and transient plots.
 
 ## Data formats
 

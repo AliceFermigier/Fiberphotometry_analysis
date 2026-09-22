@@ -41,11 +41,11 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 dual_color = False
 
 #filter characteristics
-ORDER = 4
-CUT_FREQ = None #in Hz
+ORDER = 2
+CUT_FREQ = 4 #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
-THRESH_S = 0
+THRESH_S = 26
 #threshold for PETH : if events are too short do not plot them and do not include them in PETH, in seconds
 EVENT_TIME_THRESHOLD = 0
 
@@ -53,7 +53,7 @@ EVENT_TIME_THRESHOLD = 0
 
 # PETH parameters 
 baseline = False # parameter to know how the z-score in calculated (mean and sd on short timewindow before event or wholetrace)
-concatenate = True
+concatenate = False
 MAXBOUTSNUMBER = None
 if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
@@ -94,7 +94,7 @@ peth_path.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't e
 # Loop over each mouse in the subjects DataFrame
 for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], subjects_df['Group']):
     if concatenate:
-        fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+        fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehavconcat.csv'
     else:
         fiberbehav_path = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
     # Check if fiber behavior file exists for this mouse and if mouse not excluded
@@ -182,19 +182,20 @@ print(f"All plots saved to {peth_path}")
 
 # ----------------------------- #
 # PETH parameters
-exp = 'FCConditioning'
-BOI = 'CS+'
+exp = 'Plethysmo'
+BOI = 'Sniff Clean'
 baseline = False
-MAXBOUTSNUMBER = 40
+concatenate = True
+MAXBOUTSNUMBER = None
 event = 'onset'
-behaviors_to_exclude_baseline=['CS+','CS-','Freezing','Shock']
+behaviors_to_exclude_baseline=['Stim Novel', 'Stim HC', 'Stim Clean']
 
 # Plot parameters
-TIME_WINDOW = [5, 10]
+TIME_WINDOW = [10, 20]
 BASELINE_WINDOW = [TIME_WINDOW[0],1.0]
 
-Y_LIM = [-2,3]
-Y_LIM_DUAL = [-2,3]
+Y_LIM = [-2,4]
+Y_LIM_DUAL = [-2,4]
 
 # ── PETH by bout number
 MIN_MICE_PER_BOUT = 2   # hide bout positions covered by fewer mice
@@ -247,13 +248,17 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
     print("--------------")
 
 
-    fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
+    if concatenate:
+        fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehavconcat.csv'
+    else:
+        fiberbehav_file = repo_path / f'{batch}_{mouse}_fiberbehav.csv'
 
     # Check if file exists and mouse not manually excluded
     if not fiberbehav_file.exists():
         print(f"File not found: {fiberbehav_file}")
         continue
-    if int(mouse) in excluded_subjects_df['Subject'].values:
+    excluded_ids = set(excluded_subjects_df['Subject'].astype(str))
+    if str(mouse) in excluded_ids:
         print(f"Mouse {mouse} excluded")
         continue
 
