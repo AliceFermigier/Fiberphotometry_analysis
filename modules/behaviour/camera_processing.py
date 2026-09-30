@@ -115,7 +115,7 @@ def get_start_stop_timestamps_from_bonsai_csv(file_path):
     output_df = pd.DataFrame({'Time(s)':[start_time,stop_time]})
     return output_df
 
-def time_gap(deinterleaved_df, led_df):
+def time_gap(deinterleaved_df, led_df): #deprecated
     time_led = led_df['Time(s)']
     time_fiber = deinterleaved_df['Time(s)']
 
@@ -273,9 +273,9 @@ def align_behav_timestamps(fiberpho_df, behaviour_timestamps_df, behavior_col, t
 
 def align_camera_flashes(coordinates_df, frame_times_df, mouse=None, batch=None, save_dir_QC=None, expected_fps=20, method='tail'):
     """
-    Adds a real timestamp to each DLC / Boris frame.
+    Adds a real timestamp to each DLC frame.
     
-    coordinates_df: DLC / Boris coordinates after filtering
+    coordinates_df: DLC coordinates after filtering
     frame_times_df: df of times for each camera frame (len = n_frames)
     """
 
@@ -309,6 +309,47 @@ def align_camera_flashes(coordinates_df, frame_times_df, mouse=None, batch=None,
 
     return coordinates_df
 
+def align_boris(boris_df, camera_start, camera_stop, expected_fs=10,
+                method='stretch', tol=0.5, mouse=None):
+    """
+    Adds a real timestamp ('Time(s)') to each BORIS row.
+
+    boris_df     : BORIS binary df with a 'time' column at a fixed sample rate
+    camera_start : time (s) of the first camera flash (rawdata clock)
+    camera_stop  : time (s) of the last camera flash (rawdata clock)
+    expected_fs  : BORIS sample rate (Hz)
+    method       : 'stretch' -> first row = camera_start, last row = camera_stop,
+                                rows spread linearly (corrects clock drift)
+                   'offset'  -> keep the BORIS 1/fs spacing, just shift it to
+                                start at camera_start (last row may not hit camera_stop)
+    tol          : duration mismatch (s) above which a warning is printed
+    """
+    boris_df = boris_df.copy()
+    n = len(boris_df)
+
+    cam_dur = camera_stop - camera_start
+    boris_dur = boris_df['time'].iloc[-1] - boris_df['time'].iloc[0]
+    diff = cam_dur - boris_dur
+    eff_fs = (n - 1) / cam_dur if cam_dur > 0 else np.nan
+
+    tag = f"[{mouse}] " if mouse is not None else ""
+    print(f"{tag}Camera: {cam_dur:.2f}s | BORIS: {boris_dur:.2f}s "
+          f"({n} rows) | diff = {diff:+.2f}s | effective fs = {eff_fs:.3f} Hz "
+          f"(expected {expected_fs} Hz)")
+    if abs(diff) > tol:
+        print(f"{tag}[!] Duration mismatch > {tol}s — check that the BORIS "
+              f"observation covers the whole video.")
+
+    if method == 'stretch':
+        times = np.linspace(camera_start, camera_stop, n)
+    elif method == 'offset':
+        times = camera_start + (boris_df['time'] - boris_df['time'].iloc[0]).to_numpy()
+    else:
+        raise ValueError("method must be 'stretch' or 'offset'")
+
+    boris_df['Time(s)'] = times
+    return boris_df
+
 ## For Julien's setup
 
 def get_camera_flashes_from_csv(file_path):
@@ -338,8 +379,6 @@ def align_fiber_with_led_flashes(deinterleaved_df, led_df):
 
     return aligned_df
 
-## For original setup (deprecated)
-
 def timestamp_camera(rawdata_df) : #deprecated
     """
     Function to extract the timestamps where the camera starts and stops
@@ -348,23 +387,31 @@ def timestamp_camera(rawdata_df) : #deprecated
     --> Returns
         (camera_start, camera_stop) = timestamp when camera starts and stops in seconds (truncated to 0,1s) #camera_stop à enlever si pas besoin
     """
-    ind_list = np.where(rawdata_df['DI/O-3'] == 1)[0].tolist()
+    print(rawdata_df.columns)
+    ind_list = np.where(rawdata_df['Camera flashes'] == 1)[0].tolist()
     (ind_start, ind_stop) = (ind_list[0],ind_list[len(ind_list)-1])
     return (gp.truncate(rawdata_df.at[ind_start, 'Time(s)'], 1),
             gp.truncate(rawdata_df.at[ind_stop, 'Time(s)'], 1))
 
-def load_camera_df_doric(file_path, plot=False):
-    with h5py.File(file_path, 'r') as f:
-        base = "DataAcquisition/FPConsole/Signals/Series0001/"
-        dio_path = base + "DigitalIO/DIO03"
-        time_path = base + "DigitalIO/Time"
+def load_camera_df_doric(file_path, file_format, plot=False):
+    if file_format == 'doric':
+        with h5py.File(file_path, 'r') as f:
+            base = "DataAcquisition/FPConsole/Signals/Series0001/"
+            dio_path = base + "DigitalIO/DIO03"
+            time_path = base + "DigitalIO/Time"
 
-        if dio_path not in f or time_path not in f:
-            print(f"Missing DIO03 or Time path in {file_path}")
-            return pd.DataFrame(columns=['Time(s)', 'Camera flashes'])
+            if dio_path not in f or time_path not in f:
+                print(f"Missing DIO03 or Time path in {file_path}")
+                return pd.DataFrame(columns=['Time(s)', 'Camera flashes'])
 
-        camera = f[dio_path][:]
-        time = f[time_path][:]
+            camera = f[dio_path][:]
+            time = f[time_path][:]
+
+    elif file_format=='csv_doric':
+
+        rawdata_df=pd.read_csv(file_path,header=1)
+        camera = rawdata_df['DI/O-3']
+        time = rawdata_df['Time(s)']
 
     if len(camera) == 0 or len(time) == 0:
         print(f"Empty camera or time array in {file_path}")
@@ -387,8 +434,8 @@ def load_camera_df_doric(file_path, plot=False):
 
     return camera_df
 
-def get_camera_flashes(file_path):
-    camera_df = load_camera_df_doric(file_path)
+def get_camera_flashes(file_path, file_format):
+    camera_df = load_camera_df_doric(file_path, file_format)
     if camera_df.empty:
         print(f"Camera dataframe is empty for file: {file_path}")
         return pd.DataFrame(columns=['Time(s)'])

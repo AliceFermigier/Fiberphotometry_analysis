@@ -49,10 +49,10 @@ def deinterleave(rawdata_path):
             - '405 Deinterleaved' : Deinterleaved signal for 405nm
             - '470 Deinterleaved' : Deinterleaved signal for 470nm
     """
-    if 'A3f' in str(rawdata_path):
-        rawdata_df=pd.read_csv(rawdata_path)
-    else:
+    try:
         rawdata_df=pd.read_csv(rawdata_path,header=1)
+    except:
+        rawdata_df=pd.read_csv(rawdata_path)
     
     # Calculate the rising edges of DI/O-1 and DI/O-2
     derivative405 = rawdata_df['DI/O-1'].diff()

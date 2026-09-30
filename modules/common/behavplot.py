@@ -188,8 +188,12 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI,
     
     has_speed = 'Speed' in behavprocess_df.columns
     has_560   = '560 dFF' in behavprocess_df.columns
+    has_tracking = 'center_x' in behavprocess_df.columns
 
-    essential_cols = ['Time(s)', 'dFF', 'center_x', 'center_y', 'nose_x', 'nose_y']
+    essential_cols = ['Time(s)', 'dFF']
+    if has_tracking:
+        for bodypart in ['center_x', 'center_y', 'nose_x', 'nose_y']:
+            essential_cols.append(bodypart)
     if has_560:
         essential_cols.append('560 dFF')
     if has_speed:
@@ -247,7 +251,8 @@ def plot_fiberpho_behav(behavprocess_df, list_BOI,
     # ── 4. Event lines on ax1 ────────────────────────────────────────────────
     for event, color, label in [('Gate opens',     'lightsteelblue', 'Gate opens'),
                                  ('Entry in arena', 'slategrey',      'Entry in arena'),
-                                 ('Airpuffs',       'lime',           'Airpuffs')]:
+                                 ('Airpuffs',       'lime',           'Airpuffs'),
+                                 ('Shock',       'red',           'Shock'),]:
         if event in list_BOI and event in behavprocesssnip_df.columns:
             event_indices = np.where(behavprocess_df[event] == 1)[0]
             for i, idx in enumerate(event_indices):

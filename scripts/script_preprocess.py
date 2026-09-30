@@ -45,7 +45,7 @@ from scripts.loader import experiment_path, analysis_path, data_path, proto_df, 
 # 1 - PREPROCESSING
 #####################
 
-exp = 'Plethysmo'
+exp = 'Shock'
 dual_color = False
 file_format = 'csv_doric'
 # Step 1: Create main experiment folder and session subfolders
@@ -78,7 +78,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     if file_format == 'doric':
         raw_data_path = data_path_exp / f'{mouse}_0000.doric'
     elif file_format == 'csv_doric':
-        raw_data_path = data_path_exp / f'{mouse}_1.csv'
+        raw_data_path = data_path_exp / f'{mouse}_0.csv'
 
     # Paths for output deinterleaved and plot files
     deinterleaved_path = pp_path / f'{mouse}_deinterleaved.csv'
@@ -130,7 +130,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.3 - Open artifacted data and score artifacts (when big artifacts due to patch cord disconnection)
 
 #------------------#
-mouse = 'A7f'
+mouse = 'C3m'
 batch = 5
 filecode = f'{exp}_{mouse}'
 #------------------# 
@@ -144,7 +144,7 @@ downsampled_df = deinterleaved_df#pp.downsample(deinterleaved_df, target_frequen
 app = Dash(__name__)
 
 # Create the figure
-fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='465 Deinterleaved')
+fig = px.line(downsampled_df[TIME_BEGIN:], x='Time(s)', y='405 Deinterleaved')
 
 # App layout
 app.layout = html.Div([
@@ -295,7 +295,7 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
 # 1.5 - Manually remove corrupted data if some are left
 
 #------------------#
-mouse = 'B4f'
+mouse = 'A5f'
 batch = 5
 filecode = f'{exp}_{mouse}'
 #------------------# 
