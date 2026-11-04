@@ -50,11 +50,12 @@ bonsai_setup = False
 automated_alignment = False
 arena_analysis = False
 dlc_data = False
+dual_color = False
 file_format = 'csv_doric'
 
 #filter characteristics
 ORDER = 2
-CUT_FREQ = None #in Hz
+CUT_FREQ = 4.5 #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 0
@@ -140,8 +141,6 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             deinterleaved_df = pd.read_csv(deinterleaved_raw_path)
             time_gap = cp.time_gap(deinterleaved_df, led_df)
 
-            fiberpho_df = pd.read_csv(fiberpho_path)
-
     elif not automated_alignment:
         if coordinates_df is not None:
             print('Get camera flashes')
@@ -152,7 +151,8 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
             camera_df = cp.load_camera_df_doric(raw_data_path, file_format, plot=False)
             print('Aligning time with BORIS scoring')
             camera_start, camera_stop = cp.timestamp_camera(camera_df)
-            behav_df = cp.align_boris(boris_df, camera_start, camera_stop, expected_fs=10, mouse=mouse)
+            behav_df = cp.align_boris(boris_df, camera_start, camera_stop, method='stretch',
+                                      expected_fs=10, mouse=mouse)
         else:
             raise ValueError("No valid data to align with camera.")
 
@@ -174,13 +174,13 @@ for mouse, batch in zip(subjects_df['Subject'], subjects_df['Batch']):
     print(f'Behaviour file exported to {behav_path}')
 
     # Fiber photometry
-    fiberpho = pd.read_csv(fiberpho_path)
+    fiberpho_df = pd.read_csv(fiberpho_path)
     if CUT_FREQ is not None:
-        fiberpho = pp.butterfilt(fiberpho, ORDER, CUT_FREQ)
+        fiberpho = cs.lowpass_dFF(fiberpho_df, dual_color, order = ORDER, cut_freq = CUT_FREQ)
 
     # Align behavior and fiber data
     print('Aligning fiberphotometry and behaviour data')
-    fiberbehav_df = bp.align_behav(behav_df, fiberpho, list_BOI)
+    fiberbehav_df = bp.align_behav(behav_df, fiberpho_df, list_BOI)
     fiberbehav_df = bp.behav_process(fiberbehav_df, list_BOI, THRESH_S, EVENT_TIME_THRESHOLD)
 
     # Save outputs

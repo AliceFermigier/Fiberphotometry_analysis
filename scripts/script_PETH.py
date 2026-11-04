@@ -62,15 +62,15 @@ else:
 
 # Plot parameters
 EVENT_LIST = ['onset']
-TIME_WINDOWS = [[10, 20]]  # Time window for PETH calculation (pre, post), for each event
-BASELINE_WINDOW = [10.0,1.0]
+TIME_WINDOWS = [[5, 5]]  # Time window for PETH calculation (pre, post), for each event
+BASELINE_WINDOW = [5.0,0.0]
 
 Y_LIM = [-2,3]
 Y_LIM_DUAL = [-2,3]
 
 
-exp = 'Plethysmo'
-behaviors_of_interest = ['Stim Novel 0', 'Stim Novel 1','Sniff Novel 0', 'Sniff Novel 1', 'Stim HC 0', 'Stim HC 1','Sniff HC 0', 'Sniff HC 1', 'Stim Clean 0', 'Stim Clean 1','Stim Clean 2', 'Sniff Clean 0', 'Sniff Clean 1', 'Sniff Clean 2']
+exp = 'Shock'
+behaviors_of_interest = ['Shock']
 
 #['Licks_filtered','Airpuffs']
 #['Licks_filtered']
@@ -185,16 +185,16 @@ print(f"All plots saved to {peth_path}")
 exp = 'Plethysmo'
 BOI = 'Sniff Clean'
 baseline = False
-concatenate = True
+concatenate = True # for plethysmography data only, if sniffs and stims concatenated
 MAXBOUTSNUMBER = None
 event = 'onset'
-behaviors_to_exclude_baseline=['Stim Novel', 'Stim HC', 'Stim Clean']
+behaviors_to_exclude_baseline=['Stim Novel', 'Sniff Novel', 'Stim HC', 'Sniff HC', 'Stim Clean', 'Sniff Clean']
 
 # Plot parameters
 TIME_WINDOW = [10, 20]
-BASELINE_WINDOW = [TIME_WINDOW[0],1.0]
+BASELINE_WINDOW = [3.0,0.0]
 
-Y_LIM = [-2,4]
+Y_LIM = [-1,4]
 Y_LIM_DUAL = [-2,4]
 
 # ── PETH by bout number

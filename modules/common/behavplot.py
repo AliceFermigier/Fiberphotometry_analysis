@@ -55,44 +55,48 @@ def align_dlc_to_fiber(fiberpho_df, dlc_df, time_col="Time(s)"):
     
     return aligned
 
-def align_behav(behav_df, fiberpho, list_BOI):
+def align_behav(behav_df, fiberpho, list_BOI, time_cols=('time', 'Time(s)')):
     """
     Aligns fiber photometry data with behavioral data from Boris or DLC on a time vector.
-    Binary BOI columns use nearest-neighbor interpolation to preserve clean 0/1 values.
+    Binary BOI columns are transferred as bouts (start/end times) so that short events
+    (even a single behaviour sample) are never lost.
     Continuous columns (dFF, speed, etc.) use linear interpolation.
     """
-    start, stop = behav_df['Time(s)'].values[0], behav_df['Time(s)'].values[-1]
-    behav_time  = fiberpho.loc[
-        (fiberpho['Time(s)'] >= start) & (fiberpho['Time(s)'] <= stop), 'Time(s)'
-    ]
-
-    n_before = len(fiberpho.loc[fiberpho['Time(s)'] < start])
-    n_after  = len(fiberpho) - (len(behav_time) + n_before)
-
-    pad_begin = np.empty(n_before, dtype=float)
-    pad_end   = np.empty(n_after,  dtype=float)
-
     behav_times_arr = behav_df['Time(s)'].values
-    fiber_times_arr = behav_time.values
+    start, stop = behav_times_arr[0], behav_times_arr[-1]
 
-    for col in behav_df.columns[1:]:
+    fiber_all = fiberpho['Time(s)'].values
+    in_range = (fiber_all >= start) & (fiber_all <= stop)
+    fiber_times_arr = fiber_all[in_range]
+
+    # behaviour sample period (≈ 1/fs after stretching)
+    dt = np.median(np.diff(behav_times_arr))
+
+    for col in behav_df.columns:
+        if col in time_cols:
+            continue
+
         if col in list_BOI:
-            pad_begin.fill(0.0)
-            pad_end.fill(0.0)
+            out = np.zeros(len(fiber_all), dtype=float)
+            x = behav_df[col].fillna(0).values.astype(int)
+            d = np.diff(np.r_[0, x, 0])
+            starts = np.where(d == 1)[0]
+            ends = np.where(d == -1)[0] - 1          # last sample of each bout
 
-            # ── Nearest-neighbor: find the closest behav frame for each fiber frame ──
-            indices      = np.searchsorted(behav_times_arr, fiber_times_arr, side='left')
-            indices      = np.clip(indices, 0, len(behav_df) - 1)
-            interpolated = behav_df[col].values[indices].astype(float)
-
+            for s, e in zip(starts, ends):
+                t0, t1 = behav_times_arr[s], behav_times_arr[e] + dt
+                i0 = np.searchsorted(fiber_all, t0, side='left')
+                i1 = np.searchsorted(fiber_all, t1, side='left')
+                if i1 > i0:
+                    out[i0:i1] = 1.0
+                else:                                 # bout shorter than a fiber sample
+                    out[np.argmin(np.abs(fiber_all - t0))] = 1.0
         else:
-            pad_begin.fill(np.nan)
-            pad_end.fill(np.nan)
+            out = np.full(len(fiber_all), np.nan)
+            out[in_range] = np.interp(fiber_times_arr, behav_times_arr,
+                                      behav_df[col].values)
 
-            # ── Linear interpolation for continuous signals ────────────────────────
-            interpolated = np.interp(fiber_times_arr, behav_times_arr, behav_df[col].values)
-
-        fiberpho[col] = np.concatenate([pad_begin, interpolated, pad_end])
+        fiberpho[col] = out
 
     return fiberpho
 
