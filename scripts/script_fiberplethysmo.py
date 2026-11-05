@@ -59,8 +59,8 @@ pp_path = data_path_exp / 'Preprocessing'
 dual_color = False
 
 #filter characteristics
-ORDER = 4
-CUT_FREQ = None #in Hz
+ORDER = 2
+CUT_FREQ = 3 #in Hz
 
 #threshold to fuse behaviour if bouts are too close, in secs
 THRESH_S = 0

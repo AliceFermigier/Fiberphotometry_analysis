@@ -4,6 +4,9 @@
 
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import find_peaks, peak_widths
+from scipy.ndimage import uniform_filter1d
 
 import modules.common.transients as tr
 import modules.common.preprocess as pp
@@ -122,15 +125,31 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
         'Batch' : batch,
         'Group' : group,
     }
+
     if baseline_signal_raw.size >= 2:
         baseline_record['Baseline std dFF']  = round(float(np.std(baseline_signal_raw, ddof=1)), 6)
+        baseline_record['Baseline var dFF']  = round(float(np.var(baseline_signal_raw, ddof=1)), 6)
         baseline_record['Baseline mean dFF'] = round(float(np.mean(baseline_signal_raw)), 6)
         baseline_record['Baseline AUC dFF']  = round(float(np.sum(baseline_signal_raw) / fps), 6)
     else:
         print("  Warning: not enough baseline frames, baseline metrics set to NaN.")
         baseline_record['Baseline std dFF']  = float('nan')
+        baseline_record['Baseline var dFF']  = float('nan')
         baseline_record['Baseline mean dFF'] = float('nan')
         baseline_record['Baseline AUC dFF']  = float('nan')
+
+    # ── Whole-trace variability (raw dFF, includes stims and sniffs) ──────────
+    valid = np.isfinite(raw_signal)
+    if 'dFF ExclusionMask' in fiberbehav_df.columns:       # drop corrupted regions
+        valid &= ~fiberbehav_df['dFF ExclusionMask'].values.astype(bool)
+
+    whole = raw_signal[valid]
+    if whole.size >= 2:
+        baseline_record['Whole trace std dFF'] = round(float(np.std(whole, ddof=1)), 6)
+        baseline_record['Whole trace var dFF'] = round(float(np.var(whole, ddof=1)), 6)
+    else:
+        baseline_record['Whole trace std dFF'] = float('nan')
+        baseline_record['Whole trace var dFF'] = float('nan')
 
     # ── Helper: find contiguous True runs (bouts) in a boolean mask ───────────
     def _get_bouts(mask):
@@ -227,62 +246,238 @@ def extract_dff_summary(fiberbehav_df, mouse, batch, group,
 
     return record, baseline_record
 
-def variance_transients(fiberbehav_df, list_BOI, mouse, group, exp, batch, threshold):
+def plot_transients(time, sig, valid, peaks, amplitudes, width_heights,
+                    left_t, right_t, median_level, prominence, title,
+                    zoom_start_s=0.0, zoom_len_s=120.0, save_path=None):
+    """Whole trace + zoomed panel with threshold, detected peaks, amplitudes and widths."""
+    fig, axes = plt.subplots(2, 1, figsize=(14, 7))
+    t0 = time[0]
+    windows = [(time[0], time[-1]), (t0 + zoom_start_s, t0 + zoom_start_s + zoom_len_s)]
+
+    # contiguous excluded regions (for shading)
+    inv = (~valid).astype(int)
+    edges = np.diff(np.concatenate([[0], inv, [0]]))
+    starts, ends = np.where(edges == 1)[0], np.where(edges == -1)[0] - 1
+
+    for ax, (xmin, xmax) in zip(axes, windows):
+        ax.plot(time, sig, color='k', lw=0.7, label='dFF')
+        for s, e in zip(starts, ends):
+            ax.axvspan(time[s], time[e], color='grey', alpha=0.3, lw=0)
+        ax.axhline(median_level, color='tab:blue', ls=':', lw=1, label='median')
+        ax.axhline(median_level + prominence, color='tab:red', ls='--', lw=1,
+                   label=f'median + prominence thr ({prominence:.3f})')
+        if len(peaks):
+            ax.plot(time[peaks], sig[peaks], 'v', color='tab:red', ms=6, label='transients')
+            ax.vlines(time[peaks], sig[peaks] - amplitudes, sig[peaks],
+                      color='tab:red', lw=1.2)                           # amplitude
+            ax.hlines(width_heights, left_t, right_t, color='tab:green', lw=1.5)  # width
+        ax.set_xlim(xmin, xmax)
+        # y-limits adapted to the visible window
+        m = (time >= xmin) & (time <= xmax) & np.isfinite(sig)
+        if m.any():
+            pad = 0.05 * (sig[m].max() - sig[m].min() + 1e-12)
+            ax.set_ylim(sig[m].min() - pad, sig[m].max() + pad)
+        ax.set_ylabel('dFF')
+
+    axes[0].set_title(f'{title} — {len(peaks)} transients')
+    axes[0].legend(loc='upper right', fontsize=8, ncol=4)
+    axes[1].set_xlabel('Time (s)')
+    plt.tight_layout()
+    if save_path is not None:
+        fig.savefig(save_path, dpi=150)
+        plt.close(fig)       # free memory when looping over mice
+    return fig
+
+def extract_transients(fiberbehav_df, mouse, batch, group,
+                       zone_cols=None, behav_cols=None,
+                       baseline_col=None,
+                       baseline_exclude_cols=None,
+                       merge_into=None,
+                       stim_sniff_pairs=None,
+                       dff_col='dFF',
+                       fps=10,
+                       threshold_mode='mad',
+                       mad_k=3.0,
+                       abs_prominence=None,
+                       min_distance_s=0.5,
+                       min_width_s=0.0,
+                       smooth_s=0.0,
+                       rel_height=0.5,
+                       exclusion_col='dFF ExclusionMask',
+                       plot=False, plot_path=None,
+                       zoom_start_s=0.0, zoom_len_s=120.0):
     """
-    Calculates variance, transient frequency, and amplitude during whole trace and during behaviours
-    
-    Output:
-    - A dataframe with variance, transient frequency and amplitude.
+    Detect transients on the whole trace, then split metrics by period.
+
+    Periods
+    -------
+    'Whole trace'  : all valid frames
+    'Baseline'     : valid frames where none of `baseline_exclude_cols` is active
+                     (default: zone_cols + behav_cols), or `baseline_col` if given
+    each zone_col / behav_col : frames where that column is active
+                     (zone masks also include merged behaviours, as in extract_dff_summary)
+    '{stim} no sniff' : stim active AND matching sniff inactive (stim_sniff_pairs, {stim: sniff})
+
+    A transient belongs to a period if its PEAK falls inside it. Periods can
+    overlap (a sniff inside a stim counts in both), which is why the events table
+    has one boolean column per period instead of a single label.
+
+    Returns
+    -------
+    record    : dict, one row per mouse, columns '{period} N transients',
+                '{period} duration (min)', '{period} frequency (per min)',
+                '{period} mean amplitude', '{period} mean width (s)'
+    events_df : one row per transient, with a boolean column per period
     """
-    
-    # Calculate variance during whole trace, baseline and post-baseline periods
-    variance = np.var(fiberbehav_df['dFF'])
-    
-    # Calculate transients for whole trace, baseline and post-baseline periods
-    peaks_df, peak_frequency, peak_amplitude, transients_fig = tr.transients(fiberbehav_df, threshold)
+    zone_cols = zone_cols or []
+    behav_cols = behav_cols or []
+    merge_into = merge_into or {}
+    stim_sniff_pairs = stim_sniff_pairs or {}
 
-    # Store the results in a dataframe
-    results_df = pd.DataFrame({
-        'Batch': batch,
-        'Subject': mouse,
-        'Group': group,
-        'Variance': variance,
-        'Transients Frequency': peak_frequency,
-        'Transients Amplitude': peak_amplitude,
-    }, index=[0])
+    if dff_col not in fiberbehav_df.columns:
+        raise ValueError(f"Column '{dff_col}' not found in dataframe.")
 
-    if list_BOI != []:
-        for behavior in list_BOI:
-            if behavior not in fiberbehav_df.columns:
-                print(f"Warning: Behavior '{behavior}' not found in DataFrame.")
-                continue
+    n = len(fiberbehav_df)
+    sig = fiberbehav_df[dff_col].values.astype(float)
+    valid = np.isfinite(sig)
+    if exclusion_col in fiberbehav_df.columns:
+        valid &= ~fiberbehav_df[exclusion_col].values.astype(bool)
 
-            # Find rows where behavior is active
-            behavior_mask = fiberbehav_df[behavior] == 1
+    time = (fiberbehav_df['Time(s)'].values.astype(float)
+            if 'Time(s)' in fiberbehav_df.columns else np.arange(n) / fps)
 
-            # Peaks during that behavior
-            behavior_peaks = peaks_df[(peaks_df['Peaks'] == 1) & behavior_mask]
+    def _col(c):
+        return fiberbehav_df[c].values.astype(bool)
 
-            # Duration of behavior period in seconds
-            behavior_time = fiberbehav_df.loc[behavior_mask, 'Time(s)']
-            if behavior_time.empty:
-                duration = np.nan
+    # ── Period masks ──────────────────────────────────────────────────────────
+    periods = {'Whole trace': np.ones(n, dtype=bool)}
+
+    if baseline_col is not None:
+        periods['Baseline'] = _col(baseline_col)
+    else:
+        excl = baseline_exclude_cols if baseline_exclude_cols is not None else zone_cols + behav_cols
+        base = np.ones(n, dtype=bool)
+        for c in excl:
+            if c in fiberbehav_df.columns:
+                base &= ~_col(c)
             else:
-                duration = behavior_time.iloc[-1] - behavior_time.iloc[0]
+                print(f"  Warning: '{c}' not found, ignored for baseline mask.")
+        periods['Baseline'] = base
 
-            # Calculate frequency and mean amplitude during behavior
-            if duration and len(behavior_peaks) > 0:
-                freq = len(behavior_peaks) / duration
-                amp = behavior_peaks['Filtered dFF'].mean()
-            else:
-                freq = np.nan
-                amp = np.nan
+    for c in zone_cols:
+        if c not in fiberbehav_df.columns:
+            print(f"  Warning: zone column '{c}' not found."); continue
+        m = _col(c)
+        for behav, target in merge_into.items():
+            if target == c and behav in fiberbehav_df.columns:
+                m = m | _col(behav)
+        periods[c] = m
 
-            # Add to results
-            results_df[f'{behavior} Transients Frequency'] = freq
-            results_df[f'{behavior} Transients Amplitude'] = amp
-    
-    return results_df, transients_fig
+    for c in behav_cols:
+        if c not in fiberbehav_df.columns:
+            print(f"  Warning: behaviour column '{c}' not found."); continue
+        periods[c] = _col(c)
+
+    for stim, sniff in stim_sniff_pairs.items():
+        if stim in fiberbehav_df.columns and sniff in fiberbehav_df.columns:
+            periods[f'{stim} no sniff'] = _col(stim) & ~_col(sniff)
+        else:
+            print(f"  Warning: '{stim}' or '{sniff}' not found.")
+
+    record = {'Mouse': mouse, 'Batch': batch, 'Group': group}
+    event_cols = ['Mouse', 'Batch', 'Group', 'Time(s)', 'Amplitude', 'Width (s)', 'Peak height'] + list(periods)
+    empty = pd.DataFrame(columns=event_cols)
+
+    def _fill_nan():
+        for p in periods:
+            record[f'{p} N transients'] = np.nan
+            record[f'{p} duration (min)'] = np.nan
+            record[f'{p} frequency (per min)'] = np.nan
+            record[f'{p} mean amplitude'] = np.nan
+            record[f'{p} mean width (s)'] = np.nan
+
+    if valid.sum() < 2:
+        _fill_nan()
+        return record, empty
+
+    # ── Detection on the whole trace ──────────────────────────────────────────
+    median_level = np.median(sig[valid])
+    sig_f = np.where(valid, sig, median_level)
+    n_smooth = int(round(smooth_s * fps))
+    if n_smooth > 1:
+        sig_f = uniform_filter1d(sig_f, size=n_smooth)
+
+    sigma = 1.4826 * np.median(np.abs(sig_f[valid] - median_level))
+
+    if threshold_mode == 'mad':
+        prominence = mad_k * sigma
+    elif threshold_mode == 'absolute':
+        if abs_prominence is None:
+            raise ValueError("abs_prominence must be set when threshold_mode='absolute'.")
+        prominence = abs_prominence
+    else:
+        raise ValueError("threshold_mode must be 'mad' or 'absolute'.")
+
+    peaks, props = find_peaks(sig_f, prominence=prominence,
+                              distance=max(1, int(round(min_distance_s * fps))))
+
+    amplitudes = np.array([]); widths_s = np.array([])
+    width_heights = np.array([]); left_t = np.array([]); right_t = np.array([])
+
+    if len(peaks) > 0:
+        widths, w_heights, left_ips, right_ips = peak_widths(
+            sig_f, peaks, rel_height=rel_height,
+            prominence_data=(props['prominences'], props['left_bases'], props['right_bases']))
+        widths_all_s = widths / fps
+
+        keep = np.zeros(len(peaks), dtype=bool)
+        for k, p in enumerate(peaks):
+            lb, rb = props['left_bases'][k], props['right_bases'][k]
+            keep[k] = valid[lb:rb + 1].all() and widths_all_s[k] >= min_width_s
+
+        peaks         = peaks[keep]
+        amplitudes    = props['prominences'][keep]
+        widths_s      = widths_all_s[keep]
+        width_heights = w_heights[keep]
+        idx = np.arange(n)
+        left_t  = np.interp(left_ips[keep],  idx, time)
+        right_t = np.interp(right_ips[keep], idx, time)
+
+    # ── QC plot ───────────────────────────────────────────────────────────────
+    if plot:
+        plot_transients(time, sig_f, valid, peaks, amplitudes, width_heights,
+                        left_t, right_t, median_level, prominence,
+                        title=f'{batch} {mouse} ({group}) — {dff_col} — thr={prominence:.3f}',
+                        zoom_start_s=zoom_start_s, zoom_len_s=zoom_len_s,
+                        save_path=plot_path)
+
+    # ── Metrics per period ────────────────────────────────────────────────────
+    for p, m in periods.items():
+        dur_min = (valid & m).sum() / fps / 60
+        in_p = m[peaks] if len(peaks) else np.array([], dtype=bool)
+        n_p = int(in_p.sum())
+        record[f'{p} N transients']        = n_p
+        record[f'{p} duration (min)']      = round(float(dur_min), 6)
+        record[f'{p} frequency (per min)'] = round(n_p / dur_min, 6) if dur_min > 0 else np.nan
+        record[f'{p} mean amplitude']      = round(float(np.mean(amplitudes[in_p])), 6) if n_p else np.nan
+        record[f'{p} mean width (s)']      = round(float(np.mean(widths_s[in_p])), 6) if n_p else np.nan
+
+    record['Noise sigma (MAD)']    = round(float(sigma), 6)
+    record['Prominence threshold'] = round(float(prominence), 6)
+
+    if len(peaks) == 0:
+        return record, empty
+
+    events_df = pd.DataFrame({
+        'Mouse': mouse, 'Batch': batch, 'Group': group,
+        'Time(s)': time[peaks],
+        'Amplitude': amplitudes,
+        'Width (s)': widths_s,
+        'Peak height': sig[peaks],
+    })
+    for p, m in periods.items():
+        events_df[p] = m[peaks]
+    return record, events_df
 
 def compute_PETH_bybout_metrics(PETH_list, subject_list, group_list,
                                  timewindow, BOI, step=1, max_bouts=None,

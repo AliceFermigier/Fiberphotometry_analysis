@@ -305,7 +305,8 @@ def PETH(behavprocess_df, BOI, event, timewindow,
          baseline_col=None,
          baseline_start_stop_s=[2.0, 0.0],
          baseline_method='mean',
-         baseline_percentile=10):
+         baseline_percentile=10,
+         zscore=True):
     """
     Creates dataframe of fiberpho data centered on bout event for BOI.
 
@@ -339,10 +340,13 @@ def PETH(behavprocess_df, BOI, event, timewindow,
             Method to compute F0: 'mean' | 'median' | 'percentile'.
     - baseline_percentile : int
             Percentile used when baseline_method='percentile'.
+    - zscore : bool
+            Whether to zscore the data with dts or not
 
     Returns
     - PETH_array : np.ndarray
             Z-scored fiberpho data centred on event, shape (n_bouts, timepoints).
+            Option to not z-score the data
     """
 
     # ── Signal preparation ────────────────────────────────────────────────────
@@ -456,7 +460,10 @@ def PETH(behavprocess_df, BOI, event, timewindow,
             ]
 
             if len(event_window) == n_timepoints:
-                PETH_array[i] = (event_window.values - F0) / std0
+                if zscore == True:
+                    PETH_array[i] = (event_window.values - F0) / std0
+                else:
+                    PETH_array[i] = (event_window.values - F0)
 
         except Exception as e:
             print(f"Error processing event at index {ind_event}: {e}")

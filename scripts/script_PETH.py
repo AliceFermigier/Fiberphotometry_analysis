@@ -183,15 +183,16 @@ print(f"All plots saved to {peth_path}")
 # ----------------------------- #
 # PETH parameters
 exp = 'Plethysmo'
-BOI = 'Sniff Clean'
+BOI = 'Sniff Novel'
 baseline = False
 concatenate = True # for plethysmography data only, if sniffs and stims concatenated
+zscore = False
 MAXBOUTSNUMBER = None
 event = 'onset'
 behaviors_to_exclude_baseline=['Stim Novel', 'Sniff Novel', 'Stim HC', 'Sniff HC', 'Stim Clean', 'Sniff Clean']
 
 # Plot parameters
-TIME_WINDOW = [10, 20]
+TIME_WINDOW = [10, 10]
 BASELINE_WINDOW = [3.0,0.0]
 
 Y_LIM = [-1,4]
@@ -206,6 +207,8 @@ if baseline:
     tag = f"windowedbaseline_maxbouts{MAXBOUTSNUMBER}"
 else:
     tag = f"wholetrace_maxbouts{MAXBOUTSNUMBER}"
+if not zscore:
+    tag = tag+"_raw"
 
 # Set groups
 subjects_df['Group'] = subjects_df['Group'].fillna('')
@@ -282,7 +285,8 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
             baselinewindow=baseline, maxboutsnumber=MAXBOUTSNUMBER,
             baseline_start_stop_s=BASELINE_WINDOW, 
             baseline_method='median',      
-            baseline_percentile=10
+            baseline_percentile=10,
+            zscore=zscore
         )
 
         print(f"PETH shape : {PETH_mouse.shape}")
@@ -305,7 +309,8 @@ for mouse, batch, group in zip(subjects_df['Subject'], subjects_df['Batch'], sub
                 dFF_column='560 dFF',
                 baseline_start_stop_s=BASELINE_WINDOW, 
                 baseline_method='median',      
-                baseline_percentile=10
+                baseline_percentile=10,
+                zscore=zscore
                 )
             
             PETH_list_560.append(PETH_mouse_560)
